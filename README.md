@@ -37,6 +37,30 @@ npm run test
 - 교사 허용 범위: `GOOGLE_HOSTED_DOMAIN` 또는 `TEACHER_EMAIL_ALLOWLIST`
 - 시트 템플릿/연동: `GOOGLE_SHEETS_TEMPLATE_ID` 및 서비스 계정 값
 
+## Deploy To Render
+
+루트의 [`render.yaml`](./render.yaml)로 Render Blueprint 배포를 바로 시작할 수 있습니다.
+
+1. GitHub 저장소를 Render에 연결하고 Blueprint 배포를 선택합니다.
+2. `render.yaml`을 읽어 `paps-tracker` 웹 서비스를 생성합니다.
+3. `NEXTAUTH_URL`은 실제 Render 주소로 입력합니다.
+4. 교사 로그인을 쓸 경우 `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, 그리고 `GOOGLE_HOSTED_DOMAIN` 또는 `TEACHER_EMAIL_ALLOWLIST`를 설정합니다.
+5. Google OAuth 승인된 리디렉션 URI에 `https://<your-render-domain>/api/auth/callback/google`를 추가합니다.
+
+Render 설정 기준:
+
+- 인스턴스 타입: `starter`
+- 리전: `singapore`
+- 헬스체크: `/api/health`
+- Persistent Disk 마운트 경로: `/var/data/paps`
+- 앱 저장 경로(`PAPS_STORE_PATH`): `/var/data/paps/demo-store.json`
+
+주의:
+
+- Render는 기본 파일시스템이 ephemeral이므로, 현재 MVP처럼 파일 저장소를 쓸 때는 Persistent Disk가 꼭 필요합니다.
+- Persistent Disk는 유료 웹 서비스에서만 사용할 수 있습니다.
+- 디스크가 붙은 서비스는 다중 인스턴스 확장이 불가하므로 현재 설정은 `numInstances: 1`입니다.
+
 ## MVP Limitations
 
 - Google OAuth와 Google Sheets 실연동은 실제 자격 증명이 있어야 동작합니다.

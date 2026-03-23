@@ -1,0 +1,41 @@
+services:
+  - type: web
+    name: paps-tracker
+    runtime: node
+    plan: starter
+    region: singapore
+    branch: main
+    autoDeployTrigger: commit
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start -- --hostname 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    numInstances: 1
+    disk:
+      name: paps-store
+      mountPath: /var/data/paps
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_APP_NAME
+        value: PAPS 학생 기록 시스템
+      - key: NEXTAUTH_SECRET
+        generateValue: true
+      - key: NEXTAUTH_URL
+        sync: false
+      - key: PAPS_STORE_PATH
+        value: /var/data/paps/demo-store.json
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_HOSTED_DOMAIN
+        value: ""
+      - key: TEACHER_EMAIL_ALLOWLIST
+        value: ""
+      - key: GOOGLE_SHEETS_TEMPLATE_ID
+        value: ""
+      - key: GOOGLE_SERVICE_ACCOUNT_EMAIL
+        value: ""
+      - key: GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY
+        value: ""

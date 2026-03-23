@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
         new Set([
           teacher.id,
           ...(Array.isArray(body?.teacherIds)
-            ? body.teacherIds.filter((value): value is string => typeof value === "string")
+            ? body.teacherIds.filter((value: unknown): value is string => typeof value === "string")
             : [])
         ])
       ),

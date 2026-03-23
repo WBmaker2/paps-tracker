@@ -7,22 +7,10 @@ import { SyncStatusCard } from "../../../src/components/teacher/sync-status-card
 import { getDemoStore } from "../../../src/lib/demo-store";
 import { createPapsGoogleSheetTabPayloads } from "../../../src/lib/google/sheets";
 import { getEventDefinition } from "../../../src/lib/paps/catalog";
-import type { PAPSSession } from "../../../src/lib/paps/types";
+import { selectPrimaryResultsSession } from "../../../src/lib/teacher-results";
 import { requireTeacherSession } from "../../../src/lib/teacher-auth";
 
 const emptyResults: TeacherResultRow[] = [];
-
-export const selectPrimaryResultsSession = (sessions: PAPSSession[]): PAPSSession | null =>
-  [...sessions].sort((left, right) => {
-    const leftOpenRank = left.isOpen ? 1 : 0;
-    const rightOpenRank = right.isOpen ? 1 : 0;
-
-    return (
-      rightOpenRank - leftOpenRank ||
-      (right.createdAt?.localeCompare(left.createdAt ?? "") ?? 0) ||
-      left.id.localeCompare(right.id)
-    );
-  })[0] ?? null;
 
 export default async function TeacherResultsPage() {
   const teacherSession = await requireTeacherSession();

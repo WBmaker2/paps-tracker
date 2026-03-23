@@ -14,7 +14,7 @@ vi.mock("../../src/lib/teacher-auth", () => ({
 
 describe("teacher results session selection", () => {
   it("prefers the newest open session and otherwise falls back to the newest created session", async () => {
-    const { selectPrimaryResultsSession } = await import("../../app/teacher/results/page");
+    const { selectPrimaryResultsSession } = await import("../../src/lib/teacher-results");
 
     const sessions: PAPSSession[] = [
       {

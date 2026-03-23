@@ -8,7 +8,7 @@ const gradeRuleKey = (
   eventId: OfficialGradeRule["eventId"]
 ): GradeRuleKey => `${gradeLevel}:${sex}:${eventId}`;
 
-export const OFFICIAL_GRADE_RULES: Record<GradeRuleKey, OfficialGradeRule> = {
+export const OFFICIAL_GRADE_RULES: Partial<Record<GradeRuleKey, OfficialGradeRule>> = {
   [gradeRuleKey(5, "male", "shuttle-run")]: {
     eventId: "shuttle-run",
     gradeLevel: 5,
