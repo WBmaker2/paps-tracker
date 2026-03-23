@@ -2,8 +2,8 @@ import React from "react";
 
 import { AppShell } from "../../src/components/layout/app-shell";
 import { TeacherSessionWorkspace } from "../../src/components/teacher/session-form";
-import { getDemoStore } from "../../src/lib/demo-store";
 import { requireTeacherSession } from "../../src/lib/teacher-auth";
+import { createStoreForRequest } from "../../src/lib/store/paps-store";
 
 const formatSessionBadge = (count: number, label: string) => ({
   label,
@@ -12,18 +12,13 @@ const formatSessionBadge = (count: number, label: string) => ({
 
 export default async function TeacherDashboardPage() {
   const teacherSession = await requireTeacherSession();
-  const store = getDemoStore();
-  const teacher = store.getTeacherByEmail(teacherSession.email);
-  const schoolId = teacher?.schoolId;
-  const schools = store.listSchools().filter((school) => !schoolId || school.id === schoolId);
-  const classes = store.listClasses().filter((classroom) => !schoolId || classroom.schoolId === schoolId);
-  const students = store.listStudents().filter((student) => !schoolId || student.schoolId === schoolId);
-  const sessions = store.listSessions().filter((session) => !schoolId || session.schoolId === schoolId);
+  const store = await createStoreForRequest();
+  const bootstrap = await store.getTeacherBootstrap({ teacherEmail: teacherSession.email });
   const summaryCards = [
-    formatSessionBadge(schools.length, "학교"),
-    formatSessionBadge(classes.length, "학급"),
-    formatSessionBadge(students.length, "학생"),
-    formatSessionBadge(sessions.length, "세션")
+    formatSessionBadge(bootstrap.schools.length, "학교"),
+    formatSessionBadge(bootstrap.classes.length, "학급"),
+    formatSessionBadge(bootstrap.students.length, "학생"),
+    formatSessionBadge(bootstrap.sessions.length, "세션")
   ];
 
   return (
@@ -44,10 +39,10 @@ export default async function TeacherDashboardPage() {
         ))}
       </section>
       <TeacherSessionWorkspace
-        classes={classes}
-        sessions={sessions}
-        defaultTeacherId={teacher?.id}
-        defaultSchoolId={schoolId}
+        classes={bootstrap.classes}
+        sessions={bootstrap.sessions}
+        defaultTeacherId={bootstrap.teacher?.id}
+        defaultSchoolId={bootstrap.teacher?.schoolId}
       />
     </AppShell>
   );

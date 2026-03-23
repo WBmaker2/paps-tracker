@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 
 import { NextRequest, NextResponse } from "next/server";
 
-import { getDemoStore } from "../../../src/lib/demo-store";
 import { requireTeacherRouteSession } from "../../../src/lib/teacher-auth";
+import { createStoreForRequest } from "../../../src/lib/store/paps-store";
 import type { EventId, GradeLevel, PAPSSession, PAPSTeacher, SessionType } from "../../../src/lib/paps/types";
 
 const parseGradeLevel = (value: unknown): GradeLevel => {
@@ -42,11 +42,11 @@ const forbiddenResponse = (message = "Forbidden") =>
     }
   );
 
-const getAuthorizedTeacherContext = (teacherEmail: string): {
-  store: ReturnType<typeof getDemoStore>;
+const getAuthorizedTeacherContext = async (teacherEmail: string): Promise<{
+  store: Awaited<ReturnType<typeof createStoreForRequest>>;
   teacher: PAPSTeacher;
-} => {
-  const store = getDemoStore();
+}> => {
+  const store = await createStoreForRequest();
   const teacher = store.getTeacherByEmail(teacherEmail);
 
   if (!teacher?.schoolId) {
@@ -59,8 +59,8 @@ const getAuthorizedTeacherContext = (teacherEmail: string): {
   };
 };
 
-const toSessionInput = (body: Record<string, unknown>, teacherEmail: string): PAPSSession => {
-  const { store, teacher } = getAuthorizedTeacherContext(teacherEmail);
+const toSessionInput = async (body: Record<string, unknown>, teacherEmail: string): Promise<PAPSSession> => {
+  const { store, teacher } = await getAuthorizedTeacherContext(teacherEmail);
   const gradeLevel = parseGradeLevel(body.gradeLevel);
   const sessionType = parseSessionType(body.sessionType);
   const classScope = body.classScope === "split" ? "split" : "single";
@@ -155,11 +155,11 @@ export async function GET(request: NextRequest) {
     return teacherSession.response;
   }
 
-  let store: ReturnType<typeof getDemoStore>;
+  let store: Awaited<ReturnType<typeof createStoreForRequest>>;
   let teacher: PAPSTeacher;
 
   try {
-    ({ store, teacher } = getAuthorizedTeacherContext(teacherSession.session.email));
+    ({ store, teacher } = await getAuthorizedTeacherContext(teacherSession.session.email));
   } catch {
     return forbiddenResponse();
   }
@@ -191,9 +191,9 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
 
   try {
-    const { store } = getAuthorizedTeacherContext(teacherSession.session.email);
+    const { store } = await getAuthorizedTeacherContext(teacherSession.session.email);
     const session = store.saveSession(
-      toSessionInput((body ?? {}) as Record<string, unknown>, teacherSession.session.email)
+      await toSessionInput((body ?? {}) as Record<string, unknown>, teacherSession.session.email)
     );
 
     return NextResponse.json(

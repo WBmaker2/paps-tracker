@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { getDemoStore } from "../../../../src/lib/demo-store";
 import { requireTeacherRouteSession } from "../../../../src/lib/teacher-auth";
+import { createStoreForRequest } from "../../../../src/lib/store/paps-store";
 import type { EventId, GradeLevel, PAPSSession, PAPSTeacher, SessionType } from "../../../../src/lib/paps/types";
 
 const parseOptionalGradeLevel = (value: unknown, fallback: GradeLevel): GradeLevel => {
@@ -56,11 +56,11 @@ const forbiddenResponse = (message = "Forbidden") =>
     }
   );
 
-const getAuthorizedTeacherContext = (teacherEmail: string): {
-  store: ReturnType<typeof getDemoStore>;
+const getAuthorizedTeacherContext = async (teacherEmail: string): Promise<{
+  store: Awaited<ReturnType<typeof createStoreForRequest>>;
   teacher: PAPSTeacher;
-} => {
-  const store = getDemoStore();
+}> => {
+  const store = await createStoreForRequest();
   const teacher = store.getTeacherByEmail(teacherEmail);
 
   if (!teacher?.schoolId) {
@@ -76,23 +76,25 @@ const getAuthorizedTeacherContext = (teacherEmail: string): {
 const getOwnedSession = (
   teacherEmail: string,
   sessionId: string
-): {
-  store: ReturnType<typeof getDemoStore>;
+): Promise<{
+  store: Awaited<ReturnType<typeof createStoreForRequest>>;
   teacher: PAPSTeacher;
   session: PAPSSession;
-} => {
-  const { store, teacher } = getAuthorizedTeacherContext(teacherEmail);
-  const session = store.getSession(sessionId);
+}> => {
+  return getAuthorizedTeacherContext(teacherEmail).then((context) => {
+    const { store, teacher } = context;
+    const session = store.getSession(sessionId);
 
-  if (session.schoolId !== teacher.schoolId) {
-    throw new Error("Forbidden");
-  }
+    if (session.schoolId !== teacher.schoolId) {
+      throw new Error("Forbidden");
+    }
 
-  return {
-    store,
-    teacher,
-    session
-  };
+    return {
+      store,
+      teacher,
+      session
+    };
+  });
 };
 
 const mergeSession = (currentSession: PAPSSession, body: Record<string, unknown>): PAPSSession => {
@@ -151,7 +153,7 @@ export async function GET(_request: NextRequest, context: SessionRouteContext) {
   const { sessionId } = await context.params;
 
   try {
-    const { session } = getOwnedSession(teacherSession.session.email, sessionId);
+    const { session } = await getOwnedSession(teacherSession.session.email, sessionId);
 
     return NextResponse.json({
       session
@@ -183,7 +185,7 @@ export async function PATCH(request: NextRequest, context: SessionRouteContext) 
   const { sessionId } = await context.params;
 
   try {
-    const { store, teacher, session } = getOwnedSession(teacherSession.session.email, sessionId);
+    const { store, teacher, session } = await getOwnedSession(teacherSession.session.email, sessionId);
     const bodyRecord = (body ?? {}) as Record<string, unknown>;
 
     if (

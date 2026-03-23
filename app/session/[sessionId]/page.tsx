@@ -2,9 +2,9 @@ import React from "react";
 import Link from "next/link";
 
 import { SplitSessionView } from "../../../src/components/student/split-session-view";
-import { getDemoStore } from "../../../src/lib/demo-store";
 import { getEventDefinition } from "../../../src/lib/paps/catalog";
 import type { EventId, PAPSStudent } from "../../../src/lib/paps/types";
+import { createStoreForRequest } from "../../../src/lib/store/paps-store";
 
 type StudentSessionPageProps = {
   params: Promise<{
@@ -28,7 +28,7 @@ const sortStudents = (left: PAPSStudent, right: PAPSStudent): number => {
 
 export default async function StudentSessionPage({ params }: StudentSessionPageProps) {
   const { sessionId } = await params;
-  const store = getDemoStore();
+  const store = await createStoreForRequest();
 
   try {
     const session = store.getSession(sessionId);

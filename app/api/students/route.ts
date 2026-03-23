@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 
 import { NextRequest, NextResponse } from "next/server";
 
-import { getDemoStore } from "../../../src/lib/demo-store";
 import { requireTeacherRouteSession } from "../../../src/lib/teacher-auth";
+import { createStoreForRequest } from "../../../src/lib/store/paps-store";
 import type { GradeLevel, PAPSTeacher, StudentSex } from "../../../src/lib/paps/types";
 
 const parseGradeLevel = (value: unknown): GradeLevel => {
@@ -44,11 +44,11 @@ const notFoundResponse = (message: string) =>
     }
   );
 
-const getAuthorizedTeacherContext = (teacherEmail: string): {
-  store: ReturnType<typeof getDemoStore>;
+const getAuthorizedTeacherContext = async (teacherEmail: string): Promise<{
+  store: Awaited<ReturnType<typeof createStoreForRequest>>;
   teacher: PAPSTeacher;
-} => {
-  const store = getDemoStore();
+}> => {
+  const store = await createStoreForRequest();
   const teacher = store.getTeacherByEmail(teacherEmail);
 
   if (!teacher?.schoolId) {
@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const { store, teacher } = getAuthorizedTeacherContext(teacherSession.session.email);
+    const { store, teacher } = await getAuthorizedTeacherContext(teacherSession.session.email);
     const classId = request.nextUrl.searchParams.get("classId");
 
     if (classId) {
@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
 
   try {
-    const { store, teacher } = getAuthorizedTeacherContext(teacherSession.session.email);
+    const { store, teacher } = await getAuthorizedTeacherContext(teacherSession.session.email);
     const classId =
       typeof body?.classId === "string" && body.classId.trim() ? body.classId.trim() : "";
     const classroom = classId ? store.getClass(classId) : null;
@@ -184,7 +184,7 @@ export async function DELETE(request: NextRequest) {
   }
 
   try {
-    const { store, teacher } = getAuthorizedTeacherContext(teacherSession.session.email);
+    const { store, teacher } = await getAuthorizedTeacherContext(teacherSession.session.email);
 
     if (store.getStudent(studentId).schoolId !== teacher.schoolId) {
       return forbiddenResponse();

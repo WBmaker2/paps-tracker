@@ -4,21 +4,21 @@ import { TeacherProgressChart } from "../../../src/components/charts/teacher-pro
 import { AppShell } from "../../../src/components/layout/app-shell";
 import { ResultTable, type TeacherResultRow } from "../../../src/components/teacher/result-table";
 import { SyncStatusCard } from "../../../src/components/teacher/sync-status-card";
-import { getDemoStore } from "../../../src/lib/demo-store";
 import { createPapsGoogleSheetTabPayloads } from "../../../src/lib/google/sheets";
 import { getEventDefinition } from "../../../src/lib/paps/catalog";
 import { selectPrimaryResultsSession } from "../../../src/lib/teacher-results";
 import { requireTeacherSession } from "../../../src/lib/teacher-auth";
+import { createStoreForRequest } from "../../../src/lib/store/paps-store";
 
 const emptyResults: TeacherResultRow[] = [];
 
 export default async function TeacherResultsPage() {
   const teacherSession = await requireTeacherSession();
-  const store = getDemoStore();
-  const teacher = store.getTeacherByEmail(teacherSession.email);
-  const schoolId = teacher?.schoolId;
-  const school = schoolId ? store.getSchool(schoolId) : store.listSchools()[0] ?? null;
-  const sessions = store.listSessions().filter((session) => !schoolId || session.schoolId === schoolId);
+  const store = await createStoreForRequest();
+  const bootstrap = await store.getTeacherBootstrap({ teacherEmail: teacherSession.email });
+  const schoolId = bootstrap.teacher?.schoolId ?? null;
+  const school = schoolId ? bootstrap.school : bootstrap.schools[0] ?? null;
+  const sessions = bootstrap.sessions;
   const activeSession = selectPrimaryResultsSession(sessions);
 
   if (!activeSession) {
@@ -33,15 +33,8 @@ export default async function TeacherResultsPage() {
     );
   }
 
-  const classes = store.listClasses().filter((entry) => !schoolId || entry.schoolId === schoolId);
-  const students = store
-    .listStudents()
-    .filter(
-      (entry) =>
-        !schoolId ||
-        entry.schoolId === schoolId ||
-        classes.some((classroom) => classroom.id === entry.classId)
-    );
+  const classes = bootstrap.classes;
+  const students = bootstrap.students;
   const rows: TeacherResultRow[] = store.listSessionRecords(activeSession.id).map((record) => {
     const student = students.find((entry) => entry.id === record.studentId);
 
@@ -60,17 +53,17 @@ export default async function TeacherResultsPage() {
   });
   const focusRow = rows.find((row) => row.attempts.length > 0) ?? rows[0] ?? null;
   const focusSync = focusRow
-    ? store.getSyncStatus({
-        sessionId: focusRow.sessionId,
-        studentId: focusRow.studentId
-      })
+    ? bootstrap.syncStatuses.find(
+        (entry) =>
+          entry.sessionId === focusRow.sessionId && entry.studentId === focusRow.studentId
+      ) ?? null
     : null;
   const focusSyncMessage = focusRow
-    ? store
-        .listSyncErrorLogs({
-          sessionId: focusRow.sessionId,
-          studentId: focusRow.studentId
-        })
+    ? bootstrap.syncErrorLogs
+        .filter(
+          (entry) =>
+            entry.sessionId === focusRow.sessionId && entry.studentId === focusRow.studentId
+        )
         .at(-1)?.message ?? null
     : null;
   const sessionIds = new Set(sessions.map((entry) => entry.id));
@@ -78,28 +71,15 @@ export default async function TeacherResultsPage() {
     ? createPapsGoogleSheetTabPayloads({
         school,
         classes,
-        teachers: store.listTeachers().filter((entry) => !schoolId || entry.schoolId === schoolId),
+        teachers: schoolId
+          ? bootstrap.teachers.filter((entry) => entry.schoolId === schoolId)
+          : bootstrap.teachers,
         students,
         sessions,
-        attempts: sessions.flatMap((session) =>
-          store.listSessionRecords(session.id).flatMap((record) =>
-            record.attempts.map((attempt) => ({
-              id: attempt.id,
-              sessionId: record.sessionId,
-              studentId: record.studentId,
-              eventId: record.eventId,
-              unit: record.unit,
-              attemptNumber: attempt.attemptNumber,
-              measurement: attempt.measurement,
-              createdAt: attempt.createdAt
-            }))
-          )
-        ),
-        syncStatuses: store.listSyncStatuses().filter((entry) => sessionIds.has(entry.sessionId)),
-        syncErrorLogs: store.listSyncErrorLogs().filter((entry) => sessionIds.has(entry.sessionId)),
-        representativeSelectionAuditLogs: store
-          .listRepresentativeSelectionAuditLogs()
-          .filter((entry) => sessionIds.has(entry.sessionId))
+        attempts: bootstrap.attempts.filter((entry) => sessionIds.has(entry.sessionId)),
+        syncStatuses: bootstrap.syncStatuses,
+        syncErrorLogs: bootstrap.syncErrorLogs,
+        representativeSelectionAuditLogs: bootstrap.representativeSelectionAuditLogs
       })
     : [];
   const failedSyncCount = sheetTabs.find((tab) => tab.tabName === "오류로그")?.rows.length ?? 0;

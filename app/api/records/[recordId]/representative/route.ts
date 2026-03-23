@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { getDemoStore, parseRecordId } from "../../../../../src/lib/demo-store";
+import { parseRecordId } from "../../../../../src/lib/demo-store";
 import { requireTeacherRouteSession } from "../../../../../src/lib/teacher-auth";
+import { createStoreForRequest } from "../../../../../src/lib/store/paps-store";
 import type { PAPSTeacher } from "../../../../../src/lib/paps/types";
 
 const forbiddenResponse = (message = "Forbidden") =>
@@ -14,11 +15,11 @@ const forbiddenResponse = (message = "Forbidden") =>
     }
   );
 
-const getAuthorizedTeacherContext = (teacherEmail: string): {
-  store: ReturnType<typeof getDemoStore>;
+const getAuthorizedTeacherContext = async (teacherEmail: string): Promise<{
+  store: Awaited<ReturnType<typeof createStoreForRequest>>;
   teacher: PAPSTeacher;
-} => {
-  const store = getDemoStore();
+}> => {
+  const store = await createStoreForRequest();
   const teacher = store.getTeacherByEmail(teacherEmail);
 
   if (!teacher?.schoolId) {
@@ -48,7 +49,7 @@ export async function PATCH(request: NextRequest, context: RepresentativeRouteCo
   const { recordId } = await context.params;
 
   try {
-    const { store, teacher } = getAuthorizedTeacherContext(teacherSession.session.email);
+    const { store, teacher } = await getAuthorizedTeacherContext(teacherSession.session.email);
     const selector = parseRecordId(recordId);
     const session = store.getSession(selector.sessionId);
     const student = store.getStudent(selector.studentId);

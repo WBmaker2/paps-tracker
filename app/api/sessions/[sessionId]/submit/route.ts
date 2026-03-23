@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 
 import { NextRequest, NextResponse } from "next/server";
 
-import { getDemoStore } from "../../../../../src/lib/demo-store";
 import { calculateOfficialGrade } from "../../../../../src/lib/paps/grade";
+import { createStoreForRequest } from "../../../../../src/lib/store/paps-store";
 import type { OfficialGrade } from "../../../../../src/lib/paps/types";
 
 type SubmitRouteContext = {
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest, context: SubmitRouteContext) {
   const { sessionId } = await context.params;
 
   try {
-    const store = getDemoStore();
+    const store = await createStoreForRequest();
     const session = store.getSession(sessionId);
 
     if (session.isOpen === false) {

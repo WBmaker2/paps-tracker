@@ -2,51 +2,40 @@ import React from "react";
 
 import { AppShell } from "../../../src/components/layout/app-shell";
 import { TeacherSettingsManager } from "../../../src/components/teacher/settings-management";
-import { getDemoStore } from "../../../src/lib/demo-store";
 import { createPapsGoogleSheetTabPayloads } from "../../../src/lib/google/sheets";
 import { requireTeacherSession } from "../../../src/lib/teacher-auth";
+import { createStoreForRequest } from "../../../src/lib/store/paps-store";
 
 export default async function TeacherSettingsPage() {
   const teacherSession = await requireTeacherSession();
-  const store = getDemoStore();
-  const teacher = store.getTeacherByEmail(teacherSession.email);
-  const school = teacher?.schoolId ? store.getSchool(teacher.schoolId) : store.listSchools()[0] ?? null;
-  const classes = store
-    .listClasses()
-    .filter((classroom) => !school || classroom.schoolId === school.id)
-    .sort((left, right) => left.label.localeCompare(right.label));
-  const teachers = store
-    .listTeachers()
-    .filter((entry) => !school || entry.schoolId === school.id);
-  const students = store
-    .listStudents()
-    .filter(
-      (entry) =>
-        !school ||
-        entry.schoolId === school.id ||
-        classes.some((classroom) => classroom.id === entry.classId)
-    );
-  const sessions = store.listSessions().filter((entry) => !school || entry.schoolId === school.id);
+  const store = await createStoreForRequest();
+  const bootstrap = await store.getTeacherBootstrap({ teacherEmail: teacherSession.email });
+  const school = bootstrap.teacher?.schoolId ? bootstrap.school : bootstrap.schools[0] ?? null;
+  const schoolId = school?.id ?? null;
+  const classes = (
+    schoolId
+      ? bootstrap.classes.filter((entry) => entry.schoolId === schoolId)
+      : bootstrap.classes
+  ).slice().sort((left, right) => left.label.localeCompare(right.label));
+  const teachers = schoolId
+    ? bootstrap.teachers.filter((entry) => entry.schoolId === schoolId)
+    : bootstrap.teachers;
+  const students = schoolId
+    ? bootstrap.students.filter(
+        (entry) =>
+          entry.schoolId === schoolId || classes.some((classroom) => classroom.id === entry.classId)
+      )
+    : bootstrap.students;
+  const sessions = schoolId
+    ? bootstrap.sessions.filter((entry) => entry.schoolId === schoolId)
+    : bootstrap.sessions;
   const sessionIds = new Set(sessions.map((entry) => entry.id));
-  const attempts = sessions.flatMap((session) =>
-    store.listSessionRecords(session.id).flatMap((record) =>
-      record.attempts.map((attempt) => ({
-        id: attempt.id,
-        sessionId: record.sessionId,
-        studentId: record.studentId,
-        eventId: record.eventId,
-        unit: record.unit,
-        attemptNumber: attempt.attemptNumber,
-        measurement: attempt.measurement,
-        createdAt: attempt.createdAt
-      }))
-    )
+  const attempts = bootstrap.attempts.filter((entry) => sessionIds.has(entry.sessionId));
+  const syncStatuses = bootstrap.syncStatuses.filter((entry) => sessionIds.has(entry.sessionId));
+  const syncErrorLogs = bootstrap.syncErrorLogs.filter((entry) => sessionIds.has(entry.sessionId));
+  const representativeSelectionAuditLogs = bootstrap.representativeSelectionAuditLogs.filter(
+    (entry) => sessionIds.has(entry.sessionId)
   );
-  const syncStatuses = store.listSyncStatuses().filter((entry) => sessionIds.has(entry.sessionId));
-  const syncErrorLogs = store.listSyncErrorLogs().filter((entry) => sessionIds.has(entry.sessionId));
-  const representativeSelectionAuditLogs = store
-    .listRepresentativeSelectionAuditLogs()
-    .filter((entry) => sessionIds.has(entry.sessionId));
   const sheetTabs = school
     ? createPapsGoogleSheetTabPayloads({
         school,
