@@ -49,7 +49,8 @@ const getAuthorizedTeacherContext = async (teacherEmail: string): Promise<{
   teacher: PAPSTeacher;
 }> => {
   const store = await createStoreForRequest();
-  const teacher = store.getTeacherByEmail(teacherEmail);
+  const bootstrap = await store.getTeacherBootstrap({ teacherEmail });
+  const teacher = bootstrap.teacher;
 
   if (!teacher?.schoolId) {
     throw new Error("Forbidden");
@@ -57,7 +58,7 @@ const getAuthorizedTeacherContext = async (teacherEmail: string): Promise<{
 
   return {
     store,
-    teacher
+    teacher: teacher as PAPSTeacher
   };
 };
 
@@ -71,6 +72,7 @@ export async function GET(request: NextRequest) {
   try {
     const { store, teacher } = await getAuthorizedTeacherContext(teacherSession.session.email);
     const classId = request.nextUrl.searchParams.get("classId");
+    const bootstrap = await store.getTeacherBootstrap({ teacherEmail: teacherSession.session.email });
 
     if (classId) {
       const classroom = store.getClass(classId);
@@ -80,8 +82,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const students = store
-      .listStudents()
+    const students = bootstrap.students
       .filter((student) => student.schoolId === teacher.schoolId)
       .filter((student) => !classId || student.classId === classId);
 
@@ -112,6 +113,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const { store, teacher } = await getAuthorizedTeacherContext(teacherSession.session.email);
+    const bootstrap = await store.getTeacherBootstrap({ teacherEmail: teacherSession.session.email });
     const classId =
       typeof body?.classId === "string" && body.classId.trim() ? body.classId.trim() : "";
     const classroom = classId ? store.getClass(classId) : null;
@@ -122,7 +124,7 @@ export async function POST(request: NextRequest) {
 
     const requestedId =
       typeof body?.id === "string" && body.id.trim() ? body.id.trim() : randomUUID();
-    const existingStudent = store.listStudents().find((student) => student.id === requestedId) ?? null;
+    const existingStudent = bootstrap.students.find((student) => student.id === requestedId) ?? null;
 
     if (existingStudent && existingStudent.schoolId !== teacher.schoolId) {
       return forbiddenResponse();

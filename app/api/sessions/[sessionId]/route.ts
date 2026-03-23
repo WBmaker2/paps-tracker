@@ -61,7 +61,8 @@ const getAuthorizedTeacherContext = async (teacherEmail: string): Promise<{
   teacher: PAPSTeacher;
 }> => {
   const store = await createStoreForRequest();
-  const teacher = store.getTeacherByEmail(teacherEmail);
+  const bootstrap = await store.getTeacherBootstrap({ teacherEmail });
+  const teacher = bootstrap.teacher;
 
   if (!teacher?.schoolId) {
     throw new Error("Forbidden");

@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { requireTeacherRouteSession } from "../../../src/lib/teacher-auth";
 import { createStoreForRequest } from "../../../src/lib/store/paps-store";
+import type { TeacherBootstrap } from "../../../src/lib/store/paps-store-types";
 import type { EventId, GradeLevel, PAPSSession, PAPSTeacher, SessionType } from "../../../src/lib/paps/types";
 
 const parseGradeLevel = (value: unknown): GradeLevel => {
@@ -45,9 +46,11 @@ const forbiddenResponse = (message = "Forbidden") =>
 const getAuthorizedTeacherContext = async (teacherEmail: string): Promise<{
   store: Awaited<ReturnType<typeof createStoreForRequest>>;
   teacher: PAPSTeacher;
+  bootstrap: TeacherBootstrap;
 }> => {
   const store = await createStoreForRequest();
-  const teacher = store.getTeacherByEmail(teacherEmail);
+  const bootstrap = await store.getTeacherBootstrap({ teacherEmail });
+  const teacher = bootstrap.teacher;
 
   if (!teacher?.schoolId) {
     throw new Error("Forbidden");
@@ -55,12 +58,13 @@ const getAuthorizedTeacherContext = async (teacherEmail: string): Promise<{
 
   return {
     store,
-    teacher
+    teacher: teacher as PAPSTeacher,
+    bootstrap
   };
 };
 
 const toSessionInput = async (body: Record<string, unknown>, teacherEmail: string): Promise<PAPSSession> => {
-  const { store, teacher } = await getAuthorizedTeacherContext(teacherEmail);
+  const { store, teacher, bootstrap } = await getAuthorizedTeacherContext(teacherEmail);
   const gradeLevel = parseGradeLevel(body.gradeLevel);
   const sessionType = parseSessionType(body.sessionType);
   const classScope = body.classScope === "split" ? "split" : "single";
@@ -104,7 +108,7 @@ const toSessionInput = async (body: Record<string, unknown>, teacherEmail: strin
   const existingSessionId =
     typeof body.id === "string" && body.id.trim() ? body.id.trim() : null;
   const existingSession = existingSessionId
-    ? store.listSessions().find((session) => session.id === existingSessionId) ?? null
+    ? bootstrap.sessions.find((session) => session.id === existingSessionId) ?? null
     : null;
 
   if (existingSession && existingSession.schoolId !== teacher.schoolId) {
@@ -171,8 +175,9 @@ export async function GET(request: NextRequest) {
   }
 
   const schoolId = teacher.schoolId;
-  const sessions = store
-    .listSessions()
+  const bootstrap = await store.getTeacherBootstrap({ teacherEmail: teacherSession.session.email });
+  const sessions = bootstrap
+    .sessions
     .filter((session) => !schoolId || session.schoolId === schoolId)
     .sort((left, right) => right.createdAt?.localeCompare(left.createdAt ?? "") ?? 0);
 

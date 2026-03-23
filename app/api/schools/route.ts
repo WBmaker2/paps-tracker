@@ -21,7 +21,8 @@ const getAuthorizedTeacherContext = async (teacherEmail: string): Promise<{
   teacher: PAPSTeacher;
 }> => {
   const store = await createStoreForRequest();
-  const teacher = store.getTeacherByEmail(teacherEmail);
+  const bootstrap = await store.getTeacherBootstrap({ teacherEmail });
+  const teacher = bootstrap.teacher;
 
   if (!teacher?.schoolId) {
     throw new Error("Forbidden");
@@ -29,7 +30,7 @@ const getAuthorizedTeacherContext = async (teacherEmail: string): Promise<{
 
   return {
     store,
-    teacher
+    teacher: teacher as PAPSTeacher
   };
 };
 
@@ -56,7 +57,8 @@ export async function GET(request: NextRequest) {
   }
 
   const schoolId = teacher.schoolId;
-  const schools = store.listSchools().filter((school) => !schoolId || school.id === schoolId);
+  const bootstrap = await store.getTeacherBootstrap({ teacherEmail: teacherSession.session.email });
+  const schools = bootstrap.schools.filter((school) => !schoolId || school.id === schoolId);
 
   return NextResponse.json({
     schools
@@ -74,9 +76,10 @@ export async function POST(request: NextRequest) {
 
   try {
     const { store, teacher } = await getAuthorizedTeacherContext(teacherSession.session.email);
+    const bootstrap = await store.getTeacherBootstrap({ teacherEmail: teacherSession.session.email });
     const requestedId =
       typeof body?.id === "string" && body.id.trim() ? body.id.trim() : teacher.schoolId;
-    const existingSchool = store.listSchools().find((school) => school.id === requestedId) ?? null;
+    const existingSchool = bootstrap.schools.find((school) => school.id === requestedId) ?? null;
 
     if (requestedId !== teacher.schoolId || (existingSchool && existingSchool.id !== teacher.schoolId)) {
       return forbiddenResponse();

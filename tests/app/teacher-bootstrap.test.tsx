@@ -53,5 +53,9 @@ describe("teacher bootstrap contract", () => {
     render(await TeacherDashboardPage());
 
     expect(createStoreForRequest).toHaveBeenCalled();
+    const store = await createStoreForRequest.mock.results[0]!.value;
+    expect(store?.getTeacherBootstrap).toHaveBeenCalledWith({
+      teacherEmail: "demo-teacher@example.com"
+    });
   });
 });
