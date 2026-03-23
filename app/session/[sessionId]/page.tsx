@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import { SplitSessionView } from "../../../src/components/student/split-session-view";
 import { getEventDefinition } from "../../../src/lib/paps/catalog";
-import type { EventId, PAPSStudent } from "../../../src/lib/paps/types";
+import type { EventId } from "../../../src/lib/paps/types";
 import { createStoreForRequest } from "../../../src/lib/store/paps-store";
 
 type StudentSessionPageProps = {
@@ -18,37 +18,13 @@ const STUDENT_EVENT_LABELS: Record<EventId, string> = {
   "long-run-walk": "오래달리기-걷기"
 };
 
-const sortStudents = (left: PAPSStudent, right: PAPSStudent): number => {
-  if (left.studentNumber !== undefined && right.studentNumber !== undefined) {
-    return left.studentNumber - right.studentNumber;
-  }
-
-  return left.name.localeCompare(right.name, "en");
-};
-
 export default async function StudentSessionPage({ params }: StudentSessionPageProps) {
   const { sessionId } = await params;
   const store = await createStoreForRequest();
 
   try {
-    const session = store.getSession(sessionId);
+    const { session, classSections } = await store.getStudentSessionView(sessionId);
     const eventDefinition = getEventDefinition(session.eventId);
-    const students = store.listStudents().filter((student) => student.active !== false);
-    const classSections = session.classTargets.map((classTarget) => {
-      const classroom = store.getClass(classTarget.classId);
-
-      return {
-        classId: classroom.id,
-        label: classroom.label,
-        students: students
-          .filter((student) => student.classId === classroom.id)
-          .sort(sortStudents)
-          .map((student) => ({
-            id: student.id,
-            name: student.name
-          }))
-      };
-    });
 
     if (session.isOpen === false) {
       return (

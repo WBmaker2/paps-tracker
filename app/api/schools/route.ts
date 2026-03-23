@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireTeacherRouteSession } from "../../../src/lib/teacher-auth";
-import { createStoreForRequest } from "../../../src/lib/store/paps-store";
+import { createSchoolStoreForRequest } from "../../../src/lib/store/paps-store";
 import type { PAPSTeacher } from "../../../src/lib/paps/types";
 
 const forbiddenResponse = (message = "Forbidden") =>
@@ -17,10 +17,10 @@ const forbiddenResponse = (message = "Forbidden") =>
   );
 
 const getAuthorizedTeacherContext = async (teacherEmail: string): Promise<{
-  store: Awaited<ReturnType<typeof createStoreForRequest>>;
+  store: Awaited<ReturnType<typeof createSchoolStoreForRequest>>;
   teacher: PAPSTeacher;
 }> => {
-  const store = await createStoreForRequest();
+  const store = await createSchoolStoreForRequest();
   const bootstrap = await store.getTeacherBootstrap({ teacherEmail });
   const teacher = bootstrap.teacher;
 
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
     return teacherSession.response;
   }
 
-  let store: Awaited<ReturnType<typeof createStoreForRequest>>;
+  let store: Awaited<ReturnType<typeof createSchoolStoreForRequest>>;
   let teacher: PAPSTeacher;
 
   try {

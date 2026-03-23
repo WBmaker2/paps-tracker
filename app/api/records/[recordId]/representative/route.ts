@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { parseRecordId } from "../../../../../src/lib/demo-store";
+import { parseRecordId } from "../../../../../src/lib/paps/record-id";
 import { requireTeacherRouteSession } from "../../../../../src/lib/teacher-auth";
 import { createStoreForRequest } from "../../../../../src/lib/store/paps-store";
 import type { PAPSTeacher } from "../../../../../src/lib/paps/types";
@@ -51,36 +51,17 @@ export async function PATCH(request: NextRequest, context: RepresentativeRouteCo
 
   try {
     const { store, teacher } = await getAuthorizedTeacherContext(teacherSession.session.email);
-    const syncStore = store as Awaited<ReturnType<typeof createStoreForRequest>> & {
-      getSyncStatus(selector: { sessionId: string; studentId: string }): {
-        attemptId: string | null;
-      } | null;
-      setSyncStatus(input: {
-        sessionId: string;
-        studentId: string;
-        status: "pending" | "synced" | "failed";
-        attemptId: string | null;
-        updatedAt: string;
-      }): {
-        id: string;
-        sessionId: string;
-        studentId: string;
-        status: "pending" | "synced" | "failed";
-        attemptId: string | null;
-        updatedAt: string;
-      };
-    };
     const selector = parseRecordId(recordId);
-    const session = syncStore.getSession(selector.sessionId);
-    const student = syncStore.getStudent(selector.studentId);
+    const session = store.getSession(selector.sessionId);
+    const student = store.getStudent(selector.studentId);
 
     if (session.schoolId !== teacher.schoolId || student.schoolId !== teacher.schoolId) {
       return forbiddenResponse();
     }
 
     if (body?.intent === "requeue-sync") {
-      const currentSyncStatus = syncStore.getSyncStatus(selector);
-      const syncStatus = syncStore.setSyncStatus({
+      const currentSyncStatus = store.getSyncStatus(selector);
+      const syncStatus = store.setSyncStatus({
         ...selector,
         status: "pending",
         attemptId: currentSyncStatus?.attemptId ?? null,
@@ -92,7 +73,7 @@ export async function PATCH(request: NextRequest, context: RepresentativeRouteCo
       });
     }
 
-    const record = syncStore.selectRepresentativeAttempt({
+    const record = store.selectRepresentativeAttempt({
       ...selector,
       attemptId: typeof body?.attemptId === "string" || body?.attemptId === null ? body.attemptId : null,
       changedByTeacherId: teacher.id,

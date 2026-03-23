@@ -49,12 +49,27 @@ export interface TeacherBootstrap {
   representativeSelectionAuditLogs: PAPSRepresentativeSelectionAuditLog[];
 }
 
+export interface StudentSessionClassSection {
+  classId: string;
+  label: string;
+  students: Array<Pick<PAPSStudent, "id" | "name">>;
+}
+
+export interface StudentSessionView {
+  session: PAPSSession;
+  classSections: StudentSessionClassSection[];
+}
+
+export interface SetSyncStatusInput extends RecordSelector {
+  status: PAPSSyncStatusRecord["status"];
+  updatedAt: string;
+  attemptId?: string | null;
+  message?: string;
+}
+
 export interface PapsStore {
   getTeacherBootstrap(input: TeacherSummaryInput): Promise<TeacherBootstrap>;
   rebuildSummaries(input: TeacherSummaryInput): Promise<TeacherBootstrap>;
-  getSchool(schoolId: string): PAPSSchool;
-  saveSchool(school: PAPSSchool): PAPSSchool;
-  deleteSchool(schoolId: string): void;
   getClass(classId: string): PAPSClassroom;
   saveClass(classroom: PAPSClassroom): PAPSClassroom;
   deleteClass(classId: string): void;
@@ -66,5 +81,14 @@ export interface PapsStore {
   deleteSession(sessionId: string): void;
   appendAttempt(input: AppendAttemptInput): PAPSAttemptRecord;
   listSessionRecords(sessionId: string): PAPSAttemptRecord[];
+  getStudentSessionView(sessionId: string): Promise<StudentSessionView>;
   selectRepresentativeAttempt(input: SelectRepresentativeAttemptInput): PAPSAttemptRecord;
+  getSyncStatus(selector: RecordSelector): PAPSSyncStatusRecord | null;
+  setSyncStatus(input: SetSyncStatusInput): PAPSSyncStatusRecord;
+}
+
+export interface SchoolStore {
+  getTeacherBootstrap(input: TeacherSummaryInput): Promise<TeacherBootstrap>;
+  saveSchool(school: PAPSSchool): PAPSSchool;
+  deleteSchool(schoolId: string): void;
 }
