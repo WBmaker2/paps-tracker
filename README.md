@@ -2,18 +2,6 @@
 
 PAPS 학생 기록 시스템 MVP입니다. 교사용 관리 화면, 학생 세션 입력 화면, 대표값 선택, 파일 기반 데모 저장소, Google 로그인/Sheets 연동 준비, 구글 시트 프로토타입 payload 생성까지 포함합니다.
 
-## Bootstrap Notes
-
-Task 1 시작 시점에는 앱 파일이 없었기 때문에 아래 명령이 실패하는 것이 정상인 초기 상태였습니다.
-
-```bash
-npm install
-npm run lint
-npm run test
-```
-
-이제 같은 명령은 기본 스캐폴드 검증용으로 사용합니다.
-
 ## Available Scripts
 
 ```bash
@@ -31,6 +19,7 @@ npm run test
 - `/teacher/results`: 대표값 선택, 결과 요약, 동기화 상태 확인
 - `/teacher/settings`: 학교 정보와 학급 설정
 - `/session/demo-session-practice`: 데모 학생 입력 세션
+- `/auth/signin`: 교사 로그인 안내 및 Google 로그인 진입
 
 ## Demo Mode
 
