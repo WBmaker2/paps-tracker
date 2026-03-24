@@ -1,6 +1,6 @@
 import React from "react";
-import Link from "next/link";
 
+import { signIn } from "../../../src/auth";
 import { hasGoogleOAuthEnv } from "../../../src/lib/env";
 
 const getMissingConfigKeys = (): string[] => {
@@ -16,6 +16,11 @@ const getMissingConfigKeys = (): string[] => {
 export default async function TeacherSignInPage() {
   const isReady = hasGoogleOAuthEnv();
   const missingKeys = getMissingConfigKeys();
+  const signInWithGoogle = async () => {
+    "use server";
+
+    await signIn("google", { redirectTo: "/teacher" });
+  };
 
   return (
     <main className="min-h-screen bg-canvas px-6 py-12 text-ink sm:px-10">
@@ -36,12 +41,14 @@ export default async function TeacherSignInPage() {
 
         {isReady ? (
           <div className="space-y-4">
-            <Link
-              href="/api/auth/signin/google?callbackUrl=%2Fteacher"
-              className="inline-flex w-fit rounded-full bg-ink px-5 py-3 text-sm font-medium text-white transition hover:bg-accent"
-            >
-              Google로 교사 로그인
-            </Link>
+            <form action={signInWithGoogle}>
+              <button
+                type="submit"
+                className="inline-flex w-fit rounded-full bg-ink px-5 py-3 text-sm font-medium text-white transition hover:bg-accent"
+              >
+                Google로 교사 로그인
+              </button>
+            </form>
             <p className="text-sm text-ink/75">
               추가 승인 목록 없이, 구글 로그인만 완료하면 교사 관리 화면으로 이동합니다.
             </p>

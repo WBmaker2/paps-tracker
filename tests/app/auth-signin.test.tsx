@@ -2,6 +2,10 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("../../src/auth", () => ({
+  signIn: vi.fn()
+}));
+
 const ORIGINAL_ENV = {
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
   GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
@@ -46,8 +50,9 @@ describe("auth sign-in page", () => {
 
     render(await pageModule.default());
 
-    const link = screen.getByRole("link", { name: "Google로 교사 로그인" });
+    const button = screen.getByRole("button", { name: "Google로 교사 로그인" });
 
-    expect(link).toHaveAttribute("href", "/api/auth/signin/google?callbackUrl=%2Fteacher");
+    expect(button).toHaveAttribute("type", "submit");
+    expect(screen.queryByRole("link", { name: "Google로 교사 로그인" })).not.toBeInTheDocument();
   });
 });
