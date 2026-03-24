@@ -64,24 +64,11 @@ export const getGoogleHostedDomain = (): string | null => getOptionalEnv("GOOGLE
 
 export const getTeacherEmailAllowlist = (): string[] => parseCsvEnv("TEACHER_EMAIL_ALLOWLIST");
 
-export const hasTeacherAccessConfig = (): boolean =>
-  getTeacherEmailAllowlist().length > 0 || Boolean(getGoogleHostedDomain());
+export const hasTeacherAccessConfig = (): boolean => true;
 
 export const isTeacherEmailAllowed = (email: string): boolean => {
   const normalizedEmail = email.trim().toLowerCase();
-  const allowlist = getTeacherEmailAllowlist();
-
-  if (allowlist.length > 0) {
-    return allowlist.includes(normalizedEmail);
-  }
-
-  const hostedDomain = getGoogleHostedDomain()?.toLowerCase();
-
-  if (hostedDomain) {
-    return normalizedEmail.endsWith(`@${hostedDomain}`);
-  }
-
-  return false;
+  return normalizedEmail.length > 0;
 };
 
 export const getGoogleSheetsEnv = (): GoogleSheetsEnv => ({

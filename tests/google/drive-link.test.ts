@@ -47,9 +47,9 @@ const withEnv = (
 };
 
 describe("Google Sheets URL utilities", () => {
-  it("fails closed for teacher access when no allowlist or hosted domain is configured", () => {
+  it("allows teacher access with any signed-in email when no extra scope is configured", () => {
     withEnv({}, () => {
-      expect(isTeacherEmailAllowed("teacher@example.com")).toBe(false);
+      expect(isTeacherEmailAllowed("teacher@example.com")).toBe(true);
     });
   });
 

@@ -39,7 +39,8 @@ describe("auth sign-in page", () => {
   it("shows a Google sign-in button when auth config exists", async () => {
     process.env.GOOGLE_CLIENT_ID = "client-id";
     process.env.GOOGLE_CLIENT_SECRET = "client-secret";
-    process.env.TEACHER_EMAIL_ALLOWLIST = "teacher@example.com";
+    delete process.env.TEACHER_EMAIL_ALLOWLIST;
+    delete process.env.GOOGLE_HOSTED_DOMAIN;
 
     const pageModule = await import("../../app/auth/signin/page");
 
