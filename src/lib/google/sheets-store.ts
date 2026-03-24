@@ -594,6 +594,16 @@ export const createGoogleSheetsStoreForRequest = async (
         sessions: state.sessions
       }
     );
+    await writeStudentsTab(
+      {
+        ...input,
+        client
+      },
+      {
+        allStudents: state.allStudents,
+        classes
+      }
+    );
 
     return classroom;
   };

@@ -626,7 +626,10 @@ describe("teacher representative and session flows", () => {
       active: true
     });
 
-    expect(sheetOperations.map((entry) => entry.range)).toEqual(["'설정'!A1:F200"]);
+    expect(sheetOperations.map((entry) => entry.range)).toEqual([
+      "'설정'!A1:F200",
+      "'학생명단'!A1:I1000"
+    ]);
 
     sheetOperations.length = 0;
 
