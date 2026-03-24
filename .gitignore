@@ -2,6 +2,7 @@ node_modules/
 .next/
 .data/
 .superpowers/
+.worktrees/
 tmp/
 
 .DS_Store
