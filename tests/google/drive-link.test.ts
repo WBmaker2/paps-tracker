@@ -67,6 +67,15 @@ describe("Google Sheets URL utilities", () => {
     });
   });
 
+  it("parses the spreadsheet id from a minimal docs.google.com sheet URL", () => {
+    expect(parseGoogleSheetsUrl("https://docs.google.com/spreadsheets/d/1sheetIdXYZ987")).toEqual({
+      spreadsheetId: "1sheetIdXYZ987",
+      gid: null,
+      isCopyLink: false,
+      normalizedUrl: "https://docs.google.com/spreadsheets/d/1sheetIdXYZ987/edit"
+    });
+  });
+
   it("parses Google Sheets URLs that include a user segment", () => {
     expect(
       parseGoogleSheetsUrl(

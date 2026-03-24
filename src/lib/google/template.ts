@@ -1,7 +1,8 @@
 import { getGoogleSheetsEnv } from "../env";
-import { createGoogleSheetsCopyLink, parseGoogleSheetsUrl } from "./drive-link";
+import { createGoogleSheetsCopyLink, parseGoogleSheetsSpreadsheetId } from "./drive-link";
 
 export const PAPS_GOOGLE_SHEET_TEMPLATE_VERSION = "v0.1-prototype";
+export const PAPS_GOOGLE_SHEET_TEMPLATE_VERSION_ROW_LABEL = "시트 템플릿 버전";
 
 export interface GoogleSheetsPrototypeTab {
   tabName: string;
@@ -93,7 +94,7 @@ export const resolveGoogleSheetsTemplateLink = (input?: {
 
   if (!templateSpreadsheetId && input?.templateUrl) {
     try {
-      templateSpreadsheetId = parseGoogleSheetsUrl(input.templateUrl).spreadsheetId;
+      templateSpreadsheetId = parseGoogleSheetsSpreadsheetId(input.templateUrl);
     } catch (error) {
       if (!env.templateId) {
         throw error;

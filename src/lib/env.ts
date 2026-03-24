@@ -27,6 +27,10 @@ const parseCsvEnv = (key: string): string[] => {
     .filter(Boolean);
 };
 
+export const normalizeGoogleServiceAccountPrivateKey = (
+  value: string | null | undefined
+): string | null => value?.replace(/\\n/g, "\n") ?? null;
+
 export interface GoogleOAuthEnv {
   clientId: string;
   clientSecret: string;
@@ -83,8 +87,7 @@ export const isTeacherEmailAllowed = (email: string): boolean => {
 export const getGoogleSheetsEnv = (): GoogleSheetsEnv => ({
   templateId: getOptionalEnv("GOOGLE_SHEETS_TEMPLATE_ID"),
   serviceAccountEmail: getOptionalEnv("GOOGLE_SERVICE_ACCOUNT_EMAIL"),
-  serviceAccountPrivateKey: getOptionalEnv("GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY")?.replace(
-    /\\n/g,
-    "\n"
-  ) ?? null
+  serviceAccountPrivateKey: normalizeGoogleServiceAccountPrivateKey(
+    getOptionalEnv("GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY")
+  )
 });

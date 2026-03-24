@@ -100,6 +100,9 @@ export const validateGoogleSheetsUrl = (input: string): GoogleSheetsValidationRe
   }
 };
 
+export const parseGoogleSheetsSpreadsheetId = (input: string): string =>
+  parseGoogleSheetsUrl(input).spreadsheetId;
+
 export const createGoogleSheetsCopyLink = (
   input: Pick<ParsedGoogleSheetsUrl, "spreadsheetId">
 ): string => getNormalizedSheetsUrl({ spreadsheetId: input.spreadsheetId, gid: null, isCopyLink: true });

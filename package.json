@@ -10,6 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "google-auth-library": "^10.6.2",
     "next": "^15.3.0",
     "next-auth": "^5.0.0-beta.29",
     "react": "^19.0.0",
