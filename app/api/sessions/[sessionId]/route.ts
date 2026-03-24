@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { createGoogleSheetsStoreForRequest, PAPS_SPREADSHEET_ID_COOKIE } from "../../../../src/lib/google/sheets-store";
 import { requireTeacherRouteSession } from "../../../../src/lib/teacher-auth";
 import { createStoreForRequest } from "../../../../src/lib/store/paps-store";
 import type { EventId, GradeLevel, PAPSSession, PAPSTeacher, SessionType } from "../../../../src/lib/paps/types";
@@ -56,11 +57,28 @@ const forbiddenResponse = (message = "Forbidden") =>
     }
   );
 
-const getAuthorizedTeacherContext = async (teacherEmail: string): Promise<{
-  store: Awaited<ReturnType<typeof createStoreForRequest>>;
+const createRouteStore = async (request: NextRequest, teacherEmail: string) => {
+  if (process.env.NODE_ENV === "test") {
+    return createStoreForRequest();
+  }
+
+  const spreadsheetId = request.cookies.get(PAPS_SPREADSHEET_ID_COOKIE)?.value;
+
+  if (!spreadsheetId) {
+    throw new Error("Google Sheets is not connected.");
+  }
+
+  return createGoogleSheetsStoreForRequest({
+    spreadsheetId,
+    teacherEmail
+  });
+};
+
+const getAuthorizedTeacherContext = async (request: NextRequest, teacherEmail: string): Promise<{
+  store: Awaited<ReturnType<typeof createStoreForRequest>> | Awaited<ReturnType<typeof createGoogleSheetsStoreForRequest>>;
   teacher: PAPSTeacher;
 }> => {
-  const store = await createStoreForRequest();
+  const store = await createRouteStore(request, teacherEmail);
   const bootstrap = await store.getTeacherBootstrap({ teacherEmail });
   const teacher = bootstrap.teacher;
 
@@ -75,16 +93,17 @@ const getAuthorizedTeacherContext = async (teacherEmail: string): Promise<{
 };
 
 const getOwnedSession = (
+  request: NextRequest,
   teacherEmail: string,
   sessionId: string
 ): Promise<{
-  store: Awaited<ReturnType<typeof createStoreForRequest>>;
+  store: Awaited<ReturnType<typeof createStoreForRequest>> | Awaited<ReturnType<typeof createGoogleSheetsStoreForRequest>>;
   teacher: PAPSTeacher;
   session: PAPSSession;
 }> => {
-  return getAuthorizedTeacherContext(teacherEmail).then((context) => {
+  return getAuthorizedTeacherContext(request, teacherEmail).then(async (context) => {
     const { store, teacher } = context;
-    const session = store.getSession(sessionId);
+    const session = await store.getSession(sessionId);
 
     if (session.schoolId !== teacher.schoolId) {
       throw new Error("Forbidden");
@@ -144,7 +163,7 @@ type SessionRouteContext = {
   }>;
 };
 
-export async function GET(_request: NextRequest, context: SessionRouteContext) {
+export async function GET(request: NextRequest, context: SessionRouteContext) {
   const teacherSession = await requireTeacherRouteSession();
 
   if (!teacherSession.ok) {
@@ -154,7 +173,7 @@ export async function GET(_request: NextRequest, context: SessionRouteContext) {
   const { sessionId } = await context.params;
 
   try {
-    const { session } = await getOwnedSession(teacherSession.session.email, sessionId);
+    const { session } = await getOwnedSession(request, teacherSession.session.email, sessionId);
 
     return NextResponse.json({
       session
@@ -186,12 +205,12 @@ export async function PATCH(request: NextRequest, context: SessionRouteContext) 
   const { sessionId } = await context.params;
 
   try {
-    const { store, teacher, session } = await getOwnedSession(teacherSession.session.email, sessionId);
+    const { store, teacher, session } = await getOwnedSession(request, teacherSession.session.email, sessionId);
     const bodyRecord = (body ?? {}) as Record<string, unknown>;
 
     if (
       typeof bodyRecord.primaryClassId === "string" &&
-      store.getClass(bodyRecord.primaryClassId).schoolId !== teacher.schoolId
+      (await store.getClass(bodyRecord.primaryClassId)).schoolId !== teacher.schoolId
     ) {
       return forbiddenResponse();
     }
@@ -199,12 +218,12 @@ export async function PATCH(request: NextRequest, context: SessionRouteContext) 
     if (
       typeof bodyRecord.secondaryClassId === "string" &&
       bodyRecord.secondaryClassId.trim() &&
-      store.getClass(bodyRecord.secondaryClassId).schoolId !== teacher.schoolId
+      (await store.getClass(bodyRecord.secondaryClassId)).schoolId !== teacher.schoolId
     ) {
       return forbiddenResponse();
     }
 
-    const updatedSession = store.saveSession(
+    const updatedSession = await store.saveSession(
       mergeSession(session, bodyRecord)
     );
 

@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createDemoStore } from "../../src/lib/demo-store";
 import type { PAPSDemoStoreData } from "../../src/lib/paps/types";
+import { GoogleSheetsAccessError } from "../../src/lib/google/sheets-client";
 
 vi.mock("next/link", () => ({
   default: ({ children, href, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & {
@@ -35,6 +36,91 @@ vi.mock("../../src/lib/teacher-auth", () => ({
     }
   }))
 }));
+
+vi.mock("../../src/lib/google/sheets-client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../src/lib/google/sheets-client")>();
+
+  return {
+    ...actual,
+    createGoogleSheetsClient: vi.fn(() => ({
+      getSpreadsheet: vi.fn(async () => ({
+        spreadsheetId: "sheet-verified",
+        sheets: [
+          "설정",
+          "학생명단",
+          "세션기록",
+          "학생요약",
+          "공식평가요약",
+          "오류로그",
+          "수정로그"
+        ].map((title, index) => ({
+          properties: {
+            sheetId: index + 1,
+            title
+          }
+        }))
+      })),
+      readRange: vi.fn(async (_spreadsheetId: string, range: string) => {
+        if (range === "'설정'!A1:C20") {
+          return [
+            ["항목", "값", "설명"],
+            ["시트 템플릿 버전", "v0.1-prototype", "프로토타입 예시"]
+          ];
+        }
+
+        const tabName = range.split("!")[0]?.replace(/^'/, "").replace(/'$/, "") ?? "";
+        const headers: Record<string, string[]> = {
+          설정: ["항목", "값", "설명", "", "사용 탭", "역할"],
+          학생명단: ["학생ID", "학년도", "학년", "반", "번호", "이름", "성별", "활성", "비고"],
+          세션기록: [
+            "기록ID",
+            "세션ID",
+            "세션명",
+            "학년도",
+            "측정일",
+            "세션유형",
+            "입력화면유형",
+            "대상반표시",
+            "실제반",
+            "종목",
+            "단위",
+            "학생ID",
+            "학생이름",
+            "시도순번",
+            "원측정값",
+            "대표값선택",
+            "대표값선정교사",
+            "공식등급",
+            "제출시각",
+            "동기화상태",
+            "비고"
+          ],
+          학생요약: [
+            "학생ID",
+            "이름",
+            "학년",
+            "반",
+            "종목",
+            "최신대표값",
+            "단위",
+            "직전대표값",
+            "변화량",
+            "최고대표값",
+            "최근측정일",
+            "학생표시문구"
+          ],
+          공식평가요약: ["학생ID", "이름", "학년", "반", "종목", "대표값", "단위", "공식등급", "측정일", "세션명", "비고"],
+          오류로그: ["시간", "수준", "구분", "메시지", "관련ID", "재시도상태", "해결시각"],
+          수정로그: ["시간", "교사계정", "세션ID", "학생ID", "종목", "작업", "이전기록ID", "선택기록ID", "사유"]
+        };
+
+        return [headers[tabName] ?? []];
+      }),
+      appendRows: vi.fn(async () => ({})),
+      updateRange: vi.fn(async () => ({}))
+    }))
+  };
+});
 
 const createTempStorePath = (): string =>
   join(mkdtempSync(join(tmpdir(), "paps-teacher-settings-")), "demo-store.json");
@@ -108,6 +194,7 @@ describe("teacher settings management", () => {
   });
 
   it("updates school info and adds a class from the settings management UI", async () => {
+    const connectRoute = await import("../../app/api/google-sheet/connect/route");
     const schoolsRoute = await import("../../app/api/schools/route");
     const classesRoute = await import("../../app/api/classes/route");
     const { AppShell } = await import("../../src/components/layout/app-shell");
@@ -125,6 +212,10 @@ describe("teacher settings management", () => {
 
         if (pathname === "/api/schools" && method === "POST") {
           return schoolsRoute.POST(jsonRequest(pathname, method, body));
+        }
+
+        if (pathname === "/api/google-sheet/connect" && method === "POST") {
+          return connectRoute.POST(jsonRequest(pathname, method, body));
         }
 
         if (pathname === "/api/classes" && method === "POST") {
@@ -153,7 +244,7 @@ describe("teacher settings management", () => {
       target: { value: "Updated Elementary" }
     });
     fireEvent.change(screen.getByLabelText("구글 시트 URL"), {
-      target: { value: "https://docs.google.com/spreadsheets/d/updated-sheet/edit" }
+      target: { value: "https://docs.google.com/spreadsheets/d/sheet-verified/edit" }
     });
     fireEvent.click(screen.getByRole("button", { name: "학교 정보 저장" }));
 
@@ -177,11 +268,36 @@ describe("teacher settings management", () => {
 
       expect(reloadedStore.getSchool("demo-school").name).toBe("Updated Elementary");
       expect(reloadedStore.getSchool("demo-school").sheetUrl).toBe(
-        "https://docs.google.com/spreadsheets/d/updated-sheet/edit"
+        "https://docs.google.com/spreadsheets/d/sheet-verified/edit"
       );
       expect(reloadedStore.listClasses().some((entry) => entry.label === "6-2")).toBe(true);
     });
 
     expect(screen.getByText("6-2")).toBeInTheDocument();
+  });
+
+  it("rejects connect requests when the service account is not shared on the sheet", async () => {
+    const connectRoute = await import("../../app/api/google-sheet/connect/route");
+    const sheetsClient = await import("../../src/lib/google/sheets-client");
+
+    vi.mocked(sheetsClient.createGoogleSheetsClient).mockReturnValueOnce({
+      getSpreadsheet: vi.fn(async () => {
+        throw new GoogleSheetsAccessError("sheet-unshared", 403);
+      }),
+      readRange: vi.fn(async () => []),
+      appendRows: vi.fn(async () => ({})),
+      updateRange: vi.fn(async () => ({}))
+    });
+
+    const response = await connectRoute.POST(
+      jsonRequest("/api/google-sheet/connect", "POST", {
+        url: "https://docs.google.com/spreadsheets/d/sheet-unshared/edit",
+        schoolName: "Blocked School"
+      })
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(payload.error).toContain("cannot access spreadsheet sheet-unshared");
   });
 });

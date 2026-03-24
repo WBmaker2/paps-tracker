@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { getGoogleSheetsEnv } from "../../../../src/lib/env";
 import { validateGoogleSheetsUrl } from "../../../../src/lib/google/drive-link";
+import { createGoogleSheetsClient } from "../../../../src/lib/google/sheets-client";
+import { validatePapsGoogleSheetTemplate } from "../../../../src/lib/google/sheets-schema";
 import { PAPS_GOOGLE_SHEET_PROTOTYPE_TABS } from "../../../../src/lib/google/template";
 import { requireTeacherRouteSession } from "../../../../src/lib/teacher-auth";
 
@@ -26,17 +29,40 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  return NextResponse.json(
-    {
-      ok: true,
-      spreadsheetId: result.value.spreadsheetId,
-      normalizedUrl: result.value.normalizedUrl,
-      gid: result.value.gid,
-      isCopyLink: result.value.isCopyLink,
-      prototypeTabs: PAPS_GOOGLE_SHEET_PROTOTYPE_TABS
-    },
-    {
-      status: 200
-    }
-  );
+  const env = getGoogleSheetsEnv();
+  const client = createGoogleSheetsClient({
+    serviceAccountEmail: env.serviceAccountEmail ?? "service-account@example.com",
+    serviceAccountPrivateKey:
+      env.serviceAccountPrivateKey ?? "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----\n"
+  });
+
+  try {
+    const validation = await validatePapsGoogleSheetTemplate(client, result.value.spreadsheetId);
+
+    return NextResponse.json(
+      {
+        ok: true,
+        spreadsheetId: result.value.spreadsheetId,
+        normalizedUrl: result.value.normalizedUrl,
+        gid: result.value.gid,
+        isCopyLink: result.value.isCopyLink,
+        templateVersion: validation.templateVersion,
+        prototypeTabs: PAPS_GOOGLE_SHEET_PROTOTYPE_TABS
+      },
+      {
+        status: 200
+      }
+    );
+  } catch (error) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: error instanceof Error ? error.message : "Google Sheets validation failed.",
+        prototypeTabs: PAPS_GOOGLE_SHEET_PROTOTYPE_TABS
+      },
+      {
+        status: 400
+      }
+    );
+  }
 }

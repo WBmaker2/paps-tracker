@@ -1,15 +1,41 @@
 import React from "react";
+import { cookies } from "next/headers";
 
 import { AppShell } from "../../../src/components/layout/app-shell";
 import { TeacherSettingsManager } from "../../../src/components/teacher/settings-management";
 import { createPapsGoogleSheetTabPayloads } from "../../../src/lib/google/sheets";
+import { createGoogleSheetsStoreForRequest, PAPS_SPREADSHEET_ID_COOKIE } from "../../../src/lib/google/sheets-store";
 import { requireTeacherSession } from "../../../src/lib/teacher-auth";
 import { createStoreForRequest } from "../../../src/lib/store/paps-store";
 
 export default async function TeacherSettingsPage() {
   const teacherSession = await requireTeacherSession();
-  const store = await createStoreForRequest();
-  const bootstrap = await store.getTeacherBootstrap({ teacherEmail: teacherSession.email });
+  const cookieStore = await cookies();
+  const spreadsheetId = cookieStore.get(PAPS_SPREADSHEET_ID_COOKIE)?.value ?? null;
+  const store =
+    process.env.NODE_ENV === "test"
+      ? await createStoreForRequest()
+      : spreadsheetId
+        ? await createGoogleSheetsStoreForRequest({
+            spreadsheetId,
+            teacherEmail: teacherSession.email
+          })
+        : null;
+  const bootstrap = store
+    ? await store.getTeacherBootstrap({ teacherEmail: teacherSession.email })
+    : {
+        teacher: null,
+        school: null,
+        schools: [],
+        classes: [],
+        teachers: [],
+        students: [],
+        sessions: [],
+        attempts: [],
+        syncStatuses: [],
+        syncErrorLogs: [],
+        representativeSelectionAuditLogs: []
+      };
   const school = bootstrap.teacher?.schoolId ? bootstrap.school : bootstrap.schools[0] ?? null;
   const schoolId = school?.id ?? null;
   const classes = (
@@ -57,7 +83,11 @@ export default async function TeacherSettingsPage() {
       description="학교 정보 수정과 학급 추가를 바로 처리하는 MVP 관리 화면입니다."
     >
       <div className="space-y-6">
-        <TeacherSettingsManager school={school} classes={classes} />
+        <TeacherSettingsManager
+          school={school}
+          classes={classes}
+          sheetConnected={Boolean(store)}
+        />
         {school ? (
           <section className="rounded-[1.75rem] border border-ink/10 bg-white p-5 shadow-sm">
             <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">

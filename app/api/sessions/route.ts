@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { NextRequest, NextResponse } from "next/server";
 
+import { createGoogleSheetsStoreForRequest, PAPS_SPREADSHEET_ID_COOKIE } from "../../../src/lib/google/sheets-store";
 import { requireTeacherRouteSession } from "../../../src/lib/teacher-auth";
 import { createStoreForRequest } from "../../../src/lib/store/paps-store";
 import type { TeacherBootstrap } from "../../../src/lib/store/paps-store-types";
@@ -43,12 +44,32 @@ const forbiddenResponse = (message = "Forbidden") =>
     }
   );
 
-const getAuthorizedTeacherContext = async (teacherEmail: string): Promise<{
-  store: Awaited<ReturnType<typeof createStoreForRequest>>;
+const createRouteStore = async (request: NextRequest, teacherEmail: string) => {
+  if (process.env.NODE_ENV === "test") {
+    return createStoreForRequest();
+  }
+
+  const spreadsheetId = request.cookies.get(PAPS_SPREADSHEET_ID_COOKIE)?.value;
+
+  if (!spreadsheetId) {
+    throw new Error("Google Sheets is not connected.");
+  }
+
+  return createGoogleSheetsStoreForRequest({
+    spreadsheetId,
+    teacherEmail
+  });
+};
+
+const getAuthorizedTeacherContext = async (
+  request: NextRequest,
+  teacherEmail: string
+): Promise<{
+  store: Awaited<ReturnType<typeof createStoreForRequest>> | Awaited<ReturnType<typeof createGoogleSheetsStoreForRequest>>;
   teacher: PAPSTeacher;
   bootstrap: TeacherBootstrap;
 }> => {
-  const store = await createStoreForRequest();
+  const store = await createRouteStore(request, teacherEmail);
   const bootstrap = await store.getTeacherBootstrap({ teacherEmail });
   const teacher = bootstrap.teacher;
 
@@ -63,8 +84,12 @@ const getAuthorizedTeacherContext = async (teacherEmail: string): Promise<{
   };
 };
 
-const toSessionInput = async (body: Record<string, unknown>, teacherEmail: string): Promise<PAPSSession> => {
-  const { store, teacher, bootstrap } = await getAuthorizedTeacherContext(teacherEmail);
+const toSessionInput = async (
+  request: NextRequest,
+  body: Record<string, unknown>,
+  teacherEmail: string
+): Promise<PAPSSession> => {
+  const { store, teacher, bootstrap } = await getAuthorizedTeacherContext(request, teacherEmail);
   const gradeLevel = parseGradeLevel(body.gradeLevel);
   const sessionType = parseSessionType(body.sessionType);
   const classScope = body.classScope === "split" ? "split" : "single";
@@ -128,7 +153,7 @@ const toSessionInput = async (body: Record<string, unknown>, teacherEmail: strin
       throw new Error("A secondary class is required.");
     }
 
-    if (store.getClass(classTarget.classId).schoolId !== teacher.schoolId) {
+    if ((await store.getClass(classTarget.classId)).schoolId !== teacher.schoolId) {
       throw new Error("Forbidden");
     }
   }
@@ -159,11 +184,11 @@ export async function GET(request: NextRequest) {
     return teacherSession.response;
   }
 
-  let store: Awaited<ReturnType<typeof createStoreForRequest>>;
+  let store: Awaited<ReturnType<typeof getAuthorizedTeacherContext>>["store"];
   let teacher: PAPSTeacher;
 
   try {
-    ({ store, teacher } = await getAuthorizedTeacherContext(teacherSession.session.email));
+    ({ store, teacher } = await getAuthorizedTeacherContext(request, teacherSession.session.email));
   } catch {
     return forbiddenResponse();
   }
@@ -196,9 +221,9 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
 
   try {
-    const { store } = await getAuthorizedTeacherContext(teacherSession.session.email);
-    const session = store.saveSession(
-      await toSessionInput((body ?? {}) as Record<string, unknown>, teacherSession.session.email)
+    const { store } = await getAuthorizedTeacherContext(request, teacherSession.session.email);
+    const session = await store.saveSession(
+      await toSessionInput(request, (body ?? {}) as Record<string, unknown>, teacherSession.session.email)
     );
 
     return NextResponse.json(

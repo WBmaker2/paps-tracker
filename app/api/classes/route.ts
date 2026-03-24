@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { NextRequest, NextResponse } from "next/server";
 
+import { createGoogleSheetsStoreForRequest, PAPS_SPREADSHEET_ID_COOKIE } from "../../../src/lib/google/sheets-store";
 import { requireTeacherRouteSession } from "../../../src/lib/teacher-auth";
 import { createStoreForRequest } from "../../../src/lib/store/paps-store";
 import type { GradeLevel, PAPSTeacher } from "../../../src/lib/paps/types";
@@ -36,11 +37,28 @@ const notFoundResponse = (message: string) =>
     }
   );
 
-const getAuthorizedTeacherContext = async (teacherEmail: string): Promise<{
-  store: Awaited<ReturnType<typeof createStoreForRequest>>;
+const createRouteStore = async (request: NextRequest, teacherEmail: string) => {
+  if (process.env.NODE_ENV === "test") {
+    return createStoreForRequest();
+  }
+
+  const spreadsheetId = request.cookies.get(PAPS_SPREADSHEET_ID_COOKIE)?.value;
+
+  if (!spreadsheetId) {
+    throw new Error("Google Sheets is not connected.");
+  }
+
+  return createGoogleSheetsStoreForRequest({
+    spreadsheetId,
+    teacherEmail
+  });
+};
+
+const getAuthorizedTeacherContext = async (request: NextRequest, teacherEmail: string): Promise<{
+  store: Awaited<ReturnType<typeof createStoreForRequest>> | Awaited<ReturnType<typeof createGoogleSheetsStoreForRequest>>;
   teacher: PAPSTeacher;
 }> => {
-  const store = await createStoreForRequest();
+  const store = await createRouteStore(request, teacherEmail);
   const bootstrap = await store.getTeacherBootstrap({ teacherEmail });
   const teacher = bootstrap.teacher;
 
@@ -61,11 +79,11 @@ export async function GET(request: NextRequest) {
     return teacherSession.response;
   }
 
-  let store: Awaited<ReturnType<typeof createStoreForRequest>>;
+  let store: Awaited<ReturnType<typeof getAuthorizedTeacherContext>>["store"];
   let teacher: PAPSTeacher;
 
   try {
-    ({ store, teacher } = await getAuthorizedTeacherContext(teacherSession.session.email));
+    ({ store, teacher } = await getAuthorizedTeacherContext(request, teacherSession.session.email));
   } catch {
     return forbiddenResponse();
   }
@@ -94,7 +112,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
 
   try {
-    const { store, teacher } = await getAuthorizedTeacherContext(teacherSession.session.email);
+    const { store, teacher } = await getAuthorizedTeacherContext(request, teacherSession.session.email);
     const bootstrap = await store.getTeacherBootstrap({ teacherEmail: teacherSession.session.email });
     const schoolId =
       typeof body?.schoolId === "string" && body.schoolId.trim()
@@ -120,7 +138,7 @@ export async function POST(request: NextRequest) {
       throw new Error("A valid class number is required.");
     }
 
-    const classroom = store.saveClass({
+    const classroom = await store.saveClass({
       id: requestedId,
       schoolId,
       academicYear: Number(body?.academicYear) || new Date().getUTCFullYear(),
@@ -171,13 +189,13 @@ export async function DELETE(request: NextRequest) {
   }
 
   try {
-    const { store, teacher } = await getAuthorizedTeacherContext(teacherSession.session.email);
+    const { store, teacher } = await getAuthorizedTeacherContext(request, teacherSession.session.email);
 
-    if (store.getClass(classId).schoolId !== teacher.schoolId) {
+    if ((await store.getClass(classId)).schoolId !== teacher.schoolId) {
       return forbiddenResponse();
     }
 
-    store.deleteClass(classId);
+    await store.deleteClass(classId);
   } catch (error) {
     if (error instanceof Error && error.message === "Forbidden") {
       return forbiddenResponse();

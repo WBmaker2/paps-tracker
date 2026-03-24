@@ -15,12 +15,14 @@ export function SessionForm({
   classes,
   defaultTeacherId,
   defaultSchoolId,
-  onCreated
+  onCreated,
+  sheetConnected = true
 }: {
   classes: PAPSClassroom[];
   defaultTeacherId?: string;
   defaultSchoolId?: string;
   onCreated?: (session: PAPSSession) => void;
+  sheetConnected?: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
   const [name, setName] = useState("");
@@ -35,6 +37,12 @@ export function SessionForm({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleSubmit = () => {
+    if (!sheetConnected) {
+      setFeedback(null);
+      setErrorMessage("구글 시트를 먼저 연결해주세요.");
+      return;
+    }
+
     setFeedback(null);
     setErrorMessage(null);
 
@@ -305,13 +313,15 @@ export function TeacherSessionWorkspace({
   sessions,
   defaultTeacherId,
   defaultSchoolId,
-  showRecentSessions = true
+  showRecentSessions = true,
+  sheetConnected = true
 }: {
   classes: PAPSClassroom[];
   sessions: PAPSSession[];
   defaultTeacherId?: string;
   defaultSchoolId?: string;
   showRecentSessions?: boolean;
+  sheetConnected?: boolean;
 }) {
   const [sessionItems, setSessionItems] = useState(
     [...sessions].sort(
@@ -344,6 +354,7 @@ export function TeacherSessionWorkspace({
         defaultTeacherId={defaultTeacherId}
         defaultSchoolId={defaultSchoolId}
         onCreated={handleCreated}
+        sheetConnected={sheetConnected}
       />
       <div className="space-y-6">
         {showRecentSessions ? (

@@ -7,11 +7,13 @@ import type { PAPSClassroom, PAPSStudent } from "../../lib/paps/types";
 export function StudentTable({
   students,
   classes,
-  schoolId
+  schoolId,
+  sheetConnected = true
 }: {
   students: PAPSStudent[];
   classes: PAPSClassroom[];
   schoolId?: string;
+  sheetConnected?: boolean;
 }) {
   const [items, setItems] = useState(students);
   const [name, setName] = useState("");
@@ -22,6 +24,11 @@ export function StudentTable({
   const [isPending, startTransition] = useTransition();
 
   const submitStudent = () => {
+    if (!sheetConnected) {
+      setMessage("구글 시트를 먼저 연결해주세요.");
+      return;
+    }
+
     const classroom = classes.find((entry) => entry.id === classId);
 
     if (!classroom) {

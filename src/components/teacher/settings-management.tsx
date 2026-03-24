@@ -6,10 +6,12 @@ import type { PAPSClassroom, PAPSSchool } from "../../lib/paps/types";
 
 export function TeacherSettingsManager({
   school,
-  classes
+  classes,
+  sheetConnected = true
 }: {
   school: PAPSSchool | null;
   classes: PAPSClassroom[];
+  sheetConnected?: boolean;
 }) {
   const [schoolState, setSchoolState] = useState(school);
   const [classItems, setClassItems] = useState(classes);
@@ -24,8 +26,8 @@ export function TeacherSettingsManager({
   const [isClassPending, startClassTransition] = useTransition();
 
   const saveSchool = () => {
-    if (!schoolState) {
-      setSchoolMessage("관리할 학교 정보가 없습니다.");
+    if (!sheetUrl.trim()) {
+      setSchoolMessage("구글 시트 URL을 먼저 입력해주세요.");
       return;
     }
 
@@ -33,31 +35,29 @@ export function TeacherSettingsManager({
 
     startSchoolTransition(async () => {
       try {
-        const response = await fetch("/api/schools", {
+        const response = await fetch("/api/google-sheet/connect", {
           method: "POST",
           headers: {
             "content-type": "application/json"
           },
           body: JSON.stringify({
-            id: schoolState.id,
-            name: schoolName,
-            teacherIds: schoolState.teacherIds,
-            sheetUrl,
-            createdAt: schoolState.createdAt
+            url: sheetUrl,
+            schoolName
           })
         });
         const payload = (await response.json()) as {
           error?: string;
           school?: PAPSSchool;
+          normalizedUrl?: string;
         };
 
         if (!response.ok || !payload.school) {
-          throw new Error(payload.error ?? "학교 정보를 저장하지 못했습니다.");
+          throw new Error(payload.error ?? "구글 시트를 연결하지 못했습니다.");
         }
 
         setSchoolState(payload.school);
         setSchoolName(payload.school.name);
-        setSheetUrl(payload.school.sheetUrl ?? "");
+        setSheetUrl(payload.normalizedUrl ?? payload.school.sheetUrl ?? "");
         setSchoolMessage("학교 정보를 저장했습니다.");
       } catch (error) {
         setSchoolMessage(error instanceof Error ? error.message : "학교 정보를 저장하지 못했습니다.");
@@ -124,36 +124,37 @@ export function TeacherSettingsManager({
           </div>
           {schoolMessage ? <p className="text-sm text-ink/70">{schoolMessage}</p> : null}
         </div>
-        {schoolState ? (
-          <div className="mt-4 space-y-4">
-            <label className="flex flex-col gap-2 text-sm">
-              학교명
-              <input
-                className="rounded-2xl border border-ink/15 px-4 py-3"
-                value={schoolName}
-                onChange={(event) => setSchoolName(event.target.value)}
-              />
-            </label>
-            <label className="flex flex-col gap-2 text-sm">
-              구글 시트 URL
-              <input
-                className="rounded-2xl border border-ink/15 px-4 py-3"
-                value={sheetUrl}
-                onChange={(event) => setSheetUrl(event.target.value)}
-              />
-            </label>
-            <button
-              type="button"
-              className="rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-white"
-              onClick={saveSchool}
-              disabled={isSchoolPending}
-            >
-              학교 정보 저장
-            </button>
-          </div>
-        ) : (
-          <p className="mt-3 text-sm text-ink/70">등록된 학교가 없습니다.</p>
-        )}
+        <div className="mt-4 space-y-4">
+          <label className="flex flex-col gap-2 text-sm">
+            학교명
+            <input
+              className="rounded-2xl border border-ink/15 px-4 py-3"
+              value={schoolName}
+              onChange={(event) => setSchoolName(event.target.value)}
+            />
+          </label>
+          <label className="flex flex-col gap-2 text-sm">
+            구글 시트 URL
+            <input
+              className="rounded-2xl border border-ink/15 px-4 py-3"
+              value={sheetUrl}
+              onChange={(event) => setSheetUrl(event.target.value)}
+            />
+          </label>
+          <p className="text-sm text-ink/65">
+            {sheetConnected
+              ? "현재 연결된 시트를 다시 검증하고 학교 정보를 갱신합니다."
+              : "먼저 템플릿을 복사한 구글 시트를 연결해야 학급과 세션을 관리할 수 있습니다."}
+          </p>
+          <button
+            type="button"
+            className="rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-white"
+            onClick={saveSchool}
+            disabled={isSchoolPending}
+          >
+            학교 정보 저장
+          </button>
+        </div>
       </section>
       <section className="rounded-[1.75rem] border border-ink/10 bg-white p-5 shadow-sm">
         <div className="flex items-start justify-between gap-4">

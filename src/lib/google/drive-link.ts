@@ -46,6 +46,9 @@ const getNormalizedSheetsUrl = ({
   return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/${action}${hash}`;
 };
 
+export const createGoogleSheetsEditLink = (spreadsheetId: string): string =>
+  `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`;
+
 export const parseGoogleSheetsUrl = (input: string): ParsedGoogleSheetsUrl => {
   let url: URL;
 

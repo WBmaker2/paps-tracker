@@ -1,7 +1,9 @@
 import React from "react";
+import { cookies } from "next/headers";
 
 import { AppShell } from "../../src/components/layout/app-shell";
 import { TeacherSessionWorkspace } from "../../src/components/teacher/session-form";
+import { createGoogleSheetsStoreForRequest, PAPS_SPREADSHEET_ID_COOKIE } from "../../src/lib/google/sheets-store";
 import { requireTeacherSession } from "../../src/lib/teacher-auth";
 import { createStoreForRequest } from "../../src/lib/store/paps-store";
 
@@ -12,8 +14,32 @@ const formatSessionBadge = (count: number, label: string) => ({
 
 export default async function TeacherDashboardPage() {
   const teacherSession = await requireTeacherSession();
-  const store = await createStoreForRequest();
-  const bootstrap = await store.getTeacherBootstrap({ teacherEmail: teacherSession.email });
+  const cookieStore = await cookies();
+  const spreadsheetId = cookieStore.get(PAPS_SPREADSHEET_ID_COOKIE)?.value ?? null;
+  const store =
+    process.env.NODE_ENV === "test"
+      ? await createStoreForRequest()
+      : spreadsheetId
+        ? await createGoogleSheetsStoreForRequest({
+            spreadsheetId,
+            teacherEmail: teacherSession.email
+          })
+        : null;
+  const bootstrap = store
+    ? await store.getTeacherBootstrap({ teacherEmail: teacherSession.email })
+    : {
+        teacher: null,
+        school: null,
+        schools: [],
+        classes: [],
+        teachers: [],
+        students: [],
+        sessions: [],
+        attempts: [],
+        syncStatuses: [],
+        syncErrorLogs: [],
+        representativeSelectionAuditLogs: []
+      };
   const summaryCards = [
     formatSessionBadge(bootstrap.schools.length, "학교"),
     formatSessionBadge(bootstrap.classes.length, "학급"),
@@ -43,6 +69,7 @@ export default async function TeacherDashboardPage() {
         sessions={bootstrap.sessions}
         defaultTeacherId={bootstrap.teacher?.id}
         defaultSchoolId={bootstrap.teacher?.schoolId}
+        sheetConnected={Boolean(store)}
       />
     </AppShell>
   );

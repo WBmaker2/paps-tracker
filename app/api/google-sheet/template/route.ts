@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { getGoogleSheetsEnv } from "../../../../src/lib/env";
 import { resolveGoogleSheetsTemplateLink } from "../../../../src/lib/google/template";
 import { requireTeacherRouteSession } from "../../../../src/lib/teacher-auth";
 
@@ -13,6 +14,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
 
   try {
+    const env = getGoogleSheetsEnv();
     const template = resolveGoogleSheetsTemplateLink({
       templateId: typeof body?.templateId === "string" ? body.templateId : undefined,
       templateUrl: typeof body?.templateUrl === "string" ? body.templateUrl : undefined
@@ -20,7 +22,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      template
+      template,
+      serviceAccountEmail: env.serviceAccountEmail
     });
   } catch (error) {
     return NextResponse.json(
