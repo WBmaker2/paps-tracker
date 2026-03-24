@@ -133,4 +133,19 @@ describe("Google Sheets bootstrap", () => {
 
     expect(bootstrap.students.every((student) => student.active !== false)).toBe(true);
   });
+
+  it("does not inject a synthetic teacher when persisted teacher membership exists for another email", async () => {
+    const bootstrap = await buildTeacherBootstrapFromSheet({
+      client: createClient(),
+      spreadsheetId: "sheet-123",
+      teacherEmail: "outsider@example.com"
+    });
+
+    expect(bootstrap.teacher).toBeNull();
+    expect(bootstrap.school).toBeNull();
+    expect(bootstrap.schools).toEqual([]);
+    expect(bootstrap.classes).toEqual([]);
+    expect(bootstrap.students).toEqual([]);
+    expect(bootstrap.sessions).toEqual([]);
+  });
 });

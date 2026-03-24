@@ -43,6 +43,7 @@ export interface GoogleSheetStructuredState {
   school: PAPSSchool;
   classes: PAPSClassroom[];
   teachers: PAPSTeacher[];
+  hasPersistedTeachers: boolean;
   sessions: PAPSSession[];
   allStudents: PAPSStudent[];
   attempts: PAPSStoredAttempt[];
@@ -267,12 +268,21 @@ const buildStructuredTeachers = (
   rowsByLabel: Map<string, string[][]>,
   schoolId: string,
   teacherEmail: string
-): PAPSTeacher[] => {
+): {
+  teachers: PAPSTeacher[];
+  hasPersistedTeachers: boolean;
+} => {
   const teacherRows = rowsByLabel.get(SETTINGS_MACHINE_ROW_LABELS.teacher) ?? [];
   const teacherMetaById = new Map(
     (rowsByLabel.get(SETTINGS_MACHINE_ROW_LABELS.teacherMeta) ?? []).map((row) => [row[1], row])
   );
 
+  const legacyTeachers = parseJsonCell<PAPSTeacher[]>(
+    rowsByLabel,
+    SETTINGS_MACHINE_ROW_LABELS.legacyTeachers,
+    []
+  );
+  const hasPersistedTeachers = teacherRows.length > 0 || legacyTeachers.length > 0;
   let teachers =
     teacherRows.length > 0
       ? teacherRows.map((row) => {
@@ -287,13 +297,14 @@ const buildStructuredTeachers = (
             updatedAt: normalizeIsoValue(metaRow?.[3])
           } satisfies PAPSTeacher;
         })
-      : parseJsonCell<PAPSTeacher[]>(rowsByLabel, SETTINGS_MACHINE_ROW_LABELS.legacyTeachers, []);
+      : legacyTeachers;
 
   if (teachers.length === 0) {
     teachers = [createDefaultTeacher({ email: teacherEmail, schoolId })];
   }
 
   if (
+    !hasPersistedTeachers &&
     !teachers.some(
       (teacher) => teacher.email.trim().toLowerCase() === teacherEmail.trim().toLowerCase()
     )
@@ -301,7 +312,10 @@ const buildStructuredTeachers = (
     teachers = [...teachers, createDefaultTeacher({ email: teacherEmail, schoolId })];
   }
 
-  return teachers;
+  return {
+    teachers,
+    hasPersistedTeachers
+  };
 };
 
 const buildStructuredClasses = (
@@ -586,7 +600,8 @@ export const buildStructuredStateFromSheet = async ({
   const rowsByLabel = parseRowMap(settingsRows);
   const teacherId = createTeacherId(teacherEmail);
   const school = buildStructuredSchool(rowsByLabel, spreadsheetId, teacherId);
-  const teachers = buildStructuredTeachers(rowsByLabel, school.id, teacherEmail);
+  const teacherState = buildStructuredTeachers(rowsByLabel, school.id, teacherEmail);
+  const teachers = teacherState.teachers;
   const classes = buildStructuredClasses(rowsByLabel, school.id);
   const sessions = buildStructuredSessions(rowsByLabel);
   const allStudents = parseStudents(studentRows, classes, school.id);
@@ -617,6 +632,7 @@ export const buildStructuredStateFromSheet = async ({
     },
     classes,
     teachers,
+    hasPersistedTeachers: teacherState.hasPersistedTeachers,
     sessions,
     allStudents,
     attempts: recordArtifacts.attempts,
@@ -635,6 +651,22 @@ export const toTeacherBootstrapFromStructuredState = (
     structuredState.teachers.find(
       (entry) => entry.email.trim().toLowerCase() === normalizedTeacherEmail
     ) ?? null;
+
+  if (structuredState.hasPersistedTeachers && !teacher) {
+    return {
+      teacher: null,
+      school: null,
+      schools: [],
+      classes: [],
+      teachers: [],
+      students: [],
+      sessions: [],
+      attempts: [],
+      syncStatuses: [],
+      syncErrorLogs: [],
+      representativeSelectionAuditLogs: []
+    };
+  }
 
   return {
     teacher,

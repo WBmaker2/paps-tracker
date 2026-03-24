@@ -31,6 +31,11 @@ vi.mock("next/headers", () => ({
 type MockWorkbook = Record<string, string[][]>;
 
 const liveWorkbookState = new Map<string, MockWorkbook>();
+const sheetOperations: Array<{
+  type: "update" | "append";
+  spreadsheetId: string;
+  range: string;
+}> = [];
 
 const normalizeTabName = (range: string): string =>
   range.split("!")[0]?.replace(/^'/, "").replace(/'$/, "") ?? "";
@@ -172,6 +177,11 @@ vi.mock("../../src/lib/google/sheets-client", async (importOriginal) => {
         const workbook = liveWorkbookState.get(spreadsheetId) ?? createWorkbook();
         const tabName = normalizeTabName(range);
 
+        sheetOperations.push({
+          type: "append",
+          spreadsheetId,
+          range
+        });
         workbook[tabName] = [...(workbook[tabName] ?? []), ...values];
         liveWorkbookState.set(spreadsheetId, workbook);
 
@@ -181,6 +191,11 @@ vi.mock("../../src/lib/google/sheets-client", async (importOriginal) => {
         const workbook = liveWorkbookState.get(spreadsheetId) ?? createWorkbook();
         const tabName = normalizeTabName(range);
 
+        sheetOperations.push({
+          type: "update",
+          spreadsheetId,
+          range
+        });
         workbook[tabName] = values;
         liveWorkbookState.set(spreadsheetId, workbook);
 
@@ -389,6 +404,7 @@ describe("teacher representative and session flows", () => {
     process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY =
       "-----BEGIN PRIVATE KEY-----\nmock-key\n-----END PRIVATE KEY-----\n";
     liveWorkbookState.set("sheet-live", createWorkbook());
+    sheetOperations.length = 0;
     createDemoStore({
       filePath: storePath,
       seedData: buildTeacherSeed()
@@ -399,6 +415,7 @@ describe("teacher representative and session flows", () => {
     vi.unstubAllGlobals();
     cookies.mockReset();
     liveWorkbookState.clear();
+    sheetOperations.length = 0;
     delete process.env.PAPS_STORE_PATH;
     delete process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
     delete process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
@@ -590,6 +607,43 @@ describe("teacher representative and session flows", () => {
     });
   });
 
+  it("writes only source-of-truth tabs for metadata and student mutations in the sheet-backed store", async () => {
+    process.env.NODE_ENV = "production";
+    const { createGoogleSheetsStoreForRequest } = await import("../../src/lib/google/sheets-store");
+
+    const store = await createGoogleSheetsStoreForRequest({
+      spreadsheetId: "sheet-live",
+      teacherEmail: "demo-teacher@example.com"
+    });
+
+    await store.saveClass({
+      id: "demo-class-5-2",
+      schoolId: "demo-school",
+      academicYear: 2026,
+      gradeLevel: 5,
+      classNumber: 2,
+      label: "5-2",
+      active: true
+    });
+
+    expect(sheetOperations.map((entry) => entry.range)).toEqual(["'설정'!A1:F200"]);
+
+    sheetOperations.length = 0;
+
+    await store.saveStudent({
+      id: "student-lee",
+      schoolId: "demo-school",
+      classId: "demo-class-5-1",
+      studentNumber: 2,
+      name: "Lee",
+      sex: "male",
+      gradeLevel: 5,
+      active: true
+    });
+
+    expect(sheetOperations.map((entry) => entry.range)).toEqual(["'학생명단'!A1:I1000"]);
+  });
+
   it("routes representative updates and results reads through the same sheet-backed store", async () => {
     process.env.NODE_ENV = "production";
     cookies.mockResolvedValue({
@@ -627,6 +681,16 @@ describe("teacher representative and session flows", () => {
 
     expect(response.status).toBe(200);
     expect(payload.record?.representativeAttemptId).toBe("attempt-2");
+    expect(sheetOperations.map((entry) => entry.range)).toEqual([
+      "'수정로그'!A1:I2000",
+      "'세션기록'!A1:U5000"
+    ]);
+    expect(
+      sheetOperations.some(
+        (entry) =>
+          entry.range === "'학생요약'!A1:L2000" || entry.range === "'공식평가요약'!A1:K2000"
+      )
+    ).toBe(false);
 
     const store = await createGoogleSheetsStoreForRequest({
       spreadsheetId: "sheet-live",

@@ -306,6 +306,113 @@ describe("teacher settings management", () => {
     expect(payload.error).toContain("cannot access spreadsheet sheet-unshared");
   });
 
+  it("rejects connect requests when persisted teacher membership belongs to another email", async () => {
+    const connectRoute = await import("../../app/api/google-sheet/connect/route");
+    const sheetsClient = await import("../../src/lib/google/sheets-client");
+
+    vi.mocked(sheetsClient.createGoogleSheetsClient).mockReturnValueOnce({
+      getSpreadsheet: vi.fn(async () => ({
+        spreadsheetId: "sheet-owned",
+        sheets: [
+          "설정",
+          "학생명단",
+          "세션기록",
+          "학생요약",
+          "공식평가요약",
+          "오류로그",
+          "수정로그"
+        ].map((title, index) => ({
+          properties: {
+            sheetId: index + 1,
+            title
+          }
+        }))
+      })),
+      readRange: vi.fn(async (_spreadsheetId: string, range: string) => {
+        if (range === "'설정'!A1:C20") {
+          return [
+            ["항목", "값", "설명"],
+            ["시트 템플릿 버전", "v0.1-prototype", "프로토타입 예시"]
+          ];
+        }
+
+        const tabName = range.split("!")[0]?.replace(/^'/, "").replace(/'$/, "") ?? "";
+        const headers: Record<string, string[]> = {
+          설정: ["항목", "값", "설명", "", "사용 탭", "역할"],
+          학생명단: ["학생ID", "학년도", "학년", "반", "번호", "이름", "성별", "활성", "비고"],
+          세션기록: [
+            "기록ID",
+            "세션ID",
+            "세션명",
+            "학년도",
+            "측정일",
+            "세션유형",
+            "입력화면유형",
+            "대상반표시",
+            "실제반",
+            "종목",
+            "단위",
+            "학생ID",
+            "학생이름",
+            "시도순번",
+            "원측정값",
+            "대표값선택",
+            "대표값선정교사",
+            "공식등급",
+            "제출시각",
+            "동기화상태",
+            "비고"
+          ],
+          학생요약: [
+            "학생ID",
+            "이름",
+            "학년",
+            "반",
+            "종목",
+            "최신대표값",
+            "단위",
+            "직전대표값",
+            "변화량",
+            "최고대표값",
+            "최근측정일",
+            "학생표시문구"
+          ],
+          공식평가요약: ["학생ID", "이름", "학년", "반", "종목", "대표값", "단위", "공식등급", "측정일", "세션명", "비고"],
+          오류로그: ["시간", "수준", "구분", "메시지", "관련ID", "재시도상태", "해결시각"],
+          수정로그: ["시간", "교사계정", "세션ID", "학생ID", "종목", "작업", "이전기록ID", "선택기록ID", "사유"]
+        };
+
+        if (range.endsWith("!A1:Z1")) {
+          return [headers[tabName] ?? []];
+        }
+
+        if (range === "'설정'!A2:F200") {
+          return [
+            ["학교명", "Locked School", "교사가 관리 페이지에서 설정", "", "", ""],
+            ["__PAPS_SCHOOL", "locked-school", "Locked School", "https://docs.google.com/spreadsheets/d/sheet-owned/edit", "2026-03-24T09:00:00.000Z", "2026-03-24T09:00:00.000Z"],
+            ["__PAPS_TEACHER", "teacher-other", "locked-school", "Other Teacher", "other-teacher@example.com", ""],
+            ["__PAPS_TEACHER_META", "teacher-other", "2026-03-24T09:00:00.000Z", "2026-03-24T09:00:00.000Z", "", ""]
+          ];
+        }
+
+        return [];
+      }),
+      appendRows: vi.fn(async () => ({})),
+      updateRange: vi.fn(async () => ({}))
+    });
+
+    const response = await connectRoute.POST(
+      jsonRequest("/api/google-sheet/connect", "POST", {
+        url: "https://docs.google.com/spreadsheets/d/sheet-owned/edit",
+        schoolName: "Locked School"
+      })
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(payload.error).toBe("The current teacher is not authorized for this spreadsheet.");
+  });
+
   it("fails clearly when connect is attempted without service-account env", async () => {
     delete process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
     delete process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;

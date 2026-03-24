@@ -23,10 +23,11 @@ import type {
   TeacherBootstrap
 } from "../store/paps-store-types";
 import {
+  buildSettingsTabValues,
+  buildStudentTabValues,
   buildStructuredStateFromSheet,
   buildTeacherBootstrapFromSheet,
   type GoogleSheetStructuredState,
-  toTeacherBootstrapFromStructuredState
 } from "./sheets-bootstrap";
 import { createGoogleSheetsEditLink } from "./drive-link";
 import { createPapsGoogleSheetTabPayloads } from "./sheets";
@@ -84,8 +85,6 @@ const GOOGLE_SHEET_WRITE_SPECS = {
   설정: { range: "'설정'!A1:F200", rowCount: 200, columnCount: 6 },
   학생명단: { range: "'학생명단'!A1:I1000", rowCount: 1000, columnCount: 9 },
   세션기록: { range: "'세션기록'!A1:U5000", rowCount: 5000, columnCount: 21 },
-  학생요약: { range: "'학생요약'!A1:L2000", rowCount: 2000, columnCount: 12 },
-  공식평가요약: { range: "'공식평가요약'!A1:K2000", rowCount: 2000, columnCount: 11 },
   오류로그: { range: "'오류로그'!A1:G2000", rowCount: 2000, columnCount: 7 },
   수정로그: { range: "'수정로그'!A1:I2000", rowCount: 2000, columnCount: 9 }
 } as const;
@@ -238,40 +237,115 @@ const buildAttemptRecordsForSession = (
     .sort((left, right) => left.studentId.localeCompare(right.studentId));
 };
 
-const persistStructuredState = async (
-  input: CreateGoogleSheetsStoreForRequestInput & {
-    state: GoogleSheetStructuredState;
-  }
+const updateSourceTab = async (
+  input: CreateGoogleSheetsStoreForRequestInput,
+  tabName: keyof typeof GOOGLE_SHEET_WRITE_SPECS,
+  values: string[][]
 ): Promise<void> => {
   const client = input.client ?? createGoogleSheetClientFromEnv();
-  const payloads = createPapsGoogleSheetTabPayloads({
-    school: input.state.school,
-    classes: input.state.classes,
-    teachers: input.state.teachers,
-    students: input.state.allStudents,
-    sessions: input.state.sessions,
-    attempts: input.state.attempts,
-    syncStatuses: input.state.syncStatuses,
-    syncErrorLogs: input.state.syncErrorLogs,
-    representativeSelectionAuditLogs: input.state.representativeSelectionAuditLogs
-  });
+  const spec = GOOGLE_SHEET_WRITE_SPECS[tabName];
 
-  await Promise.all(
-    payloads.map((payload) => {
-      const spec = GOOGLE_SHEET_WRITE_SPECS[payload.tabName as keyof typeof GOOGLE_SHEET_WRITE_SPECS];
+  await client.updateRange(
+    input.spreadsheetId,
+    spec.range,
+    padRows(values, spec.rowCount, spec.columnCount)
+  );
+};
 
-      if (!spec) {
-        return Promise.resolve();
-      }
-
-      const values = [payload.header, ...payload.rows.map((row) => row.map((cell) => String(cell ?? "")))];
-
-      return client.updateRange(
-        input.spreadsheetId,
-        spec.range,
-        padRows(values, spec.rowCount, spec.columnCount)
-      );
+const writeSettingsTab = async (
+  input: CreateGoogleSheetsStoreForRequestInput,
+  state: Pick<GoogleSheetStructuredState, "school" | "classes" | "teachers" | "sessions">
+): Promise<void> => {
+  await updateSourceTab(
+    input,
+    "설정",
+    buildSettingsTabValues({
+      spreadsheetId: input.spreadsheetId,
+      school: state.school,
+      classes: state.classes,
+      teachers: state.teachers,
+      sessions: state.sessions
     })
+  );
+};
+
+const writeStudentsTab = async (
+  input: CreateGoogleSheetsStoreForRequestInput,
+  state: Pick<GoogleSheetStructuredState, "allStudents" | "classes">
+): Promise<void> => {
+  await updateSourceTab(
+    input,
+    "학생명단",
+    buildStudentTabValues({
+      students: state.allStudents,
+      classes: state.classes
+    })
+  );
+};
+
+const createSourcePayloadMap = (state: GoogleSheetStructuredState) =>
+  new Map(
+    createPapsGoogleSheetTabPayloads({
+      school: state.school,
+      classes: state.classes,
+      teachers: state.teachers,
+      students: state.allStudents,
+      sessions: state.sessions,
+      attempts: state.attempts,
+      syncStatuses: state.syncStatuses,
+      syncErrorLogs: state.syncErrorLogs,
+      representativeSelectionAuditLogs: state.representativeSelectionAuditLogs
+    }).map((payload) => [payload.tabName, payload])
+  );
+
+const writeRecordTab = async (
+  input: CreateGoogleSheetsStoreForRequestInput,
+  state: GoogleSheetStructuredState
+): Promise<void> => {
+  const payload = createSourcePayloadMap(state).get("세션기록");
+
+  if (!payload) {
+    return;
+  }
+
+  await updateSourceTab(
+    input,
+    "세션기록",
+    [payload.header, ...payload.rows.map((row) => row.map((cell) => String(cell ?? "")))]
+  );
+};
+
+const writeErrorLogTab = async (
+  input: CreateGoogleSheetsStoreForRequestInput,
+  state: GoogleSheetStructuredState
+): Promise<void> => {
+  const payload = createSourcePayloadMap(state).get("오류로그");
+
+  if (!payload) {
+    return;
+  }
+
+  await updateSourceTab(
+    input,
+    "오류로그",
+    [payload.header, ...payload.rows.map((row) => row.map((cell) => String(cell ?? "")))]
+  );
+};
+
+const writeAuditLogTab = async (
+  input: CreateGoogleSheetsStoreForRequestInput,
+  state: GoogleSheetStructuredState
+): Promise<void> => {
+  const payload = createSourcePayloadMap(state).get("수정로그");
+
+  if (!payload) {
+    return;
+  }
+
+  await updateSourceTab(
+    input,
+    "수정로그",
+    [payload.header, ...payload.rows.map((row) => row.map((cell) => String(cell ?? "")))]
   );
 };
 
@@ -359,10 +433,19 @@ export const loadTeacherPageState = async ({
       spreadsheetId,
       teacherEmail
     });
+    const bootstrap = await store.getTeacherBootstrap({ teacherEmail });
+
+    if (!bootstrap.teacher) {
+      return {
+        store: null,
+        bootstrap: getDisconnectedTeacherBootstrap(),
+        sheetConnected: false
+      };
+    }
 
     return {
       store,
-      bootstrap: await store.getTeacherBootstrap({ teacherEmail }),
+      bootstrap,
       sheetConnected: true
     };
   } catch {
@@ -385,15 +468,29 @@ export const connectTeacherGoogleSheet = async (
     teacherEmail: input.teacherEmail
   });
   const timestamp = createTimestamp();
-  const teachers = ensureTeacher(currentState.teachers, currentState.school.id, input.teacherEmail).map(
-    (teacher) =>
-      teacher.email.trim().toLowerCase() === input.teacherEmail.trim().toLowerCase()
-        ? {
-            ...teacher,
-            name: input.teacherName?.trim() || teacher.name,
-            updatedAt: timestamp
-          }
-        : teacher
+  const normalizedTeacherEmail = input.teacherEmail.trim().toLowerCase();
+
+  if (
+    currentState.hasPersistedTeachers &&
+    !currentState.teachers.some(
+      (teacher) => teacher.email.trim().toLowerCase() === normalizedTeacherEmail
+    )
+  ) {
+    throw new Error("The current teacher is not authorized for this spreadsheet.");
+  }
+
+  const teachers = (
+    currentState.hasPersistedTeachers
+      ? currentState.teachers
+      : ensureTeacher(currentState.teachers, currentState.school.id, input.teacherEmail)
+  ).map((teacher) =>
+    teacher.email.trim().toLowerCase() === normalizedTeacherEmail
+      ? {
+          ...teacher,
+          name: input.teacherName?.trim() || teacher.name,
+          updatedAt: timestamp
+        }
+      : teacher
   );
   const school: PAPSSchool = {
     ...currentState.school,
@@ -403,16 +500,19 @@ export const connectTeacherGoogleSheet = async (
     updatedAt: timestamp
   };
 
-  await persistStructuredState({
-    spreadsheetId: input.spreadsheetId,
-    teacherEmail: input.teacherEmail,
-    client,
-    state: {
-      ...currentState,
+  await writeSettingsTab(
+    {
+      spreadsheetId: input.spreadsheetId,
+      teacherEmail: input.teacherEmail,
+      client
+    },
+    {
       school,
-      teachers
+      classes: currentState.classes,
+      teachers,
+      sessions: currentState.sessions
     }
-  });
+  );
 
   return {
     school,
@@ -425,15 +525,6 @@ export const createGoogleSheetsStoreForRequest = async (
   input: CreateGoogleSheetsStoreForRequestInput
 ): Promise<TeacherSheetsStore> => {
   const client = input.client ?? createGoogleSheetClientFromEnv();
-  const saveState = async (state: GoogleSheetStructuredState): Promise<GoogleSheetStructuredState> => {
-    await persistStructuredState({
-      ...input,
-      client,
-      state
-    });
-
-    return state;
-  };
 
   const getTeacherBootstrap = async ({
     teacherEmail
@@ -456,15 +547,23 @@ export const createGoogleSheetsStoreForRequest = async (
     const state = await getState();
     const nextSchool = {
       ...school,
-      teacherIds: ensureTeacher(state.teachers, school.id, input.teacherEmail).map((teacher) => teacher.id),
+      teacherIds: state.teachers.map((teacher) => teacher.id),
       sheetUrl: school.sheetUrl ?? createGoogleSheetsEditLink(input.spreadsheetId),
       updatedAt: createTimestamp()
     };
 
-    await saveState({
-      ...state,
-      school: nextSchool
-    });
+    await writeSettingsTab(
+      {
+        ...input,
+        client
+      },
+      {
+        school: nextSchool,
+        classes: state.classes,
+        teachers: state.teachers,
+        sessions: state.sessions
+      }
+    );
 
     return nextSchool;
   };
@@ -481,26 +580,54 @@ export const createGoogleSheetsStoreForRequest = async (
 
   const saveClass = async (classroom: PAPSClassroom): Promise<PAPSClassroom> => {
     const state = await getState();
+    const classes = [...state.classes.filter((entry) => entry.id !== classroom.id), classroom];
 
-    await saveState({
-      ...state,
-      classes: [...state.classes.filter((entry) => entry.id !== classroom.id), classroom]
-    });
+    await writeSettingsTab(
+      {
+        ...input,
+        client
+      },
+      {
+        school: state.school,
+        classes,
+        teachers: state.teachers,
+        sessions: state.sessions
+      }
+    );
 
     return classroom;
   };
 
   const deleteClass = async (classId: string): Promise<void> => {
     const state = await getState();
+    const classes = state.classes.filter((entry) => entry.id !== classId);
+    const sessions = state.sessions.filter(
+      (session) => !session.classTargets.some((classTarget) => classTarget.classId === classId)
+    );
+    const allStudents = state.allStudents.filter((student) => student.classId !== classId);
 
-    await saveState({
-      ...state,
-      classes: state.classes.filter((entry) => entry.id !== classId),
-      sessions: state.sessions.filter(
-        (session) => !session.classTargets.some((classTarget) => classTarget.classId === classId)
-      ),
-      allStudents: state.allStudents.filter((student) => student.classId !== classId)
-    });
+    await writeSettingsTab(
+      {
+        ...input,
+        client
+      },
+      {
+        school: state.school,
+        classes,
+        teachers: state.teachers,
+        sessions
+      }
+    );
+    await writeStudentsTab(
+      {
+        ...input,
+        client
+      },
+      {
+        allStudents,
+        classes
+      }
+    );
   };
 
   const getStudent = async (studentId: string): Promise<PAPSStudent> => {
@@ -519,11 +646,18 @@ export const createGoogleSheetsStoreForRequest = async (
       ...student,
       schoolId: student.schoolId ?? state.school.id
     };
+    const allStudents = [...state.allStudents.filter((entry) => entry.id !== nextStudent.id), nextStudent];
 
-    await saveState({
-      ...state,
-      allStudents: [...state.allStudents.filter((entry) => entry.id !== nextStudent.id), nextStudent]
-    });
+    await writeStudentsTab(
+      {
+        ...input,
+        client
+      },
+      {
+        allStudents,
+        classes: state.classes
+      }
+    );
 
     return nextStudent;
   };
@@ -531,10 +665,16 @@ export const createGoogleSheetsStoreForRequest = async (
   const deleteStudent = async (studentId: string): Promise<void> => {
     const state = await getState();
 
-    await saveState({
-      ...state,
-      allStudents: state.allStudents.filter((entry) => entry.id !== studentId)
-    });
+    await writeStudentsTab(
+      {
+        ...input,
+        client
+      },
+      {
+        allStudents: state.allStudents.filter((entry) => entry.id !== studentId),
+        classes: state.classes
+      }
+    );
   };
 
   const getSession = async (sessionId: string): Promise<PAPSSession> => {
@@ -549,11 +689,20 @@ export const createGoogleSheetsStoreForRequest = async (
 
   const saveSession = async (session: PAPSSession): Promise<PAPSSession> => {
     const state = await getState();
+    const sessions = [...state.sessions.filter((entry) => entry.id !== session.id), session];
 
-    await saveState({
-      ...state,
-      sessions: [...state.sessions.filter((entry) => entry.id !== session.id), session]
-    });
+    await writeSettingsTab(
+      {
+        ...input,
+        client
+      },
+      {
+        school: state.school,
+        classes: state.classes,
+        teachers: state.teachers,
+        sessions
+      }
+    );
 
     return session;
   };
@@ -561,16 +710,18 @@ export const createGoogleSheetsStoreForRequest = async (
   const deleteSession = async (sessionId: string): Promise<void> => {
     const state = await getState();
 
-    await saveState({
-      ...state,
-      sessions: state.sessions.filter((entry) => entry.id !== sessionId),
-      attempts: state.attempts.filter((entry) => entry.sessionId !== sessionId),
-      syncStatuses: state.syncStatuses.filter((entry) => entry.sessionId !== sessionId),
-      syncErrorLogs: state.syncErrorLogs.filter((entry) => entry.sessionId !== sessionId),
-      representativeSelectionAuditLogs: state.representativeSelectionAuditLogs.filter(
-        (entry) => entry.sessionId !== sessionId
-      )
-    });
+    await writeSettingsTab(
+      {
+        ...input,
+        client
+      },
+      {
+        school: state.school,
+        classes: state.classes,
+        teachers: state.teachers,
+        sessions: state.sessions.filter((entry) => entry.id !== sessionId)
+      }
+    );
   };
 
   const listSessionRecords = async (sessionId: string): Promise<PAPSAttemptRecord[]> =>
@@ -609,12 +760,29 @@ export const createGoogleSheetsStoreForRequest = async (
             } satisfies PAPSSyncErrorLog
           ]
         : state.syncErrorLogs;
-
-    await saveState({
+    const nextState: GoogleSheetStructuredState = {
       ...state,
       syncStatuses: [...state.syncStatuses.filter((entry) => entry.id !== syncStatusId), nextStatus],
       syncErrorLogs: nextSyncErrorLogs
-    });
+    };
+
+    await writeRecordTab(
+      {
+        ...input,
+        client
+      },
+      nextState
+    );
+
+    if (inputStatus.status === "failed" && inputStatus.message) {
+      await writeErrorLogTab(
+        {
+          ...input,
+          client
+        },
+        nextState
+      );
+    }
 
     return nextStatus;
   };
@@ -651,11 +819,25 @@ export const createGoogleSheetsStoreForRequest = async (
       reason: selection.reason,
       createdAt: selection.createdAt
     };
-
-    await saveState({
+    const nextState: GoogleSheetStructuredState = {
       ...state,
       representativeSelectionAuditLogs: [...state.representativeSelectionAuditLogs, auditLog]
-    });
+    };
+
+    await writeAuditLogTab(
+      {
+        ...input,
+        client
+      },
+      nextState
+    );
+    await writeRecordTab(
+      {
+        ...input,
+        client
+      },
+      nextState
+    );
 
     return updatedRecord;
   };
