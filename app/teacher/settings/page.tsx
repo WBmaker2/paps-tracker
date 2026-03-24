@@ -4,38 +4,17 @@ import { cookies } from "next/headers";
 import { AppShell } from "../../../src/components/layout/app-shell";
 import { TeacherSettingsManager } from "../../../src/components/teacher/settings-management";
 import { createPapsGoogleSheetTabPayloads } from "../../../src/lib/google/sheets";
-import { createGoogleSheetsStoreForRequest, PAPS_SPREADSHEET_ID_COOKIE } from "../../../src/lib/google/sheets-store";
+import { loadTeacherPageState, PAPS_SPREADSHEET_ID_COOKIE } from "../../../src/lib/google/sheets-store";
 import { requireTeacherSession } from "../../../src/lib/teacher-auth";
-import { createStoreForRequest } from "../../../src/lib/store/paps-store";
 
 export default async function TeacherSettingsPage() {
   const teacherSession = await requireTeacherSession();
   const cookieStore = await cookies();
   const spreadsheetId = cookieStore.get(PAPS_SPREADSHEET_ID_COOKIE)?.value ?? null;
-  const store =
-    process.env.NODE_ENV === "test"
-      ? await createStoreForRequest()
-      : spreadsheetId
-        ? await createGoogleSheetsStoreForRequest({
-            spreadsheetId,
-            teacherEmail: teacherSession.email
-          })
-        : null;
-  const bootstrap = store
-    ? await store.getTeacherBootstrap({ teacherEmail: teacherSession.email })
-    : {
-        teacher: null,
-        school: null,
-        schools: [],
-        classes: [],
-        teachers: [],
-        students: [],
-        sessions: [],
-        attempts: [],
-        syncStatuses: [],
-        syncErrorLogs: [],
-        representativeSelectionAuditLogs: []
-      };
+  const { bootstrap, sheetConnected } = await loadTeacherPageState({
+    teacherEmail: teacherSession.email,
+    spreadsheetId
+  });
   const school = bootstrap.teacher?.schoolId ? bootstrap.school : bootstrap.schools[0] ?? null;
   const schoolId = school?.id ?? null;
   const classes = (
@@ -86,7 +65,7 @@ export default async function TeacherSettingsPage() {
         <TeacherSettingsManager
           school={school}
           classes={classes}
-          sheetConnected={Boolean(store)}
+          sheetConnected={sheetConnected}
         />
         {school ? (
           <section className="rounded-[1.75rem] border border-ink/10 bg-white p-5 shadow-sm">

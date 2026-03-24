@@ -10,6 +10,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createDemoStore } from "../../src/lib/demo-store";
 import type { PAPSDemoStoreData } from "../../src/lib/paps/types";
 
+const cookies = vi.fn(async () => ({
+  get: () => undefined
+}));
+
 vi.mock("next/link", () => ({
   default: ({ children, href, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & {
     href: string;
@@ -19,6 +23,172 @@ vi.mock("next/link", () => ({
     </a>
   )
 }));
+
+vi.mock("next/headers", () => ({
+  cookies
+}));
+
+type MockWorkbook = Record<string, string[][]>;
+
+const liveWorkbookState = new Map<string, MockWorkbook>();
+
+const normalizeTabName = (range: string): string =>
+  range.split("!")[0]?.replace(/^'/, "").replace(/'$/, "") ?? "";
+
+const normalizeStartRow = (range: string): number => {
+  const match = range.match(/![A-Z]+(\d+)/);
+
+  return match ? Number(match[1]) : 1;
+};
+
+const createWorkbook = (): MockWorkbook => ({
+  설정: [
+    ["항목", "값", "설명", "", "사용 탭", "역할"],
+    ["학교명", "Demo Elementary", "교사가 관리 페이지에서 설정", "", "", ""],
+    ["담당교사 이메일", "demo-teacher@example.com", "구글 로그인 계정", "", "", ""],
+    [
+      "__PAPS_SCHOOL",
+      "demo-school",
+      "Demo Elementary",
+      "https://docs.google.com/spreadsheets/d/sheet-live/edit",
+      "2026-03-23T09:00:00.000Z",
+      "2026-03-23T09:00:00.000Z"
+    ],
+    ["__PAPS_TEACHER", "demo-teacher", "demo-school", "Demo Teacher", "demo-teacher@example.com", ""],
+    ["__PAPS_TEACHER_META", "demo-teacher", "2026-03-23T09:00:00.000Z", "2026-03-23T09:00:00.000Z", "", ""],
+    ["__PAPS_CLASS", "demo-class-5-1", "demo-school", "2026", "5", "1"],
+    ["__PAPS_CLASS_META", "demo-class-5-1", "5-1", "Y", "", ""],
+    ["__PAPS_SESSION", "session-official-1", "demo-school", "demo-teacher", "2026", "5-1 Sit And Reach"],
+    ["__PAPS_SESSION_META", "session-official-1", "5", "official", "single", "sit-and-reach"],
+    ["__PAPS_SESSION_STATUS", "session-official-1", "Y", "2026-03-23T09:10:00.000Z", "", ""],
+    ["__PAPS_SESSION_TARGET", "session-official-1", "demo-class-5-1", "sit-and-reach", "0", ""]
+  ],
+  학생명단: [
+    ["학생ID", "학년도", "학년", "반", "번호", "이름", "성별", "활성", "비고"],
+    ["student-kim", "2026", "5", "1", "1", "Kim", "여", "Y", ""]
+  ],
+  세션기록: [
+    [
+      "기록ID",
+      "세션ID",
+      "세션명",
+      "학년도",
+      "측정일",
+      "세션유형",
+      "입력화면유형",
+      "대상반표시",
+      "실제반",
+      "종목",
+      "단위",
+      "학생ID",
+      "학생이름",
+      "시도순번",
+      "원측정값",
+      "대표값선택",
+      "대표값선정교사",
+      "공식등급",
+      "제출시각",
+      "동기화상태",
+      "비고"
+    ],
+    [
+      "attempt-1",
+      "session-official-1",
+      "5-1 Sit And Reach",
+      "2026",
+      "2026-03-23",
+      "공식",
+      "1반형",
+      "5-1",
+      "1",
+      "Sit and Reach",
+      "cm",
+      "student-kim",
+      "Kim",
+      "1",
+      "18",
+      "N",
+      "",
+      "",
+      "2026-03-23 09:20:00",
+      "실패",
+      ""
+    ],
+    [
+      "attempt-2",
+      "session-official-1",
+      "5-1 Sit And Reach",
+      "2026",
+      "2026-03-23",
+      "공식",
+      "1반형",
+      "5-1",
+      "1",
+      "Sit and Reach",
+      "cm",
+      "student-kim",
+      "Kim",
+      "2",
+      "22",
+      "N",
+      "",
+      "",
+      "2026-03-23 09:22:00",
+      "실패",
+      ""
+    ]
+  ],
+  학생요약: [["학생ID", "이름", "학년", "반", "종목", "최신대표값", "단위", "직전대표값", "변화량", "최고대표값", "최근측정일", "학생표시문구"]],
+  공식평가요약: [["학생ID", "이름", "학년", "반", "종목", "대표값", "단위", "공식등급", "측정일", "세션명", "비고"]],
+  오류로그: [["시간", "수준", "구분", "메시지", "관련ID", "재시도상태", "해결시각"]],
+  수정로그: [["시간", "교사계정", "세션ID", "학생ID", "종목", "작업", "이전기록ID", "선택기록ID", "사유"]]
+});
+
+vi.mock("../../src/lib/google/sheets-client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../src/lib/google/sheets-client")>();
+
+  return {
+    ...actual,
+    createGoogleSheetsClient: vi.fn(() => ({
+      getSpreadsheet: vi.fn(async (spreadsheetId: string) => ({
+        spreadsheetId,
+        sheets: ["설정", "학생명단", "세션기록", "학생요약", "공식평가요약", "오류로그", "수정로그"].map(
+          (title, index) => ({
+            properties: {
+              sheetId: index + 1,
+              title
+            }
+          })
+        )
+      })),
+      readRange: vi.fn(async (spreadsheetId: string, range: string) => {
+        const workbook = liveWorkbookState.get(spreadsheetId) ?? createWorkbook();
+        const tabName = normalizeTabName(range);
+        const startRow = normalizeStartRow(range);
+
+        return (workbook[tabName] ?? []).slice(Math.max(0, startRow - 1));
+      }),
+      appendRows: vi.fn(async (spreadsheetId: string, range: string, values: string[][]) => {
+        const workbook = liveWorkbookState.get(spreadsheetId) ?? createWorkbook();
+        const tabName = normalizeTabName(range);
+
+        workbook[tabName] = [...(workbook[tabName] ?? []), ...values];
+        liveWorkbookState.set(spreadsheetId, workbook);
+
+        return {};
+      }),
+      updateRange: vi.fn(async (spreadsheetId: string, range: string, values: string[][]) => {
+        const workbook = liveWorkbookState.get(spreadsheetId) ?? createWorkbook();
+        const tabName = normalizeTabName(range);
+
+        workbook[tabName] = values;
+        liveWorkbookState.set(spreadsheetId, workbook);
+
+        return {};
+      })
+    }))
+  };
+});
 
 vi.mock("../../src/lib/teacher-auth", () => ({
   getTeacherSession: vi.fn(async () => ({
@@ -209,11 +379,16 @@ const installTeacherApiFetch = async () => {
 
 describe("teacher representative and session flows", () => {
   let storePath = "";
+  const originalNodeEnv = process.env.NODE_ENV;
 
   beforeEach(() => {
     vi.resetModules();
     storePath = createTempStorePath();
     process.env.PAPS_STORE_PATH = storePath;
+    process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL = "service-account@example.com";
+    process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY =
+      "-----BEGIN PRIVATE KEY-----\nmock-key\n-----END PRIVATE KEY-----\n";
+    liveWorkbookState.set("sheet-live", createWorkbook());
     createDemoStore({
       filePath: storePath,
       seedData: buildTeacherSeed()
@@ -222,7 +397,12 @@ describe("teacher representative and session flows", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    cookies.mockReset();
+    liveWorkbookState.clear();
     delete process.env.PAPS_STORE_PATH;
+    delete process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+    delete process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
+    process.env.NODE_ENV = originalNodeEnv;
   });
 
   it("creates a one-class or two-class session from the teacher dashboard", async () => {
@@ -408,5 +588,57 @@ describe("teacher representative and session flows", () => {
     await waitFor(() => {
       expect(screen.getByText(`마지막 업데이트: ${updatedAt}`)).toBeInTheDocument();
     });
+  });
+
+  it("routes representative updates and results reads through the same sheet-backed store", async () => {
+    process.env.NODE_ENV = "production";
+    cookies.mockResolvedValue({
+      get: (name: string) =>
+        name === "paps-spreadsheet-id"
+          ? {
+              value: "sheet-live"
+            }
+          : undefined
+    });
+
+    const representativeRoute = await import("../../app/api/records/[recordId]/representative/route");
+    const { createGoogleSheetsStoreForRequest } = await import("../../src/lib/google/sheets-store");
+    const { default: TeacherResultsPage } = await import("../../app/teacher/results/page");
+
+    const response = await representativeRoute.PATCH(
+      new NextRequest("http://localhost/api/records/session-official-1:student-kim/representative", {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          cookie: "paps-spreadsheet-id=sheet-live"
+        },
+        body: JSON.stringify({
+          attemptId: "attempt-2",
+          reason: "best-of-two"
+        })
+      }),
+      {
+        params: Promise.resolve({
+          recordId: "session-official-1:student-kim"
+        })
+      }
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.record?.representativeAttemptId).toBe("attempt-2");
+
+    const store = await createGoogleSheetsStoreForRequest({
+      spreadsheetId: "sheet-live",
+      teacherEmail: "demo-teacher@example.com"
+    });
+    const record = (await store.listSessionRecords("session-official-1"))
+      .find((entry) => entry.studentId === "student-kim");
+
+    expect(record?.representativeAttemptId).toBe("attempt-2");
+
+    render(await TeacherResultsPage());
+
+    expect(screen.getByRole("button", { name: "2회차 대표값" })).toBeInTheDocument();
   });
 });

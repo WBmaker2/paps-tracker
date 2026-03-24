@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { createTeacherRuntimeStoreForRequest, type TeacherCrudStore } from "../../../../../src/lib/google/sheets-store";
 import { parseRecordId } from "../../../../../src/lib/paps/record-id";
 import { requireTeacherRouteSession } from "../../../../../src/lib/teacher-auth";
-import { createStoreForRequest } from "../../../../../src/lib/store/paps-store";
 import type { PAPSTeacher } from "../../../../../src/lib/paps/types";
 
 const forbiddenResponse = (message = "Forbidden") =>
@@ -15,11 +15,14 @@ const forbiddenResponse = (message = "Forbidden") =>
     }
   );
 
-const getAuthorizedTeacherContext = async (teacherEmail: string): Promise<{
-  store: Awaited<ReturnType<typeof createStoreForRequest>>;
+const getAuthorizedTeacherContext = async (
+  request: NextRequest,
+  teacherEmail: string
+): Promise<{
+  store: TeacherCrudStore;
   teacher: PAPSTeacher;
 }> => {
-  const store = await createStoreForRequest();
+  const store = await createTeacherRuntimeStoreForRequest(request, teacherEmail);
   const bootstrap = await store.getTeacherBootstrap({ teacherEmail });
   const teacher = bootstrap.teacher;
 
@@ -50,18 +53,21 @@ export async function PATCH(request: NextRequest, context: RepresentativeRouteCo
   const { recordId } = await context.params;
 
   try {
-    const { store, teacher } = await getAuthorizedTeacherContext(teacherSession.session.email);
+    const { store, teacher } = await getAuthorizedTeacherContext(
+      request,
+      teacherSession.session.email
+    );
     const selector = parseRecordId(recordId);
-    const session = store.getSession(selector.sessionId);
-    const student = store.getStudent(selector.studentId);
+    const session = await store.getSession(selector.sessionId);
+    const student = await store.getStudent(selector.studentId);
 
     if (session.schoolId !== teacher.schoolId || student.schoolId !== teacher.schoolId) {
       return forbiddenResponse();
     }
 
     if (body?.intent === "requeue-sync") {
-      const currentSyncStatus = store.getSyncStatus(selector);
-      const syncStatus = store.setSyncStatus({
+      const currentSyncStatus = await store.getSyncStatus(selector);
+      const syncStatus = await store.setSyncStatus({
         ...selector,
         status: "pending",
         attemptId: currentSyncStatus?.attemptId ?? null,
@@ -73,7 +79,7 @@ export async function PATCH(request: NextRequest, context: RepresentativeRouteCo
       });
     }
 
-    const record = store.selectRepresentativeAttempt({
+    const record = await store.selectRepresentativeAttempt({
       ...selector,
       attemptId: typeof body?.attemptId === "string" || body?.attemptId === null ? body.attemptId : null,
       changedByTeacherId: teacher.id,

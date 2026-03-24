@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { getGoogleSheetsEnv } from "../../../../src/lib/env";
 import { validateGoogleSheetsUrl } from "../../../../src/lib/google/drive-link";
-import { createGoogleSheetsClient } from "../../../../src/lib/google/sheets-client";
 import { validatePapsGoogleSheetTemplate } from "../../../../src/lib/google/sheets-schema";
+import { createGoogleSheetClientFromEnv } from "../../../../src/lib/google/sheets-store";
 import { PAPS_GOOGLE_SHEET_PROTOTYPE_TABS } from "../../../../src/lib/google/template";
 import { requireTeacherRouteSession } from "../../../../src/lib/teacher-auth";
 
@@ -29,14 +28,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const env = getGoogleSheetsEnv();
-  const client = createGoogleSheetsClient({
-    serviceAccountEmail: env.serviceAccountEmail ?? "service-account@example.com",
-    serviceAccountPrivateKey:
-      env.serviceAccountPrivateKey ?? "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----\n"
-  });
-
   try {
+    const client = createGoogleSheetClientFromEnv();
     const validation = await validatePapsGoogleSheetTemplate(client, result.value.spreadsheetId);
 
     return NextResponse.json(

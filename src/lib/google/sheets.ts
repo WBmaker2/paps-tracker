@@ -16,6 +16,7 @@ import {
   PAPS_GOOGLE_SHEET_PROTOTYPE_TABS,
   PAPS_GOOGLE_SHEET_TEMPLATE_VERSION
 } from "./template";
+import { buildSettingsTabValues, buildStudentTabValues } from "./sheets-bootstrap";
 
 export type GoogleSheetCellValue = string | number | boolean | null;
 
@@ -202,76 +203,6 @@ const createAttemptRecords = (
   return [...recordMap.values()];
 };
 
-const createSettingsRows = ({
-  school,
-  classes,
-  teachers,
-  sessions
-}: Pick<PapsGoogleSheetSnapshot, "school" | "classes" | "teachers" | "sessions">): GoogleSheetCellValue[][] => {
-  const academicYears = new Set<number>();
-
-  for (const classroom of classes) {
-    academicYears.add(classroom.academicYear);
-  }
-
-  for (const session of sessions) {
-    if (session.academicYear) {
-      academicYears.add(session.academicYear);
-    }
-  }
-
-  const settingsRows: [string, GoogleSheetCellValue, string][] = [
-    ["학교명", school.name, "교사가 관리 페이지에서 설정"],
-    [
-      "학년도",
-      [...academicYears].sort((left, right) => left - right).join(", ") || "",
-      "모든 탭에서 학년도 컬럼과 함께 사용"
-    ],
-    [
-      "담당교사 이메일",
-      teachers.map((teacher) => teacher.email).join(", "),
-      "구글 로그인 계정"
-    ],
-    ["기본 세션 유형", "연습 기록", "세션 생성 시 바꿀 수 있음"],
-    [
-      "입력 화면 유형",
-      sessions.some((session) => session.classScope === "split") ? "1반형 / 2반 분할형" : "1반형",
-      "관리 페이지에서 선택"
-    ],
-    ["2반 분할 규칙", "같은 종목만 동시 기록", "사용자 승인 반영"],
-    ["학생 조회 정책", "제출 직후에만 자기 기록 확인", "공용 기기 보호 정책"],
-    ["시트 템플릿 버전", PAPS_GOOGLE_SHEET_TEMPLATE_VERSION, "프로토타입 예시"],
-    ["기록 보관 정책", "최소 해당 학년도 보관", "이전 학년도는 조회용 유지 또는 별도 백업"],
-    ["템플릿 안내 링크", school.sheetUrl ?? "https://docs.google.com/spreadsheets/", "실제 구현 시 복사 링크 버튼으로 연결"]
-  ];
-  const usageRows: [string, string][] = [
-    ["학생명단", "학생 기본 정보와 활성 여부"],
-    ["세션기록", "학생 입력 원본을 시도별로 모두 누적 저장"],
-    ["학생요약", "대표값 기준 최신값, 최고값, 변화량"],
-    ["공식평가요약", "공식 평가 세션 대표값과 등급"],
-    ["오류로그", "시트 동기화 실패와 주소 오류"],
-    ["수정로그", "교사 대표값 선택 및 수정 이력"]
-  ];
-  const rowCount = Math.max(settingsRows.length, usageRows.length);
-  const rows: GoogleSheetCellValue[][] = [];
-
-  for (let index = 0; index < rowCount; index += 1) {
-    const settingsRow = settingsRows[index];
-    const usageRow = usageRows[index];
-
-    rows.push([
-      settingsRow?.[0] ?? "",
-      settingsRow?.[1] ?? "",
-      settingsRow?.[2] ?? "",
-      "",
-      usageRow?.[0] ?? "",
-      usageRow?.[1] ?? ""
-    ]);
-  }
-
-  return rows;
-};
-
 export const createPapsGoogleSheetTabPayloads = ({
   school,
   classes,
@@ -311,44 +242,31 @@ export const createPapsGoogleSheetTabPayloads = ({
 
   const settingsTab = {
     tabName: "설정",
-    header: PAPS_GOOGLE_SHEET_PROTOTYPE_TABS[0]!.header,
-    rows: createSettingsRows({
+    header: buildSettingsTabValues({
+      spreadsheetId: school.sheetUrl?.split("/d/")[1]?.split("/")[0] ?? school.id,
       school,
       classes,
       teachers,
       sessions
-    })
+    })[0]!,
+    rows: buildSettingsTabValues({
+      spreadsheetId: school.sheetUrl?.split("/d/")[1]?.split("/")[0] ?? school.id,
+      school,
+      classes,
+      teachers,
+      sessions
+    }).slice(1)
   };
   const studentsTab = {
     tabName: "학생명단",
-    header: PAPS_GOOGLE_SHEET_PROTOTYPE_TABS[1]!.header,
-    rows: [...students]
-      .sort((left, right) => {
-        const leftClass = classById.get(left.classId);
-        const rightClass = classById.get(right.classId);
-
-        return (
-          (leftClass?.gradeLevel ?? 0) - (rightClass?.gradeLevel ?? 0) ||
-          (leftClass?.classNumber ?? 0) - (rightClass?.classNumber ?? 0) ||
-          (left.studentNumber ?? 0) - (right.studentNumber ?? 0) ||
-          left.name.localeCompare(right.name)
-        );
-      })
-      .map((student) => {
-        const classroom = classById.get(student.classId);
-
-        return [
-          student.id,
-          classroom?.academicYear ?? sessions[0]?.academicYear ?? "",
-          student.gradeLevel,
-          classroom?.classNumber ?? "",
-          student.studentNumber ?? "",
-          student.name,
-          toSexLabel(student.sex),
-          toActiveLabel(student.active),
-          ""
-        ];
-      })
+    header: buildStudentTabValues({
+      students,
+      classes
+    })[0]!,
+    rows: buildStudentTabValues({
+      students,
+      classes
+    }).slice(1)
   };
   const recordsTab = {
     tabName: "세션기록",

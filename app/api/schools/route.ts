@@ -2,9 +2,8 @@ import { randomUUID } from "node:crypto";
 
 import { NextRequest, NextResponse } from "next/server";
 
-import { createGoogleSheetsStoreForRequest, PAPS_SPREADSHEET_ID_COOKIE } from "../../../src/lib/google/sheets-store";
+import { createTeacherSchoolRuntimeStoreForRequest, type TeacherSchoolStore } from "../../../src/lib/google/sheets-store";
 import { requireTeacherRouteSession } from "../../../src/lib/teacher-auth";
-import { createSchoolStoreForRequest } from "../../../src/lib/store/paps-store";
 import type { PAPSTeacher } from "../../../src/lib/paps/types";
 
 const forbiddenResponse = (message = "Forbidden") =>
@@ -17,31 +16,14 @@ const forbiddenResponse = (message = "Forbidden") =>
     }
   );
 
-const createRouteStore = async (request: NextRequest, teacherEmail: string) => {
-  if (process.env.NODE_ENV === "test") {
-    return createSchoolStoreForRequest();
-  }
-
-  const spreadsheetId = request.cookies.get(PAPS_SPREADSHEET_ID_COOKIE)?.value;
-
-  if (!spreadsheetId) {
-    throw new Error("Google Sheets is not connected.");
-  }
-
-  return createGoogleSheetsStoreForRequest({
-    spreadsheetId,
-    teacherEmail
-  });
-};
-
 const getAuthorizedTeacherContext = async (
   request: NextRequest,
   teacherEmail: string
 ): Promise<{
-  store: Awaited<ReturnType<typeof createSchoolStoreForRequest>> | Awaited<ReturnType<typeof createGoogleSheetsStoreForRequest>>;
+  store: TeacherSchoolStore;
   teacher: PAPSTeacher;
 }> => {
-  const store = await createRouteStore(request, teacherEmail);
+  const store = await createTeacherSchoolRuntimeStoreForRequest(request, teacherEmail);
   const bootstrap = await store.getTeacherBootstrap({ teacherEmail });
   const teacher = bootstrap.teacher;
 

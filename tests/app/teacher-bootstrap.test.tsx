@@ -1,6 +1,6 @@
 import React from "react";
-import { render } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const bootstrap = {
   teacher: null,
@@ -16,6 +16,10 @@ const bootstrap = {
   representativeSelectionAuditLogs: []
 };
 
+const cookies = vi.fn(async () => ({
+  get: () => undefined
+}));
+
 vi.mock("next/link", () => ({
   default: ({
     children,
@@ -30,6 +34,10 @@ vi.mock("next/link", () => ({
   )
 }));
 
+vi.mock("next/headers", () => ({
+  cookies
+}));
+
 vi.mock("../../src/lib/teacher-auth", () => ({
   requireTeacherSession: vi.fn(async () => ({
     email: "demo-teacher@example.com",
@@ -42,11 +50,41 @@ const createStoreForRequest = vi.fn(async () => ({
   getTeacherBootstrap: vi.fn(async () => bootstrap)
 }));
 
+const loadTeacherPageState = vi.fn(async ({ teacherEmail }: { teacherEmail: string }) => {
+  if (process.env.NODE_ENV === "production") {
+    return {
+      store: null,
+      bootstrap,
+      sheetConnected: false
+    };
+  }
+
+  const store = await createStoreForRequest();
+
+  return {
+    store,
+    bootstrap: await store.getTeacherBootstrap({ teacherEmail }),
+    sheetConnected: true
+  };
+});
+
 vi.mock("../../src/lib/store/paps-store", () => ({
   createStoreForRequest
 }));
 
+vi.mock("../../src/lib/google/sheets-store", () => ({
+  PAPS_SPREADSHEET_ID_COOKIE: "paps-spreadsheet-id",
+  loadTeacherPageState
+}));
+
 describe("teacher bootstrap contract", () => {
+  afterEach(() => {
+    cookies.mockReset();
+    createStoreForRequest.mockClear();
+    loadTeacherPageState.mockClear();
+    process.env.NODE_ENV = "test";
+  });
+
   it("routes teacher bootstrap loading through createStoreForRequest", async () => {
     const { default: TeacherDashboardPage } = await import("../../app/teacher/page");
 
@@ -57,5 +95,26 @@ describe("teacher bootstrap contract", () => {
     expect(store?.getTeacherBootstrap).toHaveBeenCalledWith({
       teacherEmail: "demo-teacher@example.com"
     });
+  });
+
+  it("falls back to the disconnected setup prompt when a spreadsheet cookie is stale", async () => {
+    process.env.NODE_ENV = "production";
+    cookies.mockResolvedValue({
+      get: () => ({
+        value: "stale-sheet"
+      })
+    });
+
+    const { default: TeacherSettingsPage } = await import("../../app/teacher/settings/page");
+
+    render(await TeacherSettingsPage());
+
+    expect(loadTeacherPageState).toHaveBeenCalledWith({
+      teacherEmail: "demo-teacher@example.com",
+      spreadsheetId: "stale-sheet"
+    });
+    expect(
+      screen.getByText("먼저 템플릿을 복사한 구글 시트를 연결해야 학급과 세션을 관리할 수 있습니다.")
+    ).toBeInTheDocument();
   });
 });

@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { getGoogleSheetsEnv } from "../../../../src/lib/env";
 import { parseGoogleSheetsUrl } from "../../../../src/lib/google/drive-link";
-import { connectTeacherGoogleSheet, PAPS_SPREADSHEET_ID_COOKIE } from "../../../../src/lib/google/sheets-store";
-import { createGoogleSheetsClient } from "../../../../src/lib/google/sheets-client";
+import {
+  connectTeacherGoogleSheet,
+  createGoogleSheetClientFromEnv,
+  PAPS_SPREADSHEET_ID_COOKIE
+} from "../../../../src/lib/google/sheets-store";
 import { createSchoolStoreForRequest } from "../../../../src/lib/store/paps-store";
 import { requireTeacherRouteSession } from "../../../../src/lib/teacher-auth";
 
@@ -29,12 +31,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const parsed = parseGoogleSheetsUrl(typeof body?.url === "string" ? body.url : "");
-    const env = getGoogleSheetsEnv();
-    const client = createGoogleSheetsClient({
-      serviceAccountEmail: env.serviceAccountEmail ?? "service-account@example.com",
-      serviceAccountPrivateKey:
-        env.serviceAccountPrivateKey ?? "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----\n"
-    });
+    const client = createGoogleSheetClientFromEnv();
     const normalizedSchoolName =
       typeof body?.schoolName === "string" && body.schoolName.trim()
         ? body.schoolName.trim()

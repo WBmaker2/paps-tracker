@@ -182,6 +182,9 @@ describe("teacher settings management", () => {
     vi.resetModules();
     storePath = createTempStorePath();
     process.env.PAPS_STORE_PATH = storePath;
+    process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL = "service-account@example.com";
+    process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY =
+      "-----BEGIN PRIVATE KEY-----\nmock-key\n-----END PRIVATE KEY-----\n";
     createDemoStore({
       filePath: storePath,
       seedData: buildSeed()
@@ -191,6 +194,8 @@ describe("teacher settings management", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     delete process.env.PAPS_STORE_PATH;
+    delete process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+    delete process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
   });
 
   it("updates school info and adds a class from the settings management UI", async () => {
@@ -299,5 +304,38 @@ describe("teacher settings management", () => {
 
     expect(response.status).toBe(400);
     expect(payload.error).toContain("cannot access spreadsheet sheet-unshared");
+  });
+
+  it("fails clearly when connect is attempted without service-account env", async () => {
+    delete process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+    delete process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
+
+    const connectRoute = await import("../../app/api/google-sheet/connect/route");
+    const response = await connectRoute.POST(
+      jsonRequest("/api/google-sheet/connect", "POST", {
+        url: "https://docs.google.com/spreadsheets/d/sheet-verified/edit",
+        schoolName: "Missing Env School"
+      })
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(payload.error).toBe("Google Sheets service account environment variables are missing.");
+  });
+
+  it("fails clearly when validate is attempted without service-account env", async () => {
+    delete process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+    delete process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
+
+    const validateRoute = await import("../../app/api/google-sheet/validate/route");
+    const response = await validateRoute.POST(
+      jsonRequest("/api/google-sheet/validate", "POST", {
+        url: "https://docs.google.com/spreadsheets/d/sheet-verified/edit"
+      })
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(payload.error).toBe("Google Sheets service account environment variables are missing.");
   });
 });

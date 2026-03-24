@@ -6,22 +6,39 @@ import { ResultTable, type TeacherResultRow } from "../../../src/components/teac
 import { SyncStatusCard } from "../../../src/components/teacher/sync-status-card";
 import { createPapsGoogleSheetTabPayloads } from "../../../src/lib/google/sheets";
 import { getEventDefinition } from "../../../src/lib/paps/catalog";
+import { loadTeacherPageState, PAPS_SPREADSHEET_ID_COOKIE } from "../../../src/lib/google/sheets-store";
 import { selectPrimaryResultsSession } from "../../../src/lib/teacher-results";
 import { requireTeacherSession } from "../../../src/lib/teacher-auth";
-import { createStoreForRequest } from "../../../src/lib/store/paps-store";
+import { cookies } from "next/headers";
 
 const emptyResults: TeacherResultRow[] = [];
 
 export default async function TeacherResultsPage() {
   const teacherSession = await requireTeacherSession();
-  const store = await createStoreForRequest();
-  const bootstrap = await store.getTeacherBootstrap({ teacherEmail: teacherSession.email });
+  const cookieStore = await cookies();
+  const spreadsheetId = cookieStore.get(PAPS_SPREADSHEET_ID_COOKIE)?.value ?? null;
+  const { store, bootstrap, sheetConnected } = await loadTeacherPageState({
+    teacherEmail: teacherSession.email,
+    spreadsheetId
+  });
   const schoolId = bootstrap.teacher?.schoolId ?? null;
   const school = schoolId ? bootstrap.school : bootstrap.schools[0] ?? null;
   const sessions = bootstrap.sessions;
   const activeSession = selectPrimaryResultsSession(sessions);
 
-  if (!activeSession) {
+  if (!sheetConnected) {
+    return (
+      <AppShell
+        eyebrow="Results"
+        title="결과 검토"
+        description="구글 시트를 다시 연결하면 대표값 선택과 동기화 상태를 확인할 수 있습니다."
+      >
+        <ResultTable rows={emptyResults} />
+      </AppShell>
+    );
+  }
+
+  if (!activeSession || !store) {
     return (
       <AppShell
         eyebrow="Results"
@@ -35,7 +52,7 @@ export default async function TeacherResultsPage() {
 
   const classes = bootstrap.classes;
   const students = bootstrap.students;
-  const rows: TeacherResultRow[] = store.listSessionRecords(activeSession.id).map((record) => {
+  const rows: TeacherResultRow[] = (await store.listSessionRecords(activeSession.id)).map((record) => {
     const student = students.find((entry) => entry.id === record.studentId);
 
     return {
