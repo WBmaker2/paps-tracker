@@ -16,94 +16,6 @@ vi.mock("../../src/lib/teacher-auth", () => ({
   }))
 }));
 
-vi.mock("../../src/lib/demo-store", () => ({
-  getDemoStore: vi.fn(() => ({
-    listSchools: () => seed.schools,
-    getSchool: (schoolId: string) => {
-      const school = seed.schools.find((entry) => entry.id === schoolId);
-
-      if (!school) {
-        throw new Error(`School ${schoolId} was not found.`);
-      }
-
-      return school;
-    },
-    listClasses: () => seed.classes,
-    listTeachers: () => seed.teachers,
-    getTeacherByEmail: (email: string) =>
-      seed.teachers.find((entry) => entry.email === email) ?? null,
-    listStudents: () => seed.students,
-    listSessions: () => seed.sessions,
-    listSessionRecords: (sessionId: string) => {
-      const session = seed.sessions.find((entry) => entry.id === sessionId);
-
-      if (!session) {
-        throw new Error(`Session ${sessionId} was not found.`);
-      }
-
-      return [...new Set(seed.attempts.filter((entry) => entry.sessionId === sessionId).map((entry) => entry.studentId))].map(
-        (studentId) => ({
-          sessionId,
-          studentId,
-          eventId: session.eventId,
-          unit:
-            seed.attempts.find(
-              (entry) => entry.sessionId === sessionId && entry.studentId === studentId
-            )?.unit ?? "cm",
-          attempts: seed.attempts
-            .filter((entry) => entry.sessionId === sessionId && entry.studentId === studentId)
-            .sort((left, right) => left.attemptNumber - right.attemptNumber)
-            .map((attempt) => ({
-              id: attempt.id,
-              attemptNumber: attempt.attemptNumber,
-              measurement: attempt.measurement,
-              createdAt: attempt.createdAt
-            })),
-          representativeAttemptId:
-            seed.representativeSelectionAuditLogs
-              .filter((entry) => entry.sessionId === sessionId && entry.studentId === studentId)
-              .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
-              .at(-1)?.selectedAttemptId ?? null
-        })
-      );
-    },
-    listSyncStatuses: () => seed.syncStatuses,
-    listSyncErrorLogs: () => seed.syncErrorLogs,
-    listRepresentativeSelectionAuditLogs: () => seed.representativeSelectionAuditLogs,
-    getAttemptRecord: ({ sessionId, studentId }: { sessionId: string; studentId: string }) => {
-      const session = seed.sessions.find((entry) => entry.id === sessionId);
-
-      if (!session) {
-        throw new Error(`Session ${sessionId} was not found.`);
-      }
-
-      const attempts = seed.attempts
-        .filter((entry) => entry.sessionId === sessionId && entry.studentId === studentId)
-        .sort((left, right) => left.attemptNumber - right.attemptNumber)
-        .map((attempt) => ({
-          id: attempt.id,
-          attemptNumber: attempt.attemptNumber,
-          measurement: attempt.measurement,
-          createdAt: attempt.createdAt
-        }));
-      const representativeAttemptId =
-        seed.representativeSelectionAuditLogs
-          .filter((entry) => entry.sessionId === sessionId && entry.studentId === studentId)
-          .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
-          .at(-1)?.selectedAttemptId ?? null;
-
-      return {
-        sessionId,
-        studentId,
-        eventId: session.eventId,
-        unit: seed.attempts.find((entry) => entry.sessionId === sessionId)?.unit ?? "cm",
-        attempts,
-        representativeAttemptId
-      };
-    }
-  }))
-}));
-
 const seed: PAPSDemoStoreData = {
   version: 1,
   schools: [
@@ -367,23 +279,23 @@ describe("Google Sheet payload serialization", () => {
       "교사가 관리 페이지에서 설정",
       "",
       "학생명단",
-      "학생 기본 정보와 활성 여부"
+      "학교 메타데이터"
     ]);
     expect(tabs.find((tab) => tab.tabName === "설정")?.rows[6]).toEqual([
       "학생 조회 정책",
       "제출 직후에만 자기 기록 확인",
       "공용 기기 보호 정책",
       "",
-      "",
-      ""
+      "설정",
+      "운영 규칙"
     ]);
 
     expect(tabs.find((tab) => tab.tabName === "학생명단")?.rows[0]).toEqual([
       "student-1",
-      2026,
-      5,
-      1,
-      1,
+      "2026",
+      "5",
+      "1",
+      "1",
       "Kim",
       "여",
       "Y",
@@ -495,11 +407,15 @@ describe("Google Sheet payload serialization", () => {
 });
 
 describe("Google Sheet routes", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetModules();
+    const memoryStoreModule = await import("../../src/lib/store/paps-memory-store");
+    memoryStoreModule.resetRequestStore(seed);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    const memoryStoreModule = await import("../../src/lib/store/paps-memory-store");
+    memoryStoreModule.resetRequestStore();
     vi.clearAllMocks();
   });
 

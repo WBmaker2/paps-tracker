@@ -1,6 +1,6 @@
 # PAPS Tracker
 
-PAPS 학생 기록 시스템 MVP입니다. 교사용 관리 화면, 학생 세션 입력 화면, 대표값 선택, 파일 기반 데모 저장소, Google 로그인/Sheets 연동 준비, 구글 시트 프로토타입 payload 생성까지 포함합니다.
+PAPS 학생 기록 시스템 MVP입니다. 교사용 관리 화면, 학생 세션 입력 화면, 대표값 선택, Google 로그인, Google Sheets 저장, 구글 시트 프로토타입 payload 생성까지 포함합니다.
 
 ## Available Scripts
 
@@ -9,6 +9,7 @@ npm install
 npm run dev
 npm run lint
 npm run test
+npm run migrate:demo-store -- --sheet <spreadsheetId>
 ```
 
 ## Current Routes
@@ -21,11 +22,12 @@ npm run test
 - `/session/demo-session-practice`: 데모 학생 입력 세션
 - `/auth/signin`: 교사 로그인 안내 및 Google 로그인 진입
 
-## Demo Mode
+## Runtime Model
 
-- 학생 세션은 파일 기반 데모 저장소로 바로 동작합니다.
-- 교사 화면 데이터도 기본적으로 데모 저장소를 사용합니다.
+- 운영 데이터 저장소는 Google Sheets입니다.
+- 학생 제출은 Google Sheets append가 성공해야만 완료됩니다.
 - 개발 환경에서 `NEXTAUTH_SECRET`이 없으면 로컬 스모크 테스트를 위해 개발용 fallback secret을 사용합니다.
+- legacy `demo-store.json`이 있다면 마이그레이션 스크립트로 시트에 옮긴 뒤 운영합니다.
 
 ## Environment
 
@@ -37,36 +39,44 @@ npm run test
 - 교사 허용 범위: `GOOGLE_HOSTED_DOMAIN` 또는 `TEACHER_EMAIL_ALLOWLIST`
 - 시트 템플릿/연동: `GOOGLE_SHEETS_TEMPLATE_ID` 및 서비스 계정 값
 
-## Deploy To Render
+## Deploy To Vercel
 
-루트의 [`render.yaml`](./render.yaml)로 Render Blueprint 배포를 바로 시작할 수 있습니다.
+무료 운영 기준 권장 배포는 `Vercel Hobby + Google Sheets` 입니다.
 
-1. GitHub 저장소를 Render에 연결하고 Blueprint 배포를 선택합니다.
-2. `render.yaml`을 읽어 `paps-tracker` 웹 서비스를 생성합니다.
-3. `NEXTAUTH_URL`은 실제 Render 주소로 입력합니다.
-4. 교사 로그인을 쓸 경우 `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, 그리고 `GOOGLE_HOSTED_DOMAIN` 또는 `TEACHER_EMAIL_ALLOWLIST`를 설정합니다.
-5. Google OAuth 승인된 리디렉션 URI에 `https://<your-render-domain>/api/auth/callback/google`를 추가합니다.
-
-Render 설정 기준:
-
-- 인스턴스 타입: `starter`
-- 리전: `singapore`
-- 헬스체크: `/api/health`
-- Persistent Disk 마운트 경로: `/var/data/paps`
-- 앱 저장 경로(`PAPS_STORE_PATH`): `/var/data/paps/demo-store.json`
+1. 저장소를 Vercel에 연결합니다.
+2. `NEXTAUTH_URL`을 실제 배포 주소로 설정합니다.
+3. `NEXTAUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`를 설정합니다.
+4. `GOOGLE_HOSTED_DOMAIN` 또는 `TEACHER_EMAIL_ALLOWLIST`를 설정합니다.
+5. `GOOGLE_SHEETS_TEMPLATE_ID`, `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`를 설정합니다.
+6. Google OAuth 승인된 리디렉션 URI에 `https://<your-vercel-domain>/api/auth/callback/google`를 추가합니다.
 
 주의:
 
-- Render는 기본 파일시스템이 ephemeral이므로, 현재 MVP처럼 파일 저장소를 쓸 때는 Persistent Disk가 꼭 필요합니다.
-- Persistent Disk는 유료 웹 서비스에서만 사용할 수 있습니다.
-- 디스크가 붙은 서비스는 다중 인스턴스 확장이 불가하므로 현재 설정은 `numInstances: 1`입니다.
+- 서버 로컬 파일 저장소를 운영 경로로 사용하지 않습니다.
+- 학생 입력 전에 반드시 교사 화면에서 Google Sheets 연결을 끝내야 합니다.
+- 서비스 계정 이메일을 교사가 사용하는 시트에 공유해야 합니다.
+
+## Legacy Migration
+
+legacy `demo-store.json`이 있으면 아래처럼 Google Sheets로 옮길 수 있습니다.
+
+```bash
+npm run migrate:demo-store -- --sheet <spreadsheetId>
+```
+
+옵션:
+
+- `--input <path>`: legacy JSON 경로를 직접 지정합니다.
+- `--school <schoolId>`: 여러 학교가 있으면 특정 학교만 선택합니다.
+- `--write`: dry-run 대신 실제로 시트에 씁니다.
+
+기본 legacy 경로는 `.data/paps/demo-store.json` 이고, 이 파일이 있을 때만 자동으로 사용합니다.
 
 ## MVP Limitations
 
 - Google OAuth와 Google Sheets 실연동은 실제 자격 증명이 있어야 동작합니다.
 - 교사 경로는 인증이 없으면 로그인 경로로 이동합니다.
-- 현재 저장소는 로컬 파일 기반 데모 저장소이며, 다중 사용자 실서비스 DB는 아직 아닙니다.
-- 구글 시트 payload는 프로토타입 워크북 헤더에 맞춰 생성되지만, 실제 API 쓰기는 stubbed 응답입니다.
+- 다중 교사/다중 학교 운영 전에 서비스 계정 공유 정책을 학교별로 정리해야 합니다.
 - 종목 표시 이름은 현재 앱 카탈로그 기준 문자열을 사용합니다.
 
 ## Testing

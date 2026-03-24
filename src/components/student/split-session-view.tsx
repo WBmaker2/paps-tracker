@@ -31,6 +31,14 @@ type SubmissionResult = {
   latestOfficialGrade: OfficialGrade | null;
 };
 
+const createClientSubmissionKey = (): string => {
+  if (typeof globalThis.crypto?.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return `submit-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+};
+
 export function SplitSessionView({
   sessionId,
   sessionType,
@@ -81,6 +89,7 @@ export function SplitSessionView({
     }
 
     setErrorMessage(null);
+    const clientSubmissionKey = createClientSubmissionKey();
 
     await new Promise<void>((resolve) => {
       startTransition(async () => {
@@ -92,7 +101,8 @@ export function SplitSessionView({
             },
             body: JSON.stringify({
               studentId: selectedStudentId,
-              measurement
+              measurement,
+              clientSubmissionKey
             })
           });
           const payload = (await response.json()) as {

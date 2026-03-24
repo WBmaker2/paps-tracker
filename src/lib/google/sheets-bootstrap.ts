@@ -13,6 +13,7 @@ import type {
   PAPSStudent
 } from "../paps/types";
 import { createGoogleSheetsEditLink } from "./drive-link";
+import { parseRecordNote } from "./sheets-record-note";
 import type { GoogleSheetsClient } from "./sheets-client";
 import {
   PAPS_GOOGLE_SHEET_PROTOTYPE_TABS,
@@ -447,6 +448,7 @@ const parseRecordArtifacts = (input: {
     }
 
     const createdAt = normalizeIsoValue(row[18] ?? row[4]);
+    const recordNote = parseRecordNote(row[20]);
     const attempt: PAPSStoredAttempt = {
       id: row[0]!,
       sessionId: row[1]!,
@@ -455,7 +457,8 @@ const parseRecordArtifacts = (input: {
       unit: (row[10] as PAPSStoredAttempt["unit"]) || PAPS_EVENT_DEFINITIONS[session.eventId].unit,
       attemptNumber: Number(row[13]) || 1,
       measurement,
-      createdAt
+      createdAt,
+      clientSubmissionKey: recordNote.clientSubmissionKey ?? undefined
     };
 
     attempts.push(attempt);

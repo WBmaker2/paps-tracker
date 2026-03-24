@@ -10,10 +10,6 @@ services:
     startCommand: npm run start -- --hostname 0.0.0.0 --port $PORT
     healthCheckPath: /api/health
     numInstances: 1
-    disk:
-      name: paps-store
-      mountPath: /var/data/paps
-      sizeGB: 1
     envVars:
       - key: NODE_ENV
         value: production
@@ -23,8 +19,6 @@ services:
         generateValue: true
       - key: NEXTAUTH_URL
         sync: false
-      - key: PAPS_STORE_PATH
-        value: /var/data/paps/demo-store.json
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: GOOGLE_CLIENT_SECRET

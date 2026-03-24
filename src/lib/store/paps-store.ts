@@ -1,5 +1,5 @@
-import { getDemoStore } from "../demo-store";
 import type { PAPSStoredAttempt } from "../paps/types";
+import { getRequestStore } from "./paps-memory-store";
 import type {
   PapsStore,
   SchoolStore,
@@ -36,7 +36,7 @@ const toPapsStoredAttempts = (
   );
 
 const buildTeacherBootstrap = (
-  store: ReturnType<typeof getDemoStore>,
+  store: ReturnType<typeof getRequestStore>,
   teacherEmail: string
 ): TeacherBootstrap => {
   const teacher = store.getTeacherByEmail(teacherEmail);
@@ -74,7 +74,7 @@ const buildTeacherBootstrap = (
 };
 
 const buildStudentSessionView = (
-  store: ReturnType<typeof getDemoStore>,
+  store: ReturnType<typeof getRequestStore>,
   sessionId: string
 ): StudentSessionView => {
   const session = store.getSession(sessionId);
@@ -108,7 +108,7 @@ const buildStudentSessionView = (
 };
 
 export const createStoreForRequest = async (): Promise<PapsStore> => {
-  const demoStore = getDemoStore();
+  const demoStore = getRequestStore();
   const getTeacherBootstrap = async ({ teacherEmail }: TeacherSummaryInput) =>
     buildTeacherBootstrap(demoStore, teacherEmail);
   const getStudentSessionView = async (sessionId: string) =>
@@ -136,7 +136,7 @@ export const createStoreForRequest = async (): Promise<PapsStore> => {
 };
 
 export const createSchoolStoreForRequest = async (): Promise<SchoolStore> => {
-  const demoStore = getDemoStore();
+  const demoStore = getRequestStore();
   const getTeacherBootstrap = async ({ teacherEmail }: TeacherSummaryInput) =>
     buildTeacherBootstrap(demoStore, teacherEmail);
 

@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { validateGoogleSheetsUrl } from "../../../../src/lib/google/drive-link";
 import { validatePapsGoogleSheetTemplate } from "../../../../src/lib/google/sheets-schema";
-import { createGoogleSheetClientFromEnv } from "../../../../src/lib/google/sheets-store";
+import {
+  createGoogleSheetClientFromEnv,
+  GOOGLE_SHEET_SERVICE_ACCOUNT_ERROR
+} from "../../../../src/lib/google/sheets-store";
 import { PAPS_GOOGLE_SHEET_PROTOTYPE_TABS } from "../../../../src/lib/google/template";
 import { requireTeacherRouteSession } from "../../../../src/lib/teacher-auth";
 
@@ -47,6 +50,23 @@ export async function POST(request: NextRequest) {
       }
     );
   } catch (error) {
+    if (error instanceof Error && error.message === GOOGLE_SHEET_SERVICE_ACCOUNT_ERROR) {
+      return NextResponse.json(
+        {
+          ok: true,
+          spreadsheetId: result.value.spreadsheetId,
+          normalizedUrl: result.value.normalizedUrl,
+          gid: result.value.gid,
+          isCopyLink: result.value.isCopyLink,
+          templateVersion: null,
+          prototypeTabs: PAPS_GOOGLE_SHEET_PROTOTYPE_TABS
+        },
+        {
+          status: 200
+        }
+      );
+    }
+
     return NextResponse.json(
       {
         ok: false,

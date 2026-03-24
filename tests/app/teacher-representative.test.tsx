@@ -1,13 +1,8 @@
-import { mkdtempSync } from "node:fs";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
-
 import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createDemoStore } from "../../src/lib/demo-store";
 import type { PAPSDemoStoreData } from "../../src/lib/paps/types";
 
 const cookies = vi.fn(async () => ({
@@ -226,9 +221,6 @@ vi.mock("../../src/lib/teacher-auth", () => ({
   }))
 }));
 
-const createTempStorePath = (): string =>
-  join(mkdtempSync(join(tmpdir(), "paps-teacher-ui-")), "demo-store.json");
-
 const buildTeacherSeed = (): PAPSDemoStoreData => ({
   version: 1,
   schools: [
@@ -393,42 +385,40 @@ const installTeacherApiFetch = async () => {
 };
 
 describe("teacher representative and session flows", () => {
-  let storePath = "";
   const originalNodeEnv = process.env.NODE_ENV;
+  const importRequestStore = () => import("../../src/lib/store/paps-memory-store");
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetModules();
-    storePath = createTempStorePath();
-    process.env.PAPS_STORE_PATH = storePath;
     process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL = "service-account@example.com";
     process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY =
       "-----BEGIN PRIVATE KEY-----\nmock-key\n-----END PRIVATE KEY-----\n";
     liveWorkbookState.set("sheet-live", createWorkbook());
     sheetOperations.length = 0;
-    createDemoStore({
-      filePath: storePath,
-      seedData: buildTeacherSeed()
-    });
+    const { resetRequestStore } = await importRequestStore();
+    resetRequestStore(buildTeacherSeed());
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     vi.unstubAllGlobals();
     cookies.mockReset();
     liveWorkbookState.clear();
     sheetOperations.length = 0;
-    delete process.env.PAPS_STORE_PATH;
     delete process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
     delete process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
     process.env.NODE_ENV = originalNodeEnv;
+    const { resetRequestStore } = await importRequestStore();
+    resetRequestStore();
   });
 
   it("creates a one-class or two-class session from the teacher dashboard", async () => {
     await installTeacherApiFetch();
     const { SessionForm } = await import("../../src/components/teacher/session-form");
+    const { getRequestStore } = await importRequestStore();
 
     render(
       <SessionForm
-        classes={createDemoStore({ filePath: storePath }).listClasses()}
+        classes={getRequestStore().listClasses()}
         defaultTeacherId="demo-teacher"
         defaultSchoolId="demo-school"
       />
@@ -477,21 +467,24 @@ describe("teacher representative and session flows", () => {
     fireEvent.click(screen.getByRole("button", { name: "세션 저장" }));
 
     await waitFor(() => {
-      expect(createDemoStore({ filePath: storePath }).listSessions()).toHaveLength(3);
+      expect(getRequestStore().listSessions()).toHaveLength(3);
     });
 
-    expect(
-      createDemoStore({ filePath: storePath }).listSessions().map((session) => session.classScope)
-    ).toEqual(["single", "single", "split"]);
+    expect(getRequestStore().listSessions().map((session) => session.classScope)).toEqual([
+      "single",
+      "single",
+      "split"
+    ]);
   });
 
   it("blocks a two-class session when the selected classes do not share the same event", async () => {
     await installTeacherApiFetch();
     const { SessionForm } = await import("../../src/components/teacher/session-form");
+    const { getRequestStore } = await importRequestStore();
 
     render(
       <SessionForm
-        classes={createDemoStore({ filePath: storePath }).listClasses()}
+        classes={getRequestStore().listClasses()}
         defaultTeacherId="demo-teacher"
         defaultSchoolId="demo-school"
       />
@@ -519,12 +512,13 @@ describe("teacher representative and session flows", () => {
 
     await screen.findByText("Split sessions must use the same event for both classes.");
 
-    expect(createDemoStore({ filePath: storePath }).listSessions()).toHaveLength(1);
+    expect(getRequestStore().listSessions()).toHaveLength(1);
   });
 
   it("lets a teacher choose the representative attempt", async () => {
     await installTeacherApiFetch();
     const { ResultTable } = await import("../../src/components/teacher/result-table");
+    const { getRequestStore } = await importRequestStore();
 
     render(
       <ResultTable
@@ -563,7 +557,7 @@ describe("teacher representative and session flows", () => {
     await screen.findByText("대표값이 업데이트되었습니다.");
 
     expect(
-      createDemoStore({ filePath: storePath }).getAttemptRecord({
+      getRequestStore().getAttemptRecord({
         sessionId: "session-official-1",
         studentId: "student-kim"
       }).representativeAttemptId
@@ -573,6 +567,7 @@ describe("teacher representative and session flows", () => {
   it("shows sync failure status with a resync action", async () => {
     await installTeacherApiFetch();
     const { SyncStatusCard } = await import("../../src/components/teacher/sync-status-card");
+    const { getRequestStore } = await importRequestStore();
 
     render(
       <SyncStatusCard
@@ -589,13 +584,13 @@ describe("teacher representative and session flows", () => {
 
     await screen.findByText("재동기화를 다시 대기열에 넣었습니다.");
 
-    const updatedAt = createDemoStore({ filePath: storePath }).getSyncStatus({
+    const updatedAt = getRequestStore().getSyncStatus({
         sessionId: "session-official-1",
         studentId: "student-kim"
       })?.updatedAt;
 
     expect(
-      createDemoStore({ filePath: storePath }).getSyncStatus({
+      getRequestStore().getSyncStatus({
         sessionId: "session-official-1",
         studentId: "student-kim"
       })?.status

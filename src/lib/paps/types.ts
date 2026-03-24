@@ -56,6 +56,7 @@ export interface PAPSAttempt {
   attemptNumber: number;
   measurement: number;
   createdAt: string;
+  clientSubmissionKey?: string;
 }
 
 export interface PAPSAttemptRecord {
@@ -145,6 +146,7 @@ export interface PAPSStoredAttempt {
   attemptNumber: number;
   measurement: number;
   createdAt: string;
+  clientSubmissionKey?: string;
 }
 
 export type PAPSSyncState = "pending" | "synced" | "failed";

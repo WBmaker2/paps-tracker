@@ -15,6 +15,7 @@ export interface TeacherResultRow {
   unit: string;
   representativeAttemptId: string | null;
   attempts: PAPSAttempt[];
+  duplicateAttemptCount?: number;
 }
 
 export function ResultTable({ rows }: { rows: TeacherResultRow[] }) {
@@ -84,6 +85,11 @@ export function ResultTable({ rows }: { rows: TeacherResultRow[] }) {
                 <p className="text-sm text-ink/65">
                   {row.sessionName} · {row.eventLabel}
                 </p>
+                {row.duplicateAttemptCount ? (
+                  <p className="mt-1 text-xs font-medium text-amber-700">
+                    중복 제출 {row.duplicateAttemptCount}건 감지
+                  </p>
+                ) : null}
               </div>
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-2">

@@ -13,6 +13,28 @@ import { cookies } from "next/headers";
 
 const emptyResults: TeacherResultRow[] = [];
 
+const countDuplicateAttempts = (attempts: TeacherResultRow["attempts"]): number => {
+  const seenKeys = new Set<string>();
+  let duplicateCount = 0;
+
+  for (const attempt of attempts) {
+    const key = attempt.clientSubmissionKey?.trim();
+
+    if (!key) {
+      continue;
+    }
+
+    if (seenKeys.has(key)) {
+      duplicateCount += 1;
+      continue;
+    }
+
+    seenKeys.add(key);
+  }
+
+  return duplicateCount;
+};
+
 export default async function TeacherResultsPage() {
   const teacherSession = await requireTeacherSession();
   const cookieStore = await cookies();
@@ -54,6 +76,7 @@ export default async function TeacherResultsPage() {
   const students = bootstrap.students;
   const rows: TeacherResultRow[] = (await store.listSessionRecords(activeSession.id)).map((record) => {
     const student = students.find((entry) => entry.id === record.studentId);
+    const duplicateAttemptCount = countDuplicateAttempts(record.attempts);
 
     return {
       recordId: `${record.sessionId}:${record.studentId}`,
@@ -65,9 +88,14 @@ export default async function TeacherResultsPage() {
       eventLabel: getEventDefinition(activeSession.eventId).label,
       unit: record.unit,
       representativeAttemptId: record.representativeAttemptId,
-      attempts: record.attempts
+      attempts: record.attempts,
+      duplicateAttemptCount
     };
   });
+  const duplicateAttemptCount = rows.reduce(
+    (total, row) => total + (row.duplicateAttemptCount ?? 0),
+    0
+  );
   const focusRow = rows.find((row) => row.attempts.length > 0) ?? rows[0] ?? null;
   const focusSync = focusRow
     ? bootstrap.syncStatuses.find(
@@ -115,12 +143,15 @@ export default async function TeacherResultsPage() {
             attempts={focusRow?.attempts ?? []}
             unit={focusRow?.unit ?? ""}
           />
-          {focusRow && focusSync ? (
+          {focusRow ? (
             <SyncStatusCard
               recordId={focusRow.recordId}
-              status={focusSync.status}
-              updatedAt={focusSync.updatedAt}
+              status={focusSync?.status ?? "pending"}
+              updatedAt={focusSync?.updatedAt ?? "-"}
               message={focusSyncMessage}
+              rebuildSessionId={activeSession.id}
+              duplicateAttemptCount={duplicateAttemptCount}
+              initialRebuildNeeded={duplicateAttemptCount > 0}
             />
           ) : null}
           {sheetTabs.length > 0 ? (

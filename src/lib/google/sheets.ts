@@ -16,6 +16,7 @@ import {
   PAPS_GOOGLE_SHEET_PROTOTYPE_TABS,
   PAPS_GOOGLE_SHEET_TEMPLATE_VERSION
 } from "./template";
+import { buildRecordNote } from "./sheets-record-note";
 import { buildSettingsTabValues, buildStudentTabValues } from "./sheets-bootstrap";
 
 export type GoogleSheetCellValue = string | number | boolean | null;
@@ -184,7 +185,8 @@ const createAttemptRecords = (
       id: attempt.id,
       attemptNumber: attempt.attemptNumber,
       measurement: attempt.measurement,
-      createdAt: attempt.createdAt
+      createdAt: attempt.createdAt,
+      clientSubmissionKey: attempt.clientSubmissionKey
     });
     recordMap.set(key, currentRecord);
   }
@@ -315,7 +317,10 @@ export const createPapsGoogleSheetTabPayloads = ({
           : "",
         formatIsoDateTime(attempt.createdAt),
         toSyncStatusLabel(syncStatus?.status),
-        auditLog?.reason ?? ""
+        buildRecordNote({
+          clientSubmissionKey: attempt.clientSubmissionKey,
+          reason: auditLog?.reason ?? null
+        })
       ]);
     })
   };

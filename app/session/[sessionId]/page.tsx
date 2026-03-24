@@ -1,7 +1,10 @@
 import React from "react";
 import Link from "next/link";
+import { cookies } from "next/headers";
 
 import { SplitSessionView } from "../../../src/components/student/split-session-view";
+import { loadStudentSessionViewFromSheet } from "../../../src/lib/google/sheets-submit";
+import { PAPS_SPREADSHEET_ID_COOKIE } from "../../../src/lib/google/sheets-store";
 import { getEventDefinition } from "../../../src/lib/paps/catalog";
 import type { EventId } from "../../../src/lib/paps/types";
 import { createStoreForRequest } from "../../../src/lib/store/paps-store";
@@ -20,10 +23,19 @@ const STUDENT_EVENT_LABELS: Record<EventId, string> = {
 
 export default async function StudentSessionPage({ params }: StudentSessionPageProps) {
   const { sessionId } = await params;
-  const store = await createStoreForRequest();
 
   try {
-    const { session, classSections } = await store.getStudentSessionView(sessionId);
+    const { session, classSections } =
+      process.env.NODE_ENV === "production"
+        ? await loadStudentSessionViewFromSheet({
+            spreadsheetId:
+              (await cookies()).get(PAPS_SPREADSHEET_ID_COOKIE)?.value ??
+              (() => {
+                throw new Error("Google Sheets is not connected.");
+              })(),
+            sessionId
+          })
+        : await (await createStoreForRequest()).getStudentSessionView(sessionId);
     const eventDefinition = getEventDefinition(session.eventId);
 
     if (session.isOpen === false) {

@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 import { calculateOfficialGrade } from "../../../../../src/lib/paps/grade";
+import { appendStudentSubmissionToSheet } from "../../../../../src/lib/google/sheets-submit";
+import { PAPS_SPREADSHEET_ID_COOKIE } from "../../../../../src/lib/google/sheets-store";
 import { createStoreForRequest } from "../../../../../src/lib/store/paps-store";
 import type { OfficialGrade } from "../../../../../src/lib/paps/types";
 
@@ -31,6 +33,61 @@ export async function POST(request: NextRequest, context: SubmitRouteContext) {
   const { sessionId } = await context.params;
 
   try {
+    const studentId =
+      typeof body?.studentId === "string" && body.studentId.trim() ? body.studentId.trim() : "";
+
+    if (!studentId) {
+      throw new Error("A studentId is required.");
+    }
+
+    const spreadsheetId = request.cookies.get(PAPS_SPREADSHEET_ID_COOKIE)?.value ?? null;
+
+    if (process.env.NODE_ENV === "production") {
+      if (!spreadsheetId) {
+        throw new Error("Google Sheets is not connected.");
+      }
+
+      const clientSubmissionKey =
+        typeof body?.clientSubmissionKey === "string" && body.clientSubmissionKey.trim()
+          ? body.clientSubmissionKey.trim()
+          : randomUUID();
+      const sheetResult = await appendStudentSubmissionToSheet({
+        spreadsheetId,
+        sessionId,
+        studentId,
+        measurement: parseMeasurement(body?.measurement),
+        clientSubmissionKey
+      });
+
+      if (!sheetResult.ok) {
+        const status =
+          sheetResult.status ??
+          (sheetResult.error.includes("was not found")
+            ? 404
+            : sheetResult.error === "Session is closed." || sheetResult.error.startsWith("Append")
+              ? 409
+              : 400);
+
+        return NextResponse.json(
+          {
+            error: sheetResult.error
+          },
+          {
+            status
+          }
+        );
+      }
+
+      return NextResponse.json(
+        {
+          result: sheetResult.result
+        },
+        {
+          status: 201
+        }
+      );
+    }
+
     const store = await createStoreForRequest();
     const session = store.getSession(sessionId);
 
@@ -43,13 +100,6 @@ export async function POST(request: NextRequest, context: SubmitRouteContext) {
           status: 409
         }
       );
-    }
-
-    const studentId =
-      typeof body?.studentId === "string" && body.studentId.trim() ? body.studentId.trim() : "";
-
-    if (!studentId) {
-      throw new Error("A studentId is required.");
     }
 
     const student = store.getStudent(studentId);

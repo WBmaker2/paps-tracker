@@ -1,11 +1,6 @@
-import { mkdtempSync } from "node:fs";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
-
 import { NextRequest } from "next/server";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createDemoStore } from "../../src/lib/demo-store";
 import type { PAPSDemoStoreData } from "../../src/lib/paps/types";
 
 vi.mock("../../src/lib/teacher-auth", () => ({
@@ -18,9 +13,6 @@ vi.mock("../../src/lib/teacher-auth", () => ({
     }
   }))
 }));
-
-const createTempStorePath = (): string =>
-  join(mkdtempSync(join(tmpdir(), "paps-teacher-auth-")), "demo-store.json");
 
 const buildSeed = (): PAPSDemoStoreData => ({
   version: 1,
@@ -158,21 +150,13 @@ const jsonRequest = (pathname: string, method: string, body?: unknown): NextRequ
     body: body === undefined ? undefined : JSON.stringify(body)
   });
 
+const importRequestStore = () => import("../../src/lib/store/paps-memory-store");
+
 describe("teacher route authorization scoping", () => {
-  let storePath = "";
-
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetModules();
-    storePath = createTempStorePath();
-    process.env.PAPS_STORE_PATH = storePath;
-    createDemoStore({
-      filePath: storePath,
-      seedData: buildSeed()
-    });
-  });
-
-  afterEach(() => {
-    delete process.env.PAPS_STORE_PATH;
+    const { resetRequestStore } = await importRequestStore();
+    resetRequestStore(buildSeed());
   });
 
   it("denies cross-school session and record access", async () => {
@@ -273,7 +257,8 @@ describe("teacher route authorization scoping", () => {
       })
     );
     const payload = await response.json();
-    const createdStudent = createDemoStore({ filePath: storePath })
+    const { getRequestStore } = await importRequestStore();
+    const createdStudent = getRequestStore()
       .listStudents()
       .find((student) => student.name === "Normalized Student");
 

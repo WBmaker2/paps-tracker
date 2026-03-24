@@ -221,7 +221,8 @@ const buildAttemptRecordsForSession = (
       id: attempt.id,
       attemptNumber: attempt.attemptNumber,
       measurement: attempt.measurement,
-      createdAt: attempt.createdAt
+      createdAt: attempt.createdAt,
+      clientSubmissionKey: attempt.clientSubmissionKey
     });
     recordMap.set(recordId, record);
   }

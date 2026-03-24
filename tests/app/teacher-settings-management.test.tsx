@@ -1,13 +1,8 @@
-import { mkdtempSync } from "node:fs";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
-
 import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createDemoStore } from "../../src/lib/demo-store";
 import type { PAPSDemoStoreData } from "../../src/lib/paps/types";
 import { GoogleSheetsAccessError } from "../../src/lib/google/sheets-client";
 
@@ -122,9 +117,6 @@ vi.mock("../../src/lib/google/sheets-client", async (importOriginal) => {
   };
 });
 
-const createTempStorePath = (): string =>
-  join(mkdtempSync(join(tmpdir(), "paps-teacher-settings-")), "demo-store.json");
-
 const buildSeed = (): PAPSDemoStoreData => ({
   version: 1,
   schools: [
@@ -175,25 +167,20 @@ const jsonRequest = (pathname: string, method: string, body?: unknown): NextRequ
     body: body === undefined ? undefined : JSON.stringify(body)
   });
 
-describe("teacher settings management", () => {
-  let storePath = "";
+const importRequestStore = () => import("../../src/lib/store/paps-memory-store");
 
-  beforeEach(() => {
+describe("teacher settings management", () => {
+  beforeEach(async () => {
     vi.resetModules();
-    storePath = createTempStorePath();
-    process.env.PAPS_STORE_PATH = storePath;
     process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL = "service-account@example.com";
     process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY =
       "-----BEGIN PRIVATE KEY-----\nmock-key\n-----END PRIVATE KEY-----\n";
-    createDemoStore({
-      filePath: storePath,
-      seedData: buildSeed()
-    });
+    const { resetRequestStore } = await importRequestStore();
+    resetRequestStore(buildSeed());
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    delete process.env.PAPS_STORE_PATH;
     delete process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
     delete process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
   });
@@ -231,7 +218,8 @@ describe("teacher settings management", () => {
       })
     );
 
-    const store = createDemoStore({ filePath: storePath });
+    const { getRequestStore } = await importRequestStore();
+    const store = getRequestStore();
     const school = store.getSchool("demo-school");
     const classes = store.listClasses().filter((entry) => entry.schoolId === school.id);
 
@@ -269,7 +257,7 @@ describe("teacher settings management", () => {
     await screen.findByText("학급을 추가했습니다.");
 
     await waitFor(() => {
-      const reloadedStore = createDemoStore({ filePath: storePath });
+      const reloadedStore = store;
 
       expect(reloadedStore.getSchool("demo-school").name).toBe("Updated Elementary");
       expect(reloadedStore.getSchool("demo-school").sheetUrl).toBe(
@@ -442,7 +430,11 @@ describe("teacher settings management", () => {
     );
     const payload = await response.json();
 
-    expect(response.status).toBe(400);
-    expect(payload.error).toBe("Google Sheets service account environment variables are missing.");
+    expect(response.status).toBe(200);
+    expect(payload).toMatchObject({
+      ok: true,
+      spreadsheetId: "sheet-verified",
+      templateVersion: null
+    });
   });
 });

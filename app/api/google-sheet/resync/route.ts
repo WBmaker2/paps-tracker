@@ -1,14 +1,44 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { getDemoStore } from "../../../../src/lib/demo-store";
 import { parseGoogleSheetsUrl } from "../../../../src/lib/google/drive-link";
 import { resyncGoogleSheet, type GoogleSheetResyncInput } from "../../../../src/lib/google/resync";
+import { createTeacherRuntimeStoreForRequest } from "../../../../src/lib/google/sheets-store";
 import {
   assertGoogleSheetTabsMatchPrototype,
   createPapsGoogleSheetTabPayloads,
   parseGoogleSheetTabPayloads
 } from "../../../../src/lib/google/sheets";
+import type { PAPSStoredAttempt } from "../../../../src/lib/paps/types";
 import { requireTeacherRouteSession } from "../../../../src/lib/teacher-auth";
+
+const toStoredAttempts = (
+  records: Array<{
+    sessionId: string;
+    studentId: string;
+    eventId: PAPSStoredAttempt["eventId"];
+    unit: PAPSStoredAttempt["unit"];
+    attempts: Array<{
+      id: string;
+      attemptNumber: number;
+      measurement: number;
+      createdAt: string;
+      clientSubmissionKey?: string;
+    }>;
+  }>
+): PAPSStoredAttempt[] =>
+  records.flatMap((record) =>
+    record.attempts.map((attempt) => ({
+      id: attempt.id,
+      sessionId: record.sessionId,
+      studentId: record.studentId,
+      eventId: record.eventId,
+      unit: record.unit,
+      attemptNumber: attempt.attemptNumber,
+      measurement: attempt.measurement,
+      createdAt: attempt.createdAt,
+      clientSubmissionKey: attempt.clientSubmissionKey
+    }))
+  );
 
 export async function POST(request: NextRequest) {
   const teacherSession = await requireTeacherRouteSession();
@@ -20,52 +50,41 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
 
   try {
-    const store = getDemoStore();
-    const teacher = store.getTeacherByEmail(teacherSession.session.email);
+    const store = await createTeacherRuntimeStoreForRequest(request, teacherSession.session.email);
+    const bootstrap = await store.getTeacherBootstrap({
+      teacherEmail: teacherSession.session.email
+    });
+    const teacher = bootstrap.teacher;
     const spreadsheetId =
       typeof body?.spreadsheetId === "string" && body.spreadsheetId.trim()
         ? body.spreadsheetId.trim()
         : parseGoogleSheetsUrl(typeof body?.spreadsheetUrl === "string" ? body.spreadsheetUrl : "")
             .spreadsheetId;
-    const school = teacher?.schoolId
-      ? store.getSchool(teacher.schoolId)
-      : store.listSchools()[0] ?? null;
+    const school = teacher?.schoolId ? bootstrap.school : bootstrap.schools[0] ?? null;
 
     if (!school) {
       throw new Error("Could not find a school to export.");
     }
 
-    const classes = store.listClasses().filter((entry) => entry.schoolId === school.id);
+    const classes = bootstrap.classes.filter((entry) => entry.schoolId === school.id);
     const classIds = new Set(classes.map((entry) => entry.id));
-    const teachers = store.listTeachers().filter((entry) => entry.schoolId === school.id);
-    const students = store
-      .listStudents()
+    const teachers = bootstrap.teachers.filter((entry) => entry.schoolId === school.id);
+    const students = bootstrap.students
       .filter((entry) => entry.schoolId === school.id || classIds.has(entry.classId));
-    const sessions = store.listSessions().filter((entry) => entry.schoolId === school.id);
+    const sessions = bootstrap.sessions.filter((entry) => entry.schoolId === school.id);
     const sessionIds = new Set(sessions.map((entry) => entry.id));
-    const attempts = sessions.flatMap((session) =>
-      store.listSessionRecords(session.id).flatMap((record) =>
-        record.attempts.map((attempt) => ({
-          id: attempt.id,
-          sessionId: record.sessionId,
-          studentId: record.studentId,
-          eventId: record.eventId,
-          unit: record.unit,
-          attemptNumber: attempt.attemptNumber,
-          measurement: attempt.measurement,
-          createdAt: attempt.createdAt
-        }))
-      )
+    const attempts = toStoredAttempts(
+      (
+        await Promise.all(
+          sessions.map(async (session) => await store.listSessionRecords(session.id))
+        )
+      ).flat()
     );
-    const syncStatuses = store
-      .listSyncStatuses()
-      .filter((entry) => sessionIds.has(entry.sessionId));
-    const syncErrorLogs = store
-      .listSyncErrorLogs()
-      .filter((entry) => sessionIds.has(entry.sessionId));
-    const representativeSelectionAuditLogs = store
-      .listRepresentativeSelectionAuditLogs()
-      .filter((entry) => sessionIds.has(entry.sessionId));
+    const syncStatuses = bootstrap.syncStatuses.filter((entry) => sessionIds.has(entry.sessionId));
+    const syncErrorLogs = bootstrap.syncErrorLogs.filter((entry) => sessionIds.has(entry.sessionId));
+    const representativeSelectionAuditLogs = bootstrap.representativeSelectionAuditLogs.filter((entry) =>
+      sessionIds.has(entry.sessionId)
+    );
     const input: GoogleSheetResyncInput = {
       spreadsheetId,
       tabs: Array.isArray(body?.tabs)

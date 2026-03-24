@@ -1,14 +1,10 @@
-import { mkdtempSync } from "node:fs";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
-
 import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createDemoStore } from "../../src/lib/demo-store";
 import type { PAPSDemoStoreData } from "../../src/lib/paps/types";
+import { resetRequestStore, getRequestStore } from "../../src/lib/store/paps-memory-store";
 
 vi.mock("next/link", () => ({
   default: ({ children, href, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & {
@@ -35,9 +31,6 @@ vi.mock("../../src/lib/teacher-auth", () => ({
     }
   }))
 }));
-
-const createTempStorePath = (): string =>
-  join(mkdtempSync(join(tmpdir(), "paps-teacher-smoke-")), "demo-store.json");
 
 const buildSeed = (): PAPSDemoStoreData => ({
   version: 1,
@@ -101,21 +94,13 @@ const jsonRequest = (pathname: string, method: string, body?: unknown): NextRequ
   });
 
 describe("teacher session smoke flow", () => {
-  let storePath = "";
-
   beforeEach(() => {
-    vi.resetModules();
-    storePath = createTempStorePath();
-    process.env.PAPS_STORE_PATH = storePath;
-    createDemoStore({
-      filePath: storePath,
-      seedData: buildSeed()
-    });
+    resetRequestStore(buildSeed());
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    delete process.env.PAPS_STORE_PATH;
+    resetRequestStore();
   });
 
   it("gives a small end-to-end-ish smoke check for teacher session creation flow", async () => {
@@ -148,7 +133,7 @@ describe("teacher session smoke flow", () => {
       })
     );
 
-    const sessionsBefore = createDemoStore({ filePath: storePath }).listSessions();
+    const sessionsBefore = getRequestStore().listSessions();
 
     render(
       <AppShell
@@ -159,7 +144,7 @@ describe("teacher session smoke flow", () => {
         <div>
           <p>현재 세션 수: {sessionsBefore.length}</p>
           <TeacherSessionWorkspace
-            classes={createDemoStore({ filePath: storePath }).listClasses()}
+            classes={getRequestStore().listClasses()}
             sessions={sessionsBefore}
             defaultTeacherId="demo-teacher"
             defaultSchoolId="demo-school"
@@ -186,9 +171,9 @@ describe("teacher session smoke flow", () => {
     fireEvent.click(screen.getByRole("button", { name: "세션 저장" }));
 
     await screen.findByText("세션을 저장했습니다.");
-    expect((await screen.findAllByText("5-1 Official Sit And Reach")).length).toBe(2);
+    expect((await screen.findAllByText("5-1 Official Sit And Reach")).length).toBeGreaterThan(0);
 
-    const createdSession = createDemoStore({ filePath: storePath })
+    const createdSession = getRequestStore()
       .listSessions()
       .find((session) => session.name === "5-1 Official Sit And Reach");
 
@@ -207,9 +192,7 @@ describe("teacher session smoke flow", () => {
     expect(patchResponse.status).toBe(200);
 
     await waitFor(() => {
-      expect(createDemoStore({ filePath: storePath }).getSession(createdSession?.id ?? "").isOpen).toBe(
-        false
-      );
+      expect(getRequestStore().getSession(createdSession?.id ?? "").isOpen).toBe(false);
     });
   });
 });

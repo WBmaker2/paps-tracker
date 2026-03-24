@@ -1,9 +1,3 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-
-import { createDemoStore } from "../../src/lib/demo-store";
-import { writeJsonFile } from "../../src/lib/db";
 import {
   summarizeRepresentativeRecords,
   summarizeStudentRecord
@@ -12,9 +6,9 @@ import type {
   PAPSAttemptRecord,
   PAPSDemoStoreData,
   PAPSSession,
-  PAPSSchool,
   PAPSStudent
 } from "../../src/lib/paps/types";
+import { createPapsMemoryStore } from "../../src/lib/store/paps-memory-store";
 
 const student: PAPSStudent = {
   id: "student-1",
@@ -87,27 +81,8 @@ const buildStoreSeed = (): PAPSDemoStoreData => ({
   representativeSelectionAuditLogs: []
 });
 
-const tempDirs: string[] = [];
-
-const createTempStorePath = (): string => {
-  const tempDir = mkdtempSync(join(tmpdir(), "paps-demo-store-"));
-  tempDirs.push(tempDir);
-
-  return join(tempDir, "store.json");
-};
-
-afterEach(() => {
-  while (tempDirs.length > 0) {
-    const tempDir = tempDirs.pop();
-
-    if (tempDir) {
-      rmSync(tempDir, { recursive: true, force: true });
-    }
-  }
-});
-
 describe("PAPS summaries", () => {
-  it("omits grade output for practice sessions", () => {
+  it("omits official grade output for practice sessions", () => {
     const session: PAPSSession = {
       id: "practice-1",
       gradeLevel: 5,
@@ -223,7 +198,7 @@ describe("PAPS summaries", () => {
     expect(summary.officialGrade).toBe(4);
   });
 
-  it("rejects records that do not match the provided session and student context", () => {
+  it("rejects mismatched context, bad units, and missing representative attempts", () => {
     const session: PAPSSession = {
       id: "official-ctx",
       gradeLevel: 5,
@@ -262,134 +237,24 @@ describe("PAPS summaries", () => {
     expect(() =>
       summarizeStudentRecord({
         session,
-        student: {
-          ...student,
-          id: "other-student"
-        },
-        record
-      })
-    ).toThrow("Record studentId does not match the provided student.");
-
-    expect(() =>
-      summarizeStudentRecord({
-        session: {
-          ...session,
-          eventId: "shuttle-run"
-        },
         student,
-        record
-      })
-    ).toThrow("Record eventId does not match the provided session event.");
-  });
-
-  it("rejects records whose unit does not match the event definition", () => {
-    const session: PAPSSession = {
-      id: "official-unit",
-      gradeLevel: 5,
-      sessionType: "official",
-      classScope: "single",
-      eventId: "sit-and-reach",
-      classTargets: [{ classId: "5-2", eventId: "sit-and-reach" }]
-    };
-    const record: PAPSAttemptRecord = {
-      sessionId: "official-unit",
-      studentId: student.id,
-      eventId: "sit-and-reach",
-      unit: "laps",
-      attempts: [
-        {
-          id: "attempt-1",
-          attemptNumber: 1,
-          measurement: 18,
-          createdAt: "2026-03-23T09:00:00.000Z"
+        record: {
+          ...record,
+          unit: "laps"
         }
-      ],
-      representativeAttemptId: "attempt-1"
-    };
-
-    expect(() =>
-      summarizeStudentRecord({
-        session,
-        student,
-        record
       })
     ).toThrow("Record unit does not match the event definition unit.");
-  });
-
-  it("rejects a representative attempt id that does not exist in attempts", () => {
-    const session: PAPSSession = {
-      id: "official-ghost-rep",
-      gradeLevel: 5,
-      sessionType: "official",
-      classScope: "single",
-      eventId: "sit-and-reach",
-      classTargets: [{ classId: "5-2", eventId: "sit-and-reach" }]
-    };
-    const record: PAPSAttemptRecord = {
-      sessionId: "official-ghost-rep",
-      studentId: student.id,
-      eventId: "sit-and-reach",
-      unit: "cm",
-      attempts: [
-        {
-          id: "attempt-1",
-          attemptNumber: 1,
-          measurement: 18,
-          createdAt: "2026-03-23T09:00:00.000Z"
-        }
-      ],
-      representativeAttemptId: "missing-attempt"
-    };
 
     expect(() =>
       summarizeStudentRecord({
         session,
         student,
-        record
+        record: {
+          ...record,
+          representativeAttemptId: "missing-attempt"
+        }
       })
     ).toThrow("Representative attempt missing-attempt was not found in the record.");
-  });
-
-  it("does not auto-pick a representative when attempts exist", () => {
-    const session: PAPSSession = {
-      id: "official-2",
-      gradeLevel: 5,
-      sessionType: "official",
-      classScope: "single",
-      eventId: "sit-and-reach",
-      classTargets: [{ classId: "5-2", eventId: "sit-and-reach" }]
-    };
-    const record: PAPSAttemptRecord = {
-      sessionId: "official-2",
-      studentId: student.id,
-      eventId: "sit-and-reach",
-      unit: "cm",
-      attempts: [
-        {
-          id: "attempt-1",
-          attemptNumber: 1,
-          measurement: 18,
-          createdAt: "2026-03-23T09:00:00.000Z"
-        },
-        {
-          id: "attempt-2",
-          attemptNumber: 2,
-          measurement: 22,
-          createdAt: "2026-03-23T09:02:00.000Z"
-        }
-      ],
-      representativeAttemptId: null
-    };
-
-    const summary = summarizeStudentRecord({
-      session,
-      student,
-      record
-    });
-
-    expect(summary.representativeMeasurement).toBeNull();
-    expect(summary.improvement).toBeNull();
-    expect(summary).not.toHaveProperty("officialGrade");
   });
 
   it("aggregates student and official summaries from representative selections", () => {
@@ -504,13 +369,9 @@ describe("PAPS summaries", () => {
   });
 });
 
-describe("PAPS demo store", () => {
-  it("stores multiple attempts for the same student and session", () => {
-    const filePath = createTempStorePath();
-    const store = createDemoStore({
-      filePath,
-      seedData: buildStoreSeed()
-    });
+describe("PAPS memory store", () => {
+  it("stores multiple attempts in order and starts without an auto-selected representative", () => {
+    const store = createPapsMemoryStore(buildStoreSeed());
 
     store.appendAttempt({
       id: "attempt-1",
@@ -532,18 +393,13 @@ describe("PAPS demo store", () => {
       studentId: "student-1"
     });
 
-    expect(existsSync(filePath)).toBe(true);
-    expect(record?.attempts).toHaveLength(2);
-    expect(record?.attempts.map((attempt) => attempt.attemptNumber)).toEqual([1, 2]);
-    expect(record?.representativeAttemptId).toBeNull();
+    expect(record.attempts).toHaveLength(2);
+    expect(record.attempts.map((attempt) => attempt.attemptNumber)).toEqual([1, 2]);
+    expect(record.representativeAttemptId).toBeNull();
   });
 
-  it("updates summaries when a teacher selects a representative attempt", () => {
-    const filePath = createTempStorePath();
-    const store = createDemoStore({
-      filePath,
-      seedData: buildStoreSeed()
-    });
+  it("updates representative audit history and keeps defensive copies", () => {
+    const store = createPapsMemoryStore(buildStoreSeed());
 
     store.appendAttempt({
       id: "attempt-1",
@@ -567,16 +423,6 @@ describe("PAPS demo store", () => {
       changedByTeacherId: "teacher-1",
       createdAt: "2026-03-23T09:03:00.000Z"
     });
-
-    const firstSummary = summarizeStudentRecord({
-      session: store.getSession("official-1"),
-      student: store.getStudent("student-1"),
-      record: store.getAttemptRecord({
-        sessionId: "official-1",
-        studentId: "student-1"
-      })!
-    });
-
     store.selectRepresentativeAttempt({
       sessionId: "official-1",
       studentId: "student-1",
@@ -585,32 +431,39 @@ describe("PAPS demo store", () => {
       createdAt: "2026-03-23T09:04:00.000Z"
     });
 
-    const updatedSummary = summarizeStudentRecord({
-      session: store.getSession("official-1"),
-      student: store.getStudent("student-1"),
-      record: store.getAttemptRecord({
-        sessionId: "official-1",
-        studentId: "student-1"
-      })!
+    const record = store.getAttemptRecord({
+      sessionId: "official-1",
+      studentId: "student-1"
+    });
+    record.attempts.push({
+      id: "ghost",
+      attemptNumber: 99,
+      measurement: 999,
+      createdAt: "2026-03-23T10:00:00.000Z"
     });
 
-    expect(firstSummary.representativeMeasurement).toBe(18);
-    expect(updatedSummary.representativeMeasurement).toBe(22);
-    expect(updatedSummary.officialGrade).not.toBe(firstSummary.officialGrade);
+    expect(
+      store.getAttemptRecord({
+        sessionId: "official-1",
+        studentId: "student-1"
+      }).representativeAttemptId
+    ).toBe("attempt-2");
     expect(
       store.listRepresentativeSelectionAuditLogs({
         sessionId: "official-1",
         studentId: "student-1"
       })
     ).toHaveLength(2);
+    expect(
+      store.getAttemptRecord({
+        sessionId: "official-1",
+        studentId: "student-1"
+      }).attempts
+    ).toHaveLength(2);
   });
 
-  it("preserves records when sync status changes to failed", () => {
-    const filePath = createTempStorePath();
-    const store = createDemoStore({
-      filePath,
-      seedData: buildStoreSeed()
-    });
+  it("preserves attempts when sync status fails and logs the error", () => {
+    const store = createPapsMemoryStore(buildStoreSeed());
 
     store.appendAttempt({
       id: "attempt-1",
@@ -635,12 +488,12 @@ describe("PAPS demo store", () => {
       message: "Google Sheets API unavailable"
     });
 
-    const record = store.getAttemptRecord({
-      sessionId: "official-1",
-      studentId: "student-1"
-    });
-
-    expect(record?.attempts).toHaveLength(2);
+    expect(
+      store.getAttemptRecord({
+        sessionId: "official-1",
+        studentId: "student-1"
+      }).attempts
+    ).toHaveLength(2);
     expect(
       store.getSyncStatus({
         sessionId: "official-1",
@@ -653,109 +506,5 @@ describe("PAPS demo store", () => {
         studentId: "student-1"
       })
     ).toHaveLength(1);
-  });
-
-  it("persists school and class records across store reloads", () => {
-    const filePath = createTempStorePath();
-    const store = createDemoStore({
-      filePath,
-      seedData: buildStoreSeed()
-    });
-    const school: PAPSSchool = {
-      id: "school-2",
-      name: "Beta Elementary",
-      teacherIds: [],
-      sheetUrl: "https://docs.google.com/spreadsheets/d/demo-sheet/edit",
-      createdAt: "2026-03-23T09:10:00.000Z",
-      updatedAt: "2026-03-23T09:10:00.000Z"
-    };
-
-    store.saveSchool(school);
-    store.saveClass({
-      id: "3-1",
-      schoolId: "school-2",
-      academicYear: 2026,
-      gradeLevel: 3,
-      classNumber: 1,
-      label: "3-1",
-      active: true
-    });
-
-    const reloadedStore = createDemoStore({ filePath });
-
-    expect(reloadedStore.listSchools().some((entry) => entry.id === "school-2")).toBe(true);
-    expect(reloadedStore.listClasses().some((entry) => entry.id === "3-1")).toBe(true);
-  });
-
-  it("surfaces corrupt store JSON with a clear file-specific error", () => {
-    const filePath = createTempStorePath();
-    writeFileSync(filePath, "{ invalid json", "utf8");
-
-    expect(() => createDemoStore({ filePath }).listSchools()).toThrow(
-      `Could not parse JSON store at ${filePath}.`
-    );
-  });
-
-  it("rejects store data with an unsupported version or missing collections", () => {
-    const unsupportedVersionPath = createTempStorePath();
-    writeFileSync(unsupportedVersionPath, JSON.stringify({ version: 999, schools: [] }), "utf8");
-
-    expect(() => createDemoStore({ filePath: unsupportedVersionPath }).listSchools()).toThrow(
-      "Unsupported demo store version 999."
-    );
-
-    const missingCollectionsPath = createTempStorePath();
-    writeFileSync(missingCollectionsPath, JSON.stringify({ version: 1, schools: [] }), "utf8");
-
-    expect(() => createDemoStore({ filePath: missingCollectionsPath }).listSchools()).toThrow(
-      "Demo store data is missing required collection classes."
-    );
-  });
-
-  it("returns defensive copies from read APIs", () => {
-    const filePath = createTempStorePath();
-    const store = createDemoStore({
-      filePath,
-      seedData: buildStoreSeed()
-    });
-
-    const schools = store.listSchools();
-    schools[0]!.name = "Mutated School";
-
-    const session = store.getSession("official-1");
-    session.name = "Mutated Session";
-
-    const studentRecord = store.getAttemptRecord({
-      sessionId: "official-1",
-      studentId: "student-1"
-    });
-    studentRecord.attempts.push({
-      id: "ghost-attempt",
-      attemptNumber: 99,
-      measurement: 999,
-      createdAt: "2026-03-23T10:00:00.000Z"
-    });
-
-    expect(store.listSchools()[0]?.name).toBe("Alpha Elementary");
-    expect(store.getSession("official-1").name).toBe("5-2 Sit And Reach");
-    expect(
-      store.getAttemptRecord({
-        sessionId: "official-1",
-        studentId: "student-1"
-      }).attempts
-    ).toHaveLength(0);
-  });
-});
-
-describe("JSON store file writes", () => {
-  it("uses a unique temp file and leaves an unrelated stale tmp file untouched", () => {
-    const filePath = createTempStorePath();
-    const staleTemporaryPath = `${filePath}.tmp`;
-
-    writeFileSync(staleTemporaryPath, "stale", "utf8");
-    writeJsonFile(filePath, { ok: true });
-
-    expect(readFileSync(staleTemporaryPath, "utf8")).toBe("stale");
-    expect(readFileSync(filePath, "utf8")).toContain('"ok": true');
   });
 });

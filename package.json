@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --ext .js,.ts,.tsx --max-warnings=0",
-    "test": "vitest run"
+    "test": "vitest run",
+    "migrate:demo-store": "node --import tsx scripts/migrate-demo-store-to-sheets.ts"
   },
   "dependencies": {
     "google-auth-library": "^10.6.2",
@@ -28,6 +29,7 @@
     "jsdom": "^26.0.0",
     "postcss": "^8.5.3",
     "tailwindcss": "^3.4.17",
+    "tsx": "^4.21.0",
     "typescript": "^5.8.2",
     "vitest": "^3.0.8"
   }

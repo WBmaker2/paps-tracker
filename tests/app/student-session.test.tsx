@@ -1,14 +1,10 @@
-import { mkdtempSync } from "node:fs";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
-
 import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createDemoStore } from "../../src/lib/demo-store";
 import type { PAPSDemoStoreData } from "../../src/lib/paps/types";
+import { getRequestStore, resetRequestStore } from "../../src/lib/store/paps-memory-store";
 
 vi.mock("next/link", () => ({
   default: ({ children, href, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & {
@@ -19,9 +15,6 @@ vi.mock("next/link", () => ({
     </a>
   )
 }));
-
-const createTempStorePath = (): string =>
-  join(mkdtempSync(join(tmpdir(), "paps-student-session-")), "demo-store.json");
 
 const buildStudentSeed = (): PAPSDemoStoreData => ({
   version: 1,
@@ -217,22 +210,15 @@ const installStudentApiFetch = async () => {
 };
 
 describe("student session flow", () => {
-  let storePath = "";
-
   beforeEach(() => {
-    vi.resetModules();
-    storePath = createTempStorePath();
-    process.env.PAPS_STORE_PATH = storePath;
-    createDemoStore({
-      filePath: storePath,
-      seedData: buildStudentSeed()
-    });
+    resetRequestStore(buildStudentSeed());
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
     vi.doUnmock("../../src/lib/paps/grade");
-    delete process.env.PAPS_STORE_PATH;
+    resetRequestStore();
   });
 
   it("shows only a name picker before input", async () => {
@@ -259,7 +245,7 @@ describe("student session flow", () => {
 
     await waitFor(() => {
       expect(
-        createDemoStore({ filePath: storePath }).getAttemptRecord({
+        getRequestStore().getAttemptRecord({
           sessionId: "session-open-single",
           studentId: "student-kim"
         }).attempts
@@ -267,7 +253,7 @@ describe("student session flow", () => {
     });
 
     expect(
-      createDemoStore({ filePath: storePath })
+      getRequestStore()
         .getAttemptRecord({
           sessionId: "session-open-single",
           studentId: "student-kim"
@@ -286,7 +272,7 @@ describe("student session flow", () => {
     await screen.findByText("숫자 기록을 입력해 주세요.");
 
     expect(
-      createDemoStore({ filePath: storePath }).getAttemptRecord({
+      getRequestStore().getAttemptRecord({
         sessionId: "session-open-single",
         studentId: "student-kim"
       }).attempts
@@ -310,12 +296,10 @@ describe("student session flow", () => {
   });
 
   it("does not save an attempt when official grade computation fails", async () => {
-    vi.doMock("../../src/lib/paps/grade", () => ({
-      calculateOfficialGrade: vi.fn(() => {
+    const gradeModule = await import("../../src/lib/paps/grade");
+    vi.spyOn(gradeModule, "calculateOfficialGrade").mockImplementation(() => {
         throw new Error("Grade lookup failed.");
-      })
-    }));
-
+    });
     const submitRoute = await import("../../app/api/sessions/[sessionId]/submit/route");
     const response = await submitRoute.POST(
       jsonRequest("/api/sessions/session-open-single/submit", "POST", {
@@ -332,7 +316,7 @@ describe("student session flow", () => {
       error: "Grade lookup failed."
     });
     expect(
-      createDemoStore({ filePath: storePath }).getAttemptRecord({
+      getRequestStore().getAttemptRecord({
         sessionId: "session-open-single",
         studentId: "student-kim"
       }).attempts
@@ -354,7 +338,7 @@ describe("student session flow", () => {
 
     expect(response.status).toBe(201);
     expect(
-      createDemoStore({ filePath: storePath })
+      getRequestStore()
         .getAttemptRecord({
           sessionId: "session-open-single",
           studentId: "student-kim"
@@ -364,7 +348,7 @@ describe("student session flow", () => {
   });
 
   it("resets typed measurement and local errors when switching between students with the same name", async () => {
-    createDemoStore({ filePath: storePath }).saveStudent({
+    getRequestStore().saveStudent({
       id: "student-kim-2",
       schoolId: "demo-school",
       classId: "demo-class-5-1",
@@ -395,8 +379,8 @@ describe("student session flow", () => {
   });
 
   it("rejects inactive students on submit", async () => {
-    createDemoStore({ filePath: storePath }).saveStudent({
-      ...createDemoStore({ filePath: storePath }).getStudent("student-park"),
+    getRequestStore().saveStudent({
+      ...getRequestStore().getStudent("student-park"),
       active: false
     });
 
@@ -416,7 +400,7 @@ describe("student session flow", () => {
       error: "Inactive students cannot submit attempts."
     });
     expect(
-      createDemoStore({ filePath: storePath }).getAttemptRecord({
+      getRequestStore().getAttemptRecord({
         sessionId: "session-open-single",
         studentId: "student-park"
       }).attempts
@@ -455,6 +439,32 @@ describe("student session flow", () => {
     });
 
     expect(screen.getByText("이름을 선택하세요")).toBeInTheDocument();
+  });
+
+  it("keeps the input form visible when submit fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(JSON.stringify({ error: "Append failed." }), {
+          status: 409,
+          headers: {
+            "content-type": "application/json"
+          }
+        })
+      )
+    );
+
+    await renderStudentSessionPage("session-open-single");
+
+    fireEvent.click(screen.getByRole("button", { name: "Kim" }));
+    fireEvent.change(screen.getByLabelText("앉아윗몸앞으로굽히기 기록"), {
+      target: { value: "25" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "기록 제출" }));
+
+    await screen.findByText("Append failed.");
+    expect(screen.getByLabelText("앉아윗몸앞으로굽히기 기록")).toBeInTheDocument();
+    expect(screen.queryByText("즉시 결과")).not.toBeInTheDocument();
   });
 
   it("blocks student submission when the session is closed", async () => {
