@@ -42,12 +42,14 @@ export interface GoogleSheetsMutationResponse {
 export class GoogleSheetsAccessError extends Error {
   readonly status: number;
   readonly spreadsheetId: string;
+  readonly operation: "read" | "write" | "access";
 
-  constructor(spreadsheetId: string, status: number) {
-    super(`The service account cannot read spreadsheet ${spreadsheetId}.`);
+  constructor(spreadsheetId: string, status: number, operation: "read" | "write" | "access" = "access") {
+    super(`The service account cannot access spreadsheet ${spreadsheetId}.`);
     this.name = "GoogleSheetsAccessError";
     this.status = status;
     this.spreadsheetId = spreadsheetId;
+    this.operation = operation;
   }
 }
 
@@ -127,17 +129,9 @@ export const createGoogleSheetsClient = (
 ): GoogleSheetsClient => {
   const fetchImpl = options.fetchImpl ?? fetch;
   const accessTokenProvider = options.accessTokenProvider ?? createJwtAccessTokenProvider(options);
-  let cachedAccessToken: string | null = null;
 
   const getAccessToken = async (): Promise<string> => {
-    if (cachedAccessToken) {
-      return cachedAccessToken;
-    }
-
-    const token = await accessTokenProvider();
-    cachedAccessToken = token;
-
-    return token;
+    return accessTokenProvider();
   };
 
   const request = async <T>(
@@ -159,7 +153,7 @@ export const createGoogleSheetsClient = (
       const message = await readErrorMessage(response);
 
       if (response.status === 401 || response.status === 403 || response.status === 404) {
-        throw new GoogleSheetsAccessError(spreadsheetId, response.status);
+        throw new GoogleSheetsAccessError(spreadsheetId, response.status, init.method === "GET" ? "read" : "write");
       }
 
       throw new Error(message ?? `Google Sheets request failed with status ${response.status}.`);

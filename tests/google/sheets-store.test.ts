@@ -10,7 +10,11 @@ import {
   assertPapsGoogleSheetTemplateVersion,
   validatePapsGoogleSheetTemplate
 } from "../../src/lib/google/sheets-schema";
-import { PAPS_GOOGLE_SHEET_PROTOTYPE_TABS } from "../../src/lib/google/template";
+import {
+  PAPS_GOOGLE_SHEET_PROTOTYPE_TABS,
+  PAPS_GOOGLE_SHEET_TEMPLATE_VERSION,
+  PAPS_GOOGLE_SHEET_TEMPLATE_VERSION_ROW_LABEL
+} from "../../src/lib/google/template";
 import type { GoogleSheetTabPayload } from "../../src/lib/google/sheets";
 
 const createPrototypeTabs = (): GoogleSheetTabPayload[] =>
@@ -55,6 +59,56 @@ describe("Google Sheets schema and client", () => {
     );
   });
 
+  it("validates a matching prototype sheet with the expected version row", async () => {
+    const readRange = vi.fn(async (spreadsheetId: string, range: string) => {
+      if (range === "'설정'!A1:C20") {
+        return [
+          ["학교명", "Demo Elementary", "교사가 관리 페이지에서 설정"],
+          [PAPS_GOOGLE_SHEET_TEMPLATE_VERSION_ROW_LABEL, PAPS_GOOGLE_SHEET_TEMPLATE_VERSION, "프로토타입 예시"]
+        ];
+      }
+
+      const tabName = range.split("!")[0]?.replace(/^'/, "").replace(/'$/, "") ?? "";
+      const prototypeTab = PAPS_GOOGLE_SHEET_PROTOTYPE_TABS.find((tab) => tab.tabName === tabName);
+
+      expect(spreadsheetId).toBe("sheet-123");
+      expect(prototypeTab).toBeDefined();
+
+      return [prototypeTab?.header ?? []];
+    });
+    const client = createGoogleSheetsClient({
+      serviceAccountEmail: "service@example.com",
+      serviceAccountPrivateKey:
+        "-----BEGIN PRIVATE KEY-----\nabc123\n-----END PRIVATE KEY-----\n",
+      accessTokenProvider: async () => "access-token",
+      fetchImpl: vi.fn()
+    });
+
+    vi.spyOn(client, "getSpreadsheet").mockResolvedValue({
+      spreadsheetId: "sheet-123",
+      sheets: PAPS_GOOGLE_SHEET_PROTOTYPE_TABS.map((tab, index) => ({
+        properties: {
+          sheetId: index + 1,
+          title: tab.tabName
+        }
+      }))
+    });
+    vi.spyOn(client, "readRange").mockImplementation(readRange);
+
+    await expect(validatePapsGoogleSheetTemplate(client, "sheet-123")).resolves.toEqual({
+      spreadsheet: {
+        spreadsheetId: "sheet-123",
+        sheets: PAPS_GOOGLE_SHEET_PROTOTYPE_TABS.map((tab, index) => ({
+          properties: {
+            sheetId: index + 1,
+            title: tab.tabName
+          }
+        }))
+      },
+      templateVersion: PAPS_GOOGLE_SHEET_TEMPLATE_VERSION
+    });
+  });
+
   it("normalizes the service account private key from env", () => {
     process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY =
       "-----BEGIN PRIVATE KEY-----\\nline-1\\nline-2\\n-----END PRIVATE KEY-----\\n";
@@ -96,7 +150,64 @@ describe("Google Sheets schema and client", () => {
       GoogleSheetsAccessError
     );
     await expect(validatePapsGoogleSheetTemplate(client, "sheet-123")).rejects.toThrow(
-      "The service account cannot read spreadsheet sheet-123."
+      "The service account cannot access spreadsheet sheet-123."
     );
+  });
+
+  it("sends the expected request headers for appendRows and updateRange", async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      const method = (init?.method ?? "GET").toUpperCase();
+      const body = typeof init?.body === "string" ? JSON.parse(init.body) : null;
+
+      if (url.includes(":append")) {
+        expect(method).toBe("POST");
+        expect(init?.headers).toMatchObject({
+          Authorization: "Bearer access-token",
+          Accept: "application/json",
+          "content-type": "application/json"
+        });
+        expect(body).toEqual({ values: [["row-1", 42]] });
+      }
+
+      if (url.includes("/values/") && !url.includes(":append")) {
+        expect(init?.headers).toMatchObject({
+          Authorization: "Bearer access-token",
+          Accept: "application/json",
+          "content-type": "application/json"
+        });
+        expect(body).toEqual({ values: [["항목", "값", "설명"]] });
+      }
+
+      return new Response(
+        JSON.stringify({
+          spreadsheetId: "sheet-123",
+          updates: {
+            spreadsheetId: "sheet-123",
+            updatedRange: "A1:B2"
+          }
+        }),
+        {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        }
+      );
+    });
+    const client = createGoogleSheetsClient({
+      serviceAccountEmail: "service@example.com",
+      serviceAccountPrivateKey:
+        "-----BEGIN PRIVATE KEY-----\nabc123\n-----END PRIVATE KEY-----\n",
+      accessTokenProvider: async () => "access-token",
+      fetchImpl
+    });
+
+    await client.appendRows("sheet-123", "'세션기록'!A1", [
+      ["row-1", 42]
+    ]);
+    await client.updateRange("sheet-123", "'설정'!A1:C2", [["항목", "값", "설명"]]);
+
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 });
