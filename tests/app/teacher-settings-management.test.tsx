@@ -172,6 +172,7 @@ const importRequestStore = () => import("../../src/lib/store/paps-memory-store")
 describe("teacher settings management", () => {
   beforeEach(async () => {
     vi.resetModules();
+    process.env.GOOGLE_SHEETS_TEMPLATE_ID = "template-sheet-id";
     process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL = "service-account@example.com";
     process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY =
       "-----BEGIN PRIVATE KEY-----\nmock-key\n-----END PRIVATE KEY-----\n";
@@ -181,19 +182,23 @@ describe("teacher settings management", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    delete process.env.GOOGLE_SHEETS_TEMPLATE_ID;
     delete process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
     delete process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
   });
 
   it("updates school info and adds a class from the settings management UI", async () => {
     const connectRoute = await import("../../app/api/google-sheet/connect/route");
+    const templateRoute = await import("../../app/api/google-sheet/template/route");
     const schoolsRoute = await import("../../app/api/schools/route");
     const classesRoute = await import("../../app/api/classes/route");
     const { AppShell } = await import("../../src/components/layout/app-shell");
     const { TeacherSettingsManager } = await import(
       "../../src/components/teacher/settings-management"
     );
+    const openSpy = vi.fn();
 
+    vi.stubGlobal("open", openSpy);
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -208,6 +213,10 @@ describe("teacher settings management", () => {
 
         if (pathname === "/api/google-sheet/connect" && method === "POST") {
           return connectRoute.POST(jsonRequest(pathname, method, body));
+        }
+
+        if (pathname === "/api/google-sheet/template" && method === "POST") {
+          return templateRoute.POST(jsonRequest(pathname, method, body));
         }
 
         if (pathname === "/api/classes" && method === "POST") {
@@ -231,6 +240,16 @@ describe("teacher settings management", () => {
       >
         <TeacherSettingsManager school={school} classes={classes} />
       </AppShell>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "구글 시트 생성(최초 1회)" }));
+
+    await screen.findByText(/새 탭에서 템플릿 복사 화면을 열었습니다/);
+
+    expect(openSpy).toHaveBeenCalledWith(
+      "https://docs.google.com/spreadsheets/d/template-sheet-id/copy",
+      "_blank",
+      "noopener,noreferrer"
     );
 
     fireEvent.change(screen.getByLabelText("학교명"), {

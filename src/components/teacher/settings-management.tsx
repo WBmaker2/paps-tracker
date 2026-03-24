@@ -23,6 +23,7 @@ export function TeacherSettingsManager({
   const [schoolMessage, setSchoolMessage] = useState<string | null>(null);
   const [classMessage, setClassMessage] = useState<string | null>(null);
   const [isSchoolPending, startSchoolTransition] = useTransition();
+  const [isTemplatePending, startTemplateTransition] = useTransition();
   const [isClassPending, startClassTransition] = useTransition();
 
   const saveSchool = () => {
@@ -61,6 +62,44 @@ export function TeacherSettingsManager({
         setSchoolMessage("학교 정보를 저장했습니다.");
       } catch (error) {
         setSchoolMessage(error instanceof Error ? error.message : "학교 정보를 저장하지 못했습니다.");
+      }
+    });
+  };
+
+  const openTemplateCopy = () => {
+    setSchoolMessage(null);
+
+    startTemplateTransition(async () => {
+      try {
+        const response = await fetch("/api/google-sheet/template", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json"
+          },
+          body: JSON.stringify({})
+        });
+        const payload = (await response.json()) as {
+          error?: string;
+          serviceAccountEmail?: string | null;
+          template?: {
+            copyUrl?: string;
+          };
+        };
+
+        if (!response.ok || !payload.template?.copyUrl) {
+          throw new Error(payload.error ?? "구글 시트 템플릿을 열지 못했습니다.");
+        }
+
+        window.open(payload.template.copyUrl, "_blank", "noopener,noreferrer");
+        setSchoolMessage(
+          payload.serviceAccountEmail
+            ? `새 탭에서 템플릿 복사 화면을 열었습니다. 복사 후 ${payload.serviceAccountEmail} 계정과 시트를 공유한 다음, 복사한 시트 URL을 아래에 붙여넣으세요.`
+            : "새 탭에서 템플릿 복사 화면을 열었습니다. 복사한 시트 URL을 아래에 붙여넣으세요."
+        );
+      } catch (error) {
+        setSchoolMessage(
+          error instanceof Error ? error.message : "구글 시트 템플릿을 열지 못했습니다."
+        );
       }
     });
   };
@@ -125,6 +164,25 @@ export function TeacherSettingsManager({
           {schoolMessage ? <p className="text-sm text-ink/70">{schoolMessage}</p> : null}
         </div>
         <div className="mt-4 space-y-4">
+          <div className="rounded-2xl border border-ink/10 bg-ink/[0.03] px-4 py-3">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-ink">구글 시트 생성(최초 1회)</p>
+                <p className="text-sm text-ink/65">
+                  원본 템플릿 시트를 새 탭에서 열어 복사한 뒤, 복사본 URL을 아래 입력칸에 붙여넣어
+                  연결합니다.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="rounded-full border border-ink/15 px-5 py-2.5 text-sm font-medium text-ink"
+                onClick={openTemplateCopy}
+                disabled={isTemplatePending}
+              >
+                구글 시트 생성(최초 1회)
+              </button>
+            </div>
+          </div>
           <label className="flex flex-col gap-2 text-sm">
             학교명
             <input
@@ -144,16 +202,18 @@ export function TeacherSettingsManager({
           <p className="text-sm text-ink/65">
             {sheetConnected
               ? "현재 연결된 시트를 다시 검증하고 학교 정보를 갱신합니다."
-              : "먼저 템플릿을 복사한 구글 시트를 연결해야 학급과 세션을 관리할 수 있습니다."}
+              : "먼저 위 버튼으로 템플릿을 복사한 구글 시트를 연결해야 학급과 세션을 관리할 수 있습니다."}
           </p>
-          <button
-            type="button"
-            className="rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-white"
-            onClick={saveSchool}
-            disabled={isSchoolPending}
-          >
-            학교 정보 저장
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              className="rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-white"
+              onClick={saveSchool}
+              disabled={isSchoolPending}
+            >
+              학교 정보 저장
+            </button>
+          </div>
         </div>
       </section>
       <section className="rounded-[1.75rem] border border-ink/10 bg-white p-5 shadow-sm">
