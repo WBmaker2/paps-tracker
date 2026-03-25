@@ -9,6 +9,7 @@ import { buildStructuredStateFromSheet } from "./sheets-bootstrap";
 import { createGoogleSheetClientFromEnv } from "./sheets-store";
 import { GoogleSheetsAccessError, type GoogleSheetsClient } from "./sheets-client";
 import { buildRecordNote } from "./sheets-record-note";
+import { rebuildGoogleSheetSummaries } from "./sheets-rebuild";
 
 const STUDENT_RUNTIME_EMAIL = "student-session@paps.local";
 const RECORD_APPEND_RANGE = "'세션기록'!A:U";
@@ -184,6 +185,7 @@ export const appendStudentSubmissionToSheet = async (input: {
         };
         attempts: PAPSAttempt[];
         latestOfficialGrade: OfficialGrade | null;
+        summaryWarning?: string;
       };
     }
   | {
@@ -269,6 +271,11 @@ export const appendStudentSubmissionToSheet = async (input: {
         latestOfficialGrade
       })
     ]);
+    const summaryRebuild = await rebuildGoogleSheetSummaries({
+      spreadsheetId: input.spreadsheetId,
+      teacherEmail: STUDENT_RUNTIME_EMAIL,
+      client
+    });
 
     return {
       ok: true,
@@ -278,7 +285,12 @@ export const appendStudentSubmissionToSheet = async (input: {
           name: student.name
         },
         attempts: dedupeAttemptsByClientSubmissionKey([...rawAttempts, appendedAttempt]),
-        latestOfficialGrade
+        latestOfficialGrade,
+        ...(summaryRebuild.ok
+          ? {}
+          : {
+              summaryWarning: summaryRebuild.error
+            })
       }
     };
   } catch (error) {

@@ -92,6 +92,16 @@ describe("Google Sheets student submit", () => {
         }
       }
     });
+    expect(successClient.updateRange).toHaveBeenCalledWith(
+      "sheet-123",
+      "'학생요약'!A1:L2000",
+      expect.any(Array)
+    );
+    expect(successClient.updateRange).toHaveBeenCalledWith(
+      "sheet-123",
+      "'공식평가요약'!A1:K2000",
+      expect.any(Array)
+    );
   });
 
   it("deduplicates duplicate clientSubmissionKey values when building student-facing results", () => {
