@@ -45,7 +45,10 @@ describe("teacher rebuild UI", () => {
       />
     );
 
-    expect(screen.getByText("중복 제출 1건 감지")).toBeInTheDocument();
+    expect(screen.getByText("같은 제출로 보이는 기록 1건이 있습니다.")).toBeInTheDocument();
+    expect(
+      screen.getByText("학생별 시도 기록을 보고 대표 기록을 확정합니다.")
+    ).toBeInTheDocument();
   });
 
   it("requests summary rebuild and clears the rebuild-needed banner on success", async () => {
@@ -72,12 +75,17 @@ describe("teacher rebuild UI", () => {
     );
 
     expect(screen.getByText("요약 재계산 필요")).toBeInTheDocument();
+    expect(
+      screen.getByText("중복으로 보이는 제출 1건이 있어 요약을 다시 계산하는 것이 좋습니다.")
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "요약 재계산" }));
 
     expect(fetchMock).toHaveBeenCalledWith("/api/results/rebuild", expect.objectContaining({
       method: "POST"
     }));
-    expect(await screen.findByText("학생요약과 공식평가요약을 다시 계산했습니다.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("학생요약과 공식평가요약을 다시 정리했습니다.")
+    ).toBeInTheDocument();
     expect(screen.queryByText("요약 재계산 필요")).not.toBeInTheDocument();
   });
 });

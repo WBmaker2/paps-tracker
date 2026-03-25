@@ -96,7 +96,7 @@ export function SyncStatusCard({
         }
 
         setRebuildNeeded(false);
-        setFeedback("학생요약과 공식평가요약을 다시 계산했습니다.");
+        setFeedback("학생요약과 공식평가요약을 다시 정리했습니다.");
       } catch (error) {
         if (error && typeof error === "object" && "rebuildNeeded" in error) {
           setRebuildNeeded(Boolean((error as { rebuildNeeded?: boolean }).rebuildNeeded));
@@ -115,7 +115,10 @@ export function SyncStatusCard({
           <h2 className="text-lg font-semibold">{STATUS_LABELS[currentStatus]}</h2>
           <p className="text-sm text-ink/65">마지막 업데이트: {currentUpdatedAt}</p>
           {duplicateAttemptCount > 0 ? (
-            <p className="text-sm text-amber-700">중복 제출 {duplicateAttemptCount}건이 있어 요약 재계산이 필요합니다.</p>
+            <p className="text-sm text-amber-700">
+              중복으로 보이는 제출 {duplicateAttemptCount}건이 있어 요약을 다시 계산하는 것이
+              좋습니다.
+            </p>
           ) : null}
           {rebuildNeeded ? (
             <p className="text-sm font-medium text-amber-700">요약 재계산 필요</p>

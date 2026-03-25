@@ -70,7 +70,9 @@ export function ResultTable({ rows }: { rows: TeacherResultRow[] }) {
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">시도 기록</h2>
-          <p className="mt-1 text-sm text-ink/70">대표값을 직접 선택하고 결과를 확정합니다.</p>
+          <p className="mt-1 text-sm text-ink/70">
+            학생별 시도 기록을 보고 대표 기록을 확정합니다.
+          </p>
         </div>
         {feedback ? <p className="text-sm text-ink/70">{feedback}</p> : null}
       </div>
@@ -87,7 +89,7 @@ export function ResultTable({ rows }: { rows: TeacherResultRow[] }) {
                 </p>
                 {row.duplicateAttemptCount ? (
                   <p className="mt-1 text-xs font-medium text-amber-700">
-                    중복 제출 {row.duplicateAttemptCount}건 감지
+                    같은 제출로 보이는 기록 {row.duplicateAttemptCount}건이 있습니다.
                   </p>
                 ) : null}
               </div>

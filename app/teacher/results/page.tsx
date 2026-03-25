@@ -132,8 +132,8 @@ export default async function TeacherResultsPage() {
   return (
     <AppShell
       eyebrow="Results"
-      title="결과 검토"
-      description="대표값 선택, 시도 흐름, 재동기화 상태를 한 번에 확인합니다."
+      title="측정 결과 검토"
+      description="대표 기록 확정, 요약 재계산, 시트 반영 현황을 한 화면에서 확인합니다."
     >
       <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
         <ResultTable rows={rows} />
@@ -161,7 +161,7 @@ export default async function TeacherResultsPage() {
                   <p className="text-sm font-semibold uppercase tracking-[0.24em] text-accent">
                     Sheet
                   </p>
-                  <h2 className="text-lg font-semibold">프로토타입 탭 동기화 준비</h2>
+                  <h2 className="text-lg font-semibold">구글 시트 반영 현황</h2>
                 </div>
                 <span className="rounded-full bg-ink/5 px-3 py-1 text-xs text-ink/70">
                   오류로그 {failedSyncCount}건
