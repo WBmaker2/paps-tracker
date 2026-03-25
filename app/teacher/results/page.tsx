@@ -3,6 +3,7 @@ import React from "react";
 import { TeacherProgressChart } from "../../../src/components/charts/teacher-progress-chart";
 import { AppShell } from "../../../src/components/layout/app-shell";
 import { ResultTable, type TeacherResultRow } from "../../../src/components/teacher/result-table";
+import { SummaryExportsCard } from "../../../src/components/teacher/summary-exports-card";
 import { SyncStatusCard } from "../../../src/components/teacher/sync-status-card";
 import { createPapsGoogleSheetTabPayloads } from "../../../src/lib/google/sheets";
 import { getEventDefinition } from "../../../src/lib/paps/catalog";
@@ -155,29 +156,35 @@ export default async function TeacherResultsPage() {
             />
           ) : null}
           {sheetTabs.length > 0 ? (
-            <section className="rounded-[1.75rem] border border-ink/10 bg-white p-5 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.24em] text-accent">
-                    Sheet
-                  </p>
-                  <h2 className="text-lg font-semibold">구글 시트 반영 현황</h2>
-                </div>
-                <span className="rounded-full bg-ink/5 px-3 py-1 text-xs text-ink/70">
-                  오류로그 {failedSyncCount}건
-                </span>
-              </div>
-              <div className="mt-4 space-y-3">
-                {sheetTabs.map((tab) => (
-                  <div key={tab.tabName} className="flex items-center justify-between gap-3 text-sm">
-                    <span>{tab.tabName}</span>
-                    <span className="text-ink/65">
-                      {tab.header.length} cols · {tab.rows.length} rows
-                    </span>
+            <>
+              <section className="rounded-[1.75rem] border border-ink/10 bg-white p-5 shadow-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold uppercase tracking-[0.24em] text-accent">
+                      Sheet
+                    </p>
+                    <h2 className="text-lg font-semibold">구글 시트 반영 현황</h2>
                   </div>
-                ))}
-              </div>
-            </section>
+                  <span className="rounded-full bg-ink/5 px-3 py-1 text-xs text-ink/70">
+                    오류로그 {failedSyncCount}건
+                  </span>
+                </div>
+                <div className="mt-4 space-y-3">
+                  {sheetTabs.map((tab) => (
+                    <div
+                      key={tab.tabName}
+                      className="flex items-center justify-between gap-3 text-sm"
+                    >
+                      <span>{tab.tabName}</span>
+                      <span className="text-ink/65">
+                        {tab.header.length} cols · {tab.rows.length} rows
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+              <SummaryExportsCard tabs={sheetTabs} />
+            </>
           ) : null}
         </div>
       </div>

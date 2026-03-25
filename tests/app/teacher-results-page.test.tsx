@@ -46,13 +46,63 @@ vi.mock("../../src/lib/google/sheets", () => ({
   createPapsGoogleSheetTabPayloads: vi.fn(() => [
     {
       tabName: "학생요약",
-      header: Array.from({ length: 12 }, (_, index) => `col-${index + 1}`),
-      rows: [["row-1"]]
+      header: [
+        "학생ID",
+        "이름",
+        "학년",
+        "반",
+        "종목",
+        "최신대표값",
+        "단위",
+        "직전대표값",
+        "변화량",
+        "최고대표값",
+        "최근측정일",
+        "학생표시문구"
+      ],
+      rows: [[
+        "student-kim",
+        "홍길동",
+        5,
+        1,
+        "Sit and Reach",
+        22,
+        "cm",
+        20,
+        2,
+        22,
+        "2026-03-25",
+        "공식 기록 완료"
+      ]]
     },
     {
       tabName: "공식평가요약",
-      header: Array.from({ length: 11 }, (_, index) => `col-${index + 1}`),
-      rows: [["row-1"]]
+      header: [
+        "학생ID",
+        "이름",
+        "학년",
+        "반",
+        "종목",
+        "대표값",
+        "단위",
+        "공식등급",
+        "측정일",
+        "세션명",
+        "비고"
+      ],
+      rows: [[
+        "student-kim",
+        "홍길동",
+        5,
+        1,
+        "Sit and Reach",
+        22,
+        "cm",
+        3,
+        "2026-03-25",
+        "5학년 1반 3월 공식 검증",
+        "공식 기록 완료"
+      ]]
     },
     {
       tabName: "오류로그",
@@ -153,5 +203,11 @@ describe("teacher results page copy", () => {
       screen.getByText("대표 기록 확정, 요약 재계산, 시트 반영 현황을 한 화면에서 확인합니다.")
     ).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "구글 시트 반영 현황" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "학생요약 CSV 다운로드" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "공식평가요약 CSV 다운로드" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "공식평가요약 미리보기" })).toBeInTheDocument();
+    expect(screen.getByText("홍길동")).toBeInTheDocument();
+    expect(screen.getByText("5학년 1반 3월 공식 검증")).toBeInTheDocument();
+    expect(screen.getByText("3등급")).toBeInTheDocument();
   });
 });
