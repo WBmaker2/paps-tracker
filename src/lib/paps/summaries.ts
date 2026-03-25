@@ -41,11 +41,30 @@ interface RepresentativeRecordContext {
   student: PAPSStudent;
   record: PAPSAttemptRecord;
   representativeAttempt: PAPSAttempt;
+  usedFallbackRepresentative: boolean;
 }
 
-const getRepresentativeAttempt = (record: PAPSAttemptRecord): PAPSAttempt | null => {
+const getRepresentativeAttempt = (
+  record: PAPSAttemptRecord,
+  options?: {
+    fallbackToLatest?: boolean;
+  }
+): {
+  attempt: PAPSAttempt | null;
+  usedFallbackRepresentative: boolean;
+} => {
   if (!record.representativeAttemptId) {
-    return null;
+    if (!options?.fallbackToLatest) {
+      return {
+        attempt: null,
+        usedFallbackRepresentative: false
+      };
+    }
+
+    return {
+      attempt: record.attempts.at(-1) ?? null,
+      usedFallbackRepresentative: true
+    };
   }
 
   const representativeAttempt =
@@ -57,7 +76,10 @@ const getRepresentativeAttempt = (record: PAPSAttemptRecord): PAPSAttempt | null
     );
   }
 
-  return representativeAttempt;
+  return {
+    attempt: representativeAttempt,
+    usedFallbackRepresentative: false
+  };
 };
 
 const validateSummaryContext = ({
@@ -153,7 +175,10 @@ export const summarizeRepresentativeRecords = ({
   for (const record of records) {
     const student = studentById.get(record.studentId);
     const session = sessionById.get(record.sessionId);
-    const representativeAttempt = getRepresentativeAttempt(record);
+    const representativeSelection = getRepresentativeAttempt(record, {
+      fallbackToLatest: true
+    });
+    const representativeAttempt = representativeSelection.attempt;
 
     if (!student || !session || !representativeAttempt) {
       continue;
@@ -166,7 +191,8 @@ export const summarizeRepresentativeRecords = ({
       student,
       session,
       record,
-      representativeAttempt
+      representativeAttempt,
+      usedFallbackRepresentative: representativeSelection.usedFallbackRepresentative
     });
     groupedContexts.set(key, currentItems);
   }
@@ -189,7 +215,10 @@ export const summarizeRepresentativeRecords = ({
     const latestSummary = summarizeStudentRecord({
       session: latest.session,
       student: latest.student,
-      record: latest.record,
+      record: {
+        ...latest.record,
+        representativeAttemptId: latest.representativeAttempt.id
+      },
       previousRepresentativeMeasurement: previous?.representativeAttempt.measurement
     });
     const eventDefinition = getEventDefinition(latest.record.eventId);
@@ -226,7 +255,7 @@ export const summarizeRepresentativeRecords = ({
 
     const latestOfficial = [...items]
       .reverse()
-      .find((item) => item.session.sessionType === "official");
+      .find((item) => item.session.sessionType === "official" && !item.usedFallbackRepresentative);
 
     if (!latestOfficial) {
       continue;
@@ -235,7 +264,10 @@ export const summarizeRepresentativeRecords = ({
     const officialSummary = summarizeStudentRecord({
       session: latestOfficial.session,
       student: latestOfficial.student,
-      record: latestOfficial.record
+      record: {
+        ...latestOfficial.record,
+        representativeAttemptId: latestOfficial.representativeAttempt.id
+      }
     });
 
     officialSummaries.push({
@@ -299,7 +331,8 @@ export const summarizeStudentRecord = ({
   });
 
   const eventDefinition = getEventDefinition(record.eventId);
-  const representativeAttempt = getRepresentativeAttempt(record);
+  const representativeSelection = getRepresentativeAttempt(record);
+  const representativeAttempt = representativeSelection.attempt;
   const representativeMeasurement = representativeAttempt?.measurement ?? null;
 
   const summary: PAPSRecordSummary = {
