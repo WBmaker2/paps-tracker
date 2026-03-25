@@ -238,7 +238,16 @@ describe("teacher settings management", () => {
         eyebrow="Settings"
         description="학교 정보와 학급을 관리합니다."
       >
-        <TeacherSettingsManager school={school} classes={classes} />
+        <TeacherSettingsManager
+          school={school}
+          classes={classes}
+          sheetSetupStatus={{
+            templateConfigured: true,
+            serviceAccountConfigured: true,
+            serviceAccountEmail: "service-account@example.com",
+            missingKeys: []
+          }}
+        />
       </AppShell>
     );
 
@@ -286,6 +295,45 @@ describe("teacher settings management", () => {
     });
 
     expect(screen.getByText("6-2")).toBeInTheDocument();
+  });
+
+  it("shows setup guidance and missing env warning when service account config is incomplete", async () => {
+    const { AppShell } = await import("../../src/components/layout/app-shell");
+    const { TeacherSettingsManager } = await import(
+      "../../src/components/teacher/settings-management"
+    );
+
+    render(
+      <AppShell
+        title="학교 및 학급 설정"
+        eyebrow="Settings"
+        description="학교 정보와 학급을 관리합니다."
+      >
+        <TeacherSettingsManager
+          school={null}
+          classes={[]}
+          sheetConnected={false}
+          sheetSetupStatus={{
+            templateConfigured: true,
+            serviceAccountConfigured: false,
+            serviceAccountEmail: null,
+            missingKeys: [
+              "GOOGLE_SERVICE_ACCOUNT_EMAIL",
+              "GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY"
+            ]
+          }}
+        />
+      </AppShell>
+    );
+
+    expect(screen.getByText("구글 시트 연결 안내")).toBeInTheDocument();
+    expect(screen.getByText("1단계. 템플릿 시트 복사본 만들기")).toBeInTheDocument();
+    expect(screen.getByText("2단계. 서비스 계정과 시트 공유")).toBeInTheDocument();
+    expect(screen.getByText("3단계. 복사한 시트 URL 붙여넣기")).toBeInTheDocument();
+    expect(screen.getByText("4단계. 연결 확인 후 저장")).toBeInTheDocument();
+    expect(screen.getByText("배포 설정 확인 필요")).toBeInTheDocument();
+    expect(screen.getByText(/GOOGLE_SERVICE_ACCOUNT_EMAIL/)).toBeInTheDocument();
+    expect(screen.getByText(/GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY/)).toBeInTheDocument();
   });
 
   it("rejects connect requests when the service account is not shared on the sheet", async () => {

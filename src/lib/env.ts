@@ -42,6 +42,13 @@ export interface GoogleSheetsEnv {
   serviceAccountPrivateKey: string | null;
 }
 
+export interface GoogleSheetsSetupStatus {
+  templateConfigured: boolean;
+  serviceAccountConfigured: boolean;
+  serviceAccountEmail: string | null;
+  missingKeys: string[];
+}
+
 export const getNextAuthSecret = (): string | null => {
   const configuredSecret = getOptionalEnv("NEXTAUTH_SECRET");
 
@@ -78,3 +85,29 @@ export const getGoogleSheetsEnv = (): GoogleSheetsEnv => ({
     getOptionalEnv("GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY")
   )
 });
+
+export const getGoogleSheetsSetupStatus = (): GoogleSheetsSetupStatus => {
+  const env = getGoogleSheetsEnv();
+  const missingKeys: string[] = [];
+
+  if (!env.templateId) {
+    missingKeys.push("GOOGLE_SHEETS_TEMPLATE_ID");
+  }
+
+  if (!env.serviceAccountEmail) {
+    missingKeys.push("GOOGLE_SERVICE_ACCOUNT_EMAIL");
+  }
+
+  if (!env.serviceAccountPrivateKey) {
+    missingKeys.push("GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY");
+  }
+
+  return {
+    templateConfigured: Boolean(env.templateId),
+    serviceAccountConfigured: Boolean(
+      env.serviceAccountEmail && env.serviceAccountPrivateKey
+    ),
+    serviceAccountEmail: env.serviceAccountEmail,
+    missingKeys
+  };
+};

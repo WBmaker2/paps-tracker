@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 
 import { AppShell } from "../../../src/components/layout/app-shell";
 import { TeacherSettingsManager } from "../../../src/components/teacher/settings-management";
+import { getGoogleSheetsSetupStatus } from "../../../src/lib/env";
 import { createPapsGoogleSheetTabPayloads } from "../../../src/lib/google/sheets";
 import { loadTeacherPageState, PAPS_SPREADSHEET_ID_COOKIE } from "../../../src/lib/google/sheets-store";
 import { requireTeacherSession } from "../../../src/lib/teacher-auth";
@@ -41,6 +42,7 @@ export default async function TeacherSettingsPage() {
   const representativeSelectionAuditLogs = bootstrap.representativeSelectionAuditLogs.filter(
     (entry) => sessionIds.has(entry.sessionId)
   );
+  const sheetSetupStatus = getGoogleSheetsSetupStatus();
   const sheetTabs = school
     ? createPapsGoogleSheetTabPayloads({
         school,
@@ -66,6 +68,7 @@ export default async function TeacherSettingsPage() {
           school={school}
           classes={classes}
           sheetConnected={sheetConnected}
+          sheetSetupStatus={sheetSetupStatus}
         />
         {school ? (
           <section className="rounded-[1.75rem] border border-ink/10 bg-white p-5 shadow-sm">

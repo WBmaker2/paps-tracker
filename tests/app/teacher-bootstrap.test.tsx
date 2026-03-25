@@ -83,6 +83,7 @@ describe("teacher bootstrap contract", () => {
     createStoreForRequest.mockClear();
     loadTeacherPageState.mockClear();
     process.env.NODE_ENV = "test";
+    delete process.env.GOOGLE_SHEETS_TEMPLATE_ID;
   });
 
   it("routes teacher bootstrap loading through createStoreForRequest", async () => {
@@ -99,6 +100,7 @@ describe("teacher bootstrap contract", () => {
 
   it("falls back to the disconnected setup prompt when a spreadsheet cookie is stale", async () => {
     process.env.NODE_ENV = "production";
+    process.env.GOOGLE_SHEETS_TEMPLATE_ID = "template-sheet-id";
     cookies.mockResolvedValue({
       get: () => ({
         value: "stale-sheet"
@@ -113,8 +115,7 @@ describe("teacher bootstrap contract", () => {
       teacherEmail: "demo-teacher@example.com",
       spreadsheetId: "stale-sheet"
     });
-    expect(
-      screen.getByText("먼저 템플릿을 복사한 구글 시트를 연결해야 학급과 세션을 관리할 수 있습니다.")
-    ).toBeInTheDocument();
+    expect(screen.getByText("구글 시트 연결 안내")).toBeInTheDocument();
+    expect(screen.getByText("배포 설정 확인 필요")).toBeInTheDocument();
   });
 });
