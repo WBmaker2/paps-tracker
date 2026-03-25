@@ -156,6 +156,31 @@ const formatSummaryMessage = ({
 const getSortableRepresentativeTimestamp = (context: RepresentativeRecordContext): string =>
   `${context.representativeAttempt.createdAt}|${context.session.createdAt ?? ""}|${context.session.id}`;
 
+const getFallbackPreviousMeasurement = (
+  context: RepresentativeRecordContext
+): number | undefined => {
+  if (!context.usedFallbackRepresentative) {
+    return undefined;
+  }
+
+  const sortedAttempts = [...context.record.attempts].sort((left, right) => {
+    if (left.attemptNumber !== right.attemptNumber) {
+      return left.attemptNumber - right.attemptNumber;
+    }
+
+    return left.createdAt.localeCompare(right.createdAt);
+  });
+  const latestAttemptIndex = sortedAttempts.findIndex(
+    (attempt) => attempt.id === context.representativeAttempt.id
+  );
+
+  if (latestAttemptIndex <= 0) {
+    return undefined;
+  }
+
+  return sortedAttempts[latestAttemptIndex - 1]?.measurement;
+};
+
 export const summarizeRepresentativeRecords = ({
   students,
   sessions,
@@ -212,6 +237,8 @@ export const summarizeRepresentativeRecords = ({
     }
 
     const previous = items.at(-2);
+    const previousRepresentativeMeasurement =
+      previous?.representativeAttempt.measurement ?? getFallbackPreviousMeasurement(latest);
     const latestSummary = summarizeStudentRecord({
       session: latest.session,
       student: latest.student,
@@ -219,7 +246,7 @@ export const summarizeRepresentativeRecords = ({
         ...latest.record,
         representativeAttemptId: latest.representativeAttempt.id
       },
-      previousRepresentativeMeasurement: previous?.representativeAttempt.measurement
+      previousRepresentativeMeasurement
     });
     const eventDefinition = getEventDefinition(latest.record.eventId);
     const bestRepresentativeMeasurement = items.reduce((best, current) => {
@@ -237,7 +264,7 @@ export const summarizeRepresentativeRecords = ({
       classId: latest.student.classId,
       eventId: latest.record.eventId,
       latestRepresentativeMeasurement: latest.representativeAttempt.measurement,
-      previousRepresentativeMeasurement: previous?.representativeAttempt.measurement ?? null,
+      previousRepresentativeMeasurement: previousRepresentativeMeasurement ?? null,
       improvement: latestSummary.improvement,
       bestRepresentativeMeasurement,
       unit: latest.record.unit,

@@ -368,18 +368,8 @@ describe("PAPS summaries", () => {
     ]);
   });
 
-  it("builds student summaries from the latest attempt when no representative is selected yet", () => {
+  it("builds student summaries from the latest attempt in the same session when no representative is selected yet", () => {
     const sessions: PAPSSession[] = [
-      {
-        id: "practice-1",
-        name: "Practice A",
-        gradeLevel: 5,
-        sessionType: "practice",
-        classScope: "single",
-        eventId: "sit-and-reach",
-        classTargets: [{ classId: "5-2", eventId: "sit-and-reach" }],
-        createdAt: "2026-03-23T09:00:00.000Z"
-      },
       {
         id: "practice-2",
         name: "Practice B",
@@ -393,7 +383,7 @@ describe("PAPS summaries", () => {
     ];
     const records: PAPSAttemptRecord[] = [
       {
-        sessionId: "practice-1",
+        sessionId: "practice-2",
         studentId: student.id,
         eventId: "sit-and-reach",
         unit: "cm",
@@ -402,20 +392,11 @@ describe("PAPS summaries", () => {
             id: "attempt-1",
             attemptNumber: 1,
             measurement: 18,
-            createdAt: "2026-03-23T09:01:00.000Z"
-          }
-        ],
-        representativeAttemptId: null
-      },
-      {
-        sessionId: "practice-2",
-        studentId: student.id,
-        eventId: "sit-and-reach",
-        unit: "cm",
-        attempts: [
+            createdAt: "2026-03-23T10:00:30.000Z"
+          },
           {
             id: "attempt-2",
-            attemptNumber: 1,
+            attemptNumber: 2,
             measurement: 21,
             createdAt: "2026-03-23T10:01:00.000Z"
           }
