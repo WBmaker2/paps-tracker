@@ -53,6 +53,33 @@ export class GoogleSheetsAccessError extends Error {
   }
 }
 
+export class GoogleSheetsApiDisabledError extends Error {
+  readonly status: number;
+  readonly spreadsheetId: string;
+  readonly service: string | null;
+  readonly projectId: string | null;
+
+  constructor(input: {
+    spreadsheetId: string;
+    status: number;
+    service?: string | null;
+    projectId?: string | null;
+  }) {
+    const serviceLabel =
+      input.service === "sheets.googleapis.com" || !input.service
+        ? "Google Sheets API"
+        : input.service;
+    const projectSuffix = input.projectId ? ` (${input.projectId})` : "";
+
+    super(`${serviceLabel} is disabled in the Google Cloud project${projectSuffix}. Enable it and try again.`);
+    this.name = "GoogleSheetsApiDisabledError";
+    this.status = input.status;
+    this.spreadsheetId = input.spreadsheetId;
+    this.service = input.service ?? null;
+    this.projectId = input.projectId ?? null;
+  }
+}
+
 export interface GoogleSheetsClientOptions {
   serviceAccountEmail: string;
   serviceAccountPrivateKey: string;
@@ -96,6 +123,53 @@ const readErrorMessage = async (response: Response): Promise<string | null> => {
     return parsed.error?.message ?? text;
   } catch {
     return text;
+  }
+};
+
+const parseServiceDisabledMetadata = (
+  text: string
+): {
+  service: string | null;
+  projectId: string | null;
+} | null => {
+  try {
+    const parsed = JSON.parse(text) as {
+      error?: {
+        status?: string;
+        details?: Array<{
+          "@type"?: string;
+          reason?: string;
+          metadata?: {
+            service?: string;
+            consumer?: string;
+            containerInfo?: string;
+          };
+        }>;
+      };
+    };
+
+    const detail =
+      parsed.error?.details?.find(
+        (entry) =>
+          entry.reason === "SERVICE_DISABLED" ||
+          entry.metadata?.service === "sheets.googleapis.com"
+      ) ?? null;
+
+    const projectId =
+      detail?.metadata?.consumer?.replace(/^projects\//, "") ??
+      detail?.metadata?.containerInfo ??
+      null;
+
+    if (!detail && parsed.error?.status !== "PERMISSION_DENIED") {
+      return null;
+    }
+
+    return {
+      service: detail?.metadata?.service ?? null,
+      projectId
+    };
+  } catch {
+    return null;
   }
 };
 
@@ -150,7 +224,36 @@ export const createGoogleSheetsClient = (
     });
 
     if (!response.ok) {
-      const message = await readErrorMessage(response);
+      const text = await readResponseText(response);
+      const message = text ? await (async () => {
+        try {
+          const parsed = JSON.parse(text) as {
+            error?: {
+              message?: string;
+            };
+          };
+
+          return parsed.error?.message ?? text;
+        } catch {
+          return text;
+        }
+      })() : null;
+
+      const serviceDisabledMetadata = text ? parseServiceDisabledMetadata(text) : null;
+
+      if (
+        response.status === 403 &&
+        (message?.includes("Google Sheets API has not been used in project") ||
+          message?.includes("SERVICE_DISABLED") ||
+          serviceDisabledMetadata?.service === "sheets.googleapis.com")
+      ) {
+        throw new GoogleSheetsApiDisabledError({
+          spreadsheetId,
+          status: response.status,
+          service: serviceDisabledMetadata?.service,
+          projectId: serviceDisabledMetadata?.projectId
+        });
+      }
 
       if (response.status === 401 || response.status === 403 || response.status === 404) {
         throw new GoogleSheetsAccessError(spreadsheetId, response.status, init.method === "GET" ? "read" : "write");

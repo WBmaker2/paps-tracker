@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getGoogleSheetsEnv } from "../../src/lib/env";
 import {
+  GoogleSheetsApiDisabledError,
   GoogleSheetsAccessError,
   createGoogleSheetsClient
 } from "../../src/lib/google/sheets-client";
@@ -151,6 +152,50 @@ describe("Google Sheets schema and client", () => {
     );
     await expect(validatePapsGoogleSheetTemplate(client, "sheet-123")).rejects.toThrow(
       "The service account cannot access spreadsheet sheet-123."
+    );
+  });
+
+  it("surfaces a readable error when Google Sheets API is disabled", async () => {
+    const client = createGoogleSheetsClient({
+      serviceAccountEmail: "service@example.com",
+      serviceAccountPrivateKey:
+        "-----BEGIN PRIVATE KEY-----\nabc123\n-----END PRIVATE KEY-----\n",
+      accessTokenProvider: async () => "access-token",
+      fetchImpl: vi.fn(async () => {
+        return new Response(
+          JSON.stringify({
+            error: {
+              code: 403,
+              status: "PERMISSION_DENIED",
+              message:
+                "Google Sheets API has not been used in project 1085328819177 before or it is disabled.",
+              details: [
+                {
+                  "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+                  reason: "SERVICE_DISABLED",
+                  metadata: {
+                    service: "sheets.googleapis.com",
+                    consumer: "projects/1085328819177"
+                  }
+                }
+              ]
+            }
+          }),
+          {
+            status: 403,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      })
+    });
+
+    await expect(validatePapsGoogleSheetTemplate(client, "sheet-123")).rejects.toBeInstanceOf(
+      GoogleSheetsApiDisabledError
+    );
+    await expect(validatePapsGoogleSheetTemplate(client, "sheet-123")).rejects.toThrow(
+      "Google Sheets API is disabled in the Google Cloud project (1085328819177). Enable it and try again."
     );
   });
 
