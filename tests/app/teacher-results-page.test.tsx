@@ -72,7 +72,7 @@ vi.mock("../../src/lib/google/sheets", () => ({
         2,
         22,
         "2026-03-25",
-        "공식 기록 완료"
+        "지난 기록 대비 +2cm"
       ]]
     },
     {
@@ -205,8 +205,11 @@ describe("teacher results page copy", () => {
     expect(screen.getByRole("heading", { name: "구글 시트 반영 현황" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "학생요약 CSV 다운로드" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "공식평가요약 CSV 다운로드" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "요약 XLSX 다운로드" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "학생요약 미리보기" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "공식평가요약 미리보기" })).toBeInTheDocument();
-    expect(screen.getByText("홍길동")).toBeInTheDocument();
+    expect(screen.getAllByText("홍길동")).toHaveLength(2);
+    expect(screen.getByText("지난 기록 대비 +2cm")).toBeInTheDocument();
     expect(screen.getByText("5학년 1반 3월 공식 검증")).toBeInTheDocument();
     expect(screen.getByText("3등급")).toBeInTheDocument();
   });
