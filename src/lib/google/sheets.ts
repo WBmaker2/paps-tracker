@@ -1,4 +1,5 @@
 import { getEventDefinition } from "../paps/catalog";
+import { formatAttemptDetailSummary } from "../paps/composite-measurements";
 import { summarizeRepresentativeRecords, summarizeStudentRecord } from "../paps/summaries";
 import type {
   PAPSAttemptRecord,
@@ -186,7 +187,8 @@ const createAttemptRecords = (
       attemptNumber: attempt.attemptNumber,
       measurement: attempt.measurement,
       createdAt: attempt.createdAt,
-      clientSubmissionKey: attempt.clientSubmissionKey
+      clientSubmissionKey: attempt.clientSubmissionKey,
+      detail: attempt.detail ?? null
     });
     recordMap.set(key, currentRecord);
   }
@@ -319,7 +321,12 @@ export const createPapsGoogleSheetTabPayloads = ({
         toSyncStatusLabel(syncStatus?.status),
         buildRecordNote({
           clientSubmissionKey: attempt.clientSubmissionKey,
-          reason: auditLog?.reason ?? null
+          reason: auditLog?.reason ?? null,
+          detail: attempt.detail ?? null,
+          detailSummary: formatAttemptDetailSummary({
+            eventId: record.eventId,
+            detail: attempt.detail
+          })
         })
       ]);
     })
@@ -352,6 +359,20 @@ export const createPapsGoogleSheetTabPayloads = ({
     rows: representativeSummaries.officialSummaries.map((summary) => {
       const classroom = classById.get(summary.classId);
       const auditLog = latestAuditByRecordId.get(`${summary.sessionId}:${summary.studentId}`);
+      const representativeRecord = attemptRecords.find(
+        (record) =>
+          record.sessionId === summary.sessionId && record.studentId === summary.studentId
+      );
+      const representativeAttempt =
+        representativeRecord?.attempts.find(
+          (attempt) => attempt.id === representativeRecord.representativeAttemptId
+        ) ?? null;
+      const detailSummary = representativeAttempt
+        ? formatAttemptDetailSummary({
+            eventId: summary.eventId,
+            detail: representativeAttempt.detail
+          })
+        : null;
 
       return [
         summary.studentId,
@@ -364,7 +385,7 @@ export const createPapsGoogleSheetTabPayloads = ({
         summary.officialGrade ?? "",
         formatIsoDate(summary.measuredAt),
         summary.sessionName,
-        auditLog?.reason ?? summary.note
+        [auditLog?.reason ?? summary.note, detailSummary].filter(Boolean).join(" · ")
       ];
     })
   };

@@ -404,6 +404,77 @@ describe("Google Sheet payload serialization", () => {
       "Second attempt selected"
     ]);
   });
+
+  it("writes a human-readable detail summary into 세션기록 비고 for composite measurements", () => {
+    const compositeSeed: PAPSDemoStoreData = {
+      ...seed,
+      sessions: [
+        ...seed.sessions,
+        {
+          id: "official-step",
+          schoolId: "school-1",
+          teacherId: "teacher-1",
+          academicYear: 2026,
+          name: "5-1 Step Test Official",
+          gradeLevel: 5,
+          sessionType: "official",
+          classScope: "single",
+          eventId: "step-test",
+          classTargets: [{ classId: "class-5-1", eventId: "step-test" }],
+          isOpen: false,
+          createdAt: "2026-03-23T12:00:00.000Z"
+        }
+      ],
+      attempts: [
+        ...seed.attempts,
+        {
+          id: "attempt-step-1",
+          sessionId: "official-step",
+          studentId: "student-1",
+          eventId: "step-test",
+          unit: "PEI",
+          attemptNumber: 1,
+          measurement: 60.5,
+          createdAt: "2026-03-23T12:01:00.000Z",
+          detail: {
+            kind: "step-test",
+            recoveryHeartRates: [50, 50, 49]
+          }
+        }
+      ],
+      representativeSelectionAuditLogs: [
+        ...seed.representativeSelectionAuditLogs,
+        {
+          id: "rep:official-step:student-1:2026-03-23T12:02:00.000Z",
+          sessionId: "official-step",
+          studentId: "student-1",
+          eventId: "step-test",
+          previousAttemptId: null,
+          selectedAttemptId: "attempt-step-1",
+          changedByTeacherId: "teacher-1",
+          reason: "공식 스텝검사 대표 기록",
+          createdAt: "2026-03-23T12:02:00.000Z"
+        }
+      ]
+    };
+
+    const tabs = createPapsGoogleSheetTabPayloads({
+      school: compositeSeed.schools[0]!,
+      classes: compositeSeed.classes,
+      teachers: compositeSeed.teachers,
+      students: compositeSeed.students,
+      sessions: compositeSeed.sessions,
+      attempts: compositeSeed.attempts,
+      syncStatuses: compositeSeed.syncStatuses,
+      syncErrorLogs: compositeSeed.syncErrorLogs,
+      representativeSelectionAuditLogs: compositeSeed.representativeSelectionAuditLogs
+    });
+    const recordsRow = tabs
+      .find((tab) => tab.tabName === "세션기록")
+      ?.rows.find((row) => row[0] === "attempt-step-1");
+
+    expect(String(recordsRow?.[20] ?? "")).toContain("세부기록: 회복심박수 50 / 50 / 49회");
+  });
 });
 
 describe("Google Sheet routes", () => {

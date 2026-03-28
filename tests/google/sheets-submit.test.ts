@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { GoogleSheetsClient } from "../../src/lib/google/sheets-client";
 import type { PAPSAttempt } from "../../src/lib/paps/types";
+import { parseRecordNote } from "../../src/lib/google/sheets-record-note";
 import {
   appendStudentSubmissionToSheet,
   dedupeAttemptsByClientSubmissionKey
@@ -197,9 +198,11 @@ describe("Google Sheets student submit", () => {
     });
 
     const appendedRow = vi.mocked(stepTestClient.appendRows).mock.calls[0]?.[2]?.[0];
+    const appendedNote = String(appendedRow?.at(-1) ?? "");
 
     expect(appendedRow).toBeDefined();
-    expect(JSON.parse(String(appendedRow?.at(-1)))).toMatchObject({
+    expect(appendedNote).toContain("세부기록: 회복심박수 50 / 50 / 49회");
+    expect(parseRecordNote(appendedNote)).toMatchObject({
       clientSubmissionKey: "submit-step",
       detail: {
         kind: "step-test",

@@ -1,7 +1,10 @@
 import { randomUUID } from "node:crypto";
 
 import { getEventDefinition } from "../paps/catalog";
-import { resolveSubmissionMeasurement } from "../paps/composite-measurements";
+import {
+  formatAttemptDetailSummary,
+  resolveSubmissionMeasurement
+} from "../paps/composite-measurements";
 import { calculateOfficialGrade } from "../paps/grade";
 import type {
   OfficialGrade,
@@ -143,7 +146,11 @@ const buildAttemptRow = (input: {
     "완료",
     buildRecordNote({
       clientSubmissionKey: input.clientSubmissionKey,
-      detail: input.detail ?? null
+      detail: input.detail ?? null,
+      detailSummary: formatAttemptDetailSummary({
+        eventId: session.eventId,
+        detail: input.detail ?? null
+      })
     })
   ];
 };
