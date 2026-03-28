@@ -129,4 +129,63 @@ describe("PAPS validation", () => {
       "Event long-run-walk is not eligible for grade 3."
     );
   });
+
+  it("allows grade 4 sessions for grade 4 scalar events from the latest manual", () => {
+    expect(() =>
+      validateSession({
+        id: "session-5",
+        gradeLevel: 4,
+        sessionType: "official",
+        classScope: "single",
+        eventId: "shuttle-run",
+        classTargets: [{ classId: "4-1", eventId: "shuttle-run" }]
+      })
+    ).not.toThrow();
+
+    expect(() =>
+      validateSession({
+        id: "session-6",
+        gradeLevel: 4,
+        sessionType: "official",
+        classScope: "single",
+        eventId: "curl-up",
+        classTargets: [{ classId: "4-1", eventId: "curl-up" }]
+      })
+    ).not.toThrow();
+
+    expect(() =>
+      validateSession({
+        id: "session-7",
+        gradeLevel: 4,
+        sessionType: "official",
+        classScope: "single",
+        eventId: "standing-long-jump",
+        classTargets: [{ classId: "4-1", eventId: "standing-long-jump" }]
+      })
+    ).not.toThrow();
+  });
+
+  it("rejects grade 4 sessions for events that start in grade 5", () => {
+    expect(() =>
+      validateSession({
+        id: "session-8",
+        gradeLevel: 4,
+        sessionType: "official",
+        classScope: "single",
+        eventId: "sit-and-reach",
+        classTargets: [{ classId: "4-1", eventId: "sit-and-reach" }]
+      })
+    ).toThrow("Event sit-and-reach is not eligible for grade 4.");
+
+    expect(() =>
+      validateSession({
+        id: "session-9",
+        gradeLevel: 4,
+        sessionType: "official",
+        classScope: "single",
+        eventId: "long-run-walk",
+        classTargets: [{ classId: "4-1", eventId: "long-run-walk" }]
+      })
+    ).toThrow("Event long-run-walk is not eligible for grade 4.");
+  });
 });

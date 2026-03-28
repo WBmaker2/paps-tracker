@@ -4,6 +4,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { calculateOfficialGrade } from "../../../../../src/lib/paps/grade";
 import { appendStudentSubmissionToSheet } from "../../../../../src/lib/google/sheets-submit";
+import { resolveSubmissionMeasurement } from "../../../../../src/lib/paps/composite-measurements";
+import {
+  assertMeasurementAllowed,
+  assertMeasurementDetailAllowed
+} from "../../../../../src/lib/paps/validation";
 import { PAPS_SPREADSHEET_ID_COOKIE } from "../../../../../src/lib/google/sheets-store";
 import { createStoreForRequest } from "../../../../../src/lib/store/paps-store";
 import type { OfficialGrade } from "../../../../../src/lib/paps/types";
@@ -14,9 +19,13 @@ type SubmitRouteContext = {
   }>;
 };
 
-const parseMeasurement = (value: unknown): number => {
+const parseOptionalMeasurement = (value: unknown): number | undefined => {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+
   if (typeof value === "string" && !value.trim()) {
-    throw new Error("A numeric measurement is required.");
+    return undefined;
   }
 
   const numericValue = Number(value);
@@ -55,7 +64,8 @@ export async function POST(request: NextRequest, context: SubmitRouteContext) {
         spreadsheetId,
         sessionId,
         studentId,
-        measurement: parseMeasurement(body?.measurement),
+        measurement: parseOptionalMeasurement(body?.measurement),
+        detail: body?.detail ?? null,
         clientSubmissionKey
       });
 
@@ -108,7 +118,20 @@ export async function POST(request: NextRequest, context: SubmitRouteContext) {
       throw new Error("Inactive students cannot submit attempts.");
     }
 
-    const measurement = parseMeasurement(body?.measurement);
+    const resolvedSubmission = resolveSubmissionMeasurement({
+      eventId: session.eventId,
+      measurement: parseOptionalMeasurement(body?.measurement),
+      detail: body?.detail ?? null
+    });
+
+    assertMeasurementDetailAllowed({
+      eventId: session.eventId,
+      detail: resolvedSubmission.detail
+    });
+    assertMeasurementAllowed({
+      eventId: session.eventId,
+      measurement: resolvedSubmission.measurement
+    });
     const createdAt = new Date().toISOString();
 
     let latestOfficialGrade: OfficialGrade | null = null;
@@ -118,7 +141,7 @@ export async function POST(request: NextRequest, context: SubmitRouteContext) {
         gradeLevel: session.gradeLevel,
         sex: student.sex,
         eventId: session.eventId,
-        measurement
+        measurement: resolvedSubmission.measurement
       });
     }
 
@@ -126,8 +149,9 @@ export async function POST(request: NextRequest, context: SubmitRouteContext) {
       id: randomUUID(),
       sessionId,
       studentId,
-      measurement,
-      createdAt
+      measurement: resolvedSubmission.measurement,
+      createdAt,
+      detail: resolvedSubmission.detail
     });
 
     return NextResponse.json(

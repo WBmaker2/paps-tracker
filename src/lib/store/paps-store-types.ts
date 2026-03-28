@@ -1,3 +1,4 @@
+import type { PAPSMeasurementDetail } from "../paps/types";
 import type {
   PAPSAttemptRecord,
   PAPSClassroom,
@@ -17,6 +18,7 @@ export interface AppendAttemptInput {
   studentId: string;
   measurement: number;
   createdAt: string;
+  detail?: PAPSMeasurementDetail | null;
 }
 
 export interface RecordSelector {

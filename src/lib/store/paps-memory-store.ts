@@ -22,6 +22,7 @@ export interface AppendAttemptInput {
   studentId: string;
   measurement: number;
   createdAt: string;
+  detail?: PAPSStoredAttempt["detail"];
 }
 
 export interface RecordSelector {
@@ -382,7 +383,8 @@ export const createPapsMemoryStore = (seedData: PAPSDemoStoreData = createDefaul
       attemptNumber: attempt.attemptNumber,
       measurement: attempt.measurement,
       createdAt: attempt.createdAt,
-      clientSubmissionKey: attempt.clientSubmissionKey
+      clientSubmissionKey: attempt.clientSubmissionKey,
+      detail: attempt.detail ?? null
     }));
 
     return cloneValue({
@@ -517,7 +519,8 @@ export const createPapsMemoryStore = (seedData: PAPSDemoStoreData = createDefaul
       unit: getEventDefinition(session.eventId).unit,
       attemptNumber: attemptsForRecord.length + 1,
       measurement: input.measurement,
-      createdAt: input.createdAt
+      createdAt: input.createdAt,
+      detail: input.detail ?? null
     };
     writeState({
       ...currentState,

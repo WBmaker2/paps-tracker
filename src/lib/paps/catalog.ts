@@ -24,6 +24,19 @@ export const isEventEligibleForGrade = (eventId: EventId, gradeLevel: GradeLevel
 export const supportsSessionType = (eventId: EventId, sessionType: SessionType): boolean =>
   getEventDefinition(eventId).supportedSessionTypes.includes(sessionType);
 
+export const getEligibleEventDefinitions = ({
+  gradeLevel,
+  sessionType
+}: {
+  gradeLevel: GradeLevel;
+  sessionType?: SessionType;
+}): PAPSEventDefinition[] =>
+  Object.values(PAPS_EVENT_DEFINITIONS).filter(
+    (eventDefinition) =>
+      eventDefinition.supportedGrades.includes(gradeLevel) &&
+      (!sessionType || eventDefinition.supportedSessionTypes.includes(sessionType))
+  );
+
 export const hasOfficialGradeRule = (
   eventId: EventId,
   gradeLevel: GradeLevel,

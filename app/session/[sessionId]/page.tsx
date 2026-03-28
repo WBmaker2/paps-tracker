@@ -6,19 +6,12 @@ import { SplitSessionView } from "../../../src/components/student/split-session-
 import { loadStudentSessionViewFromSheet } from "../../../src/lib/google/sheets-submit";
 import { PAPS_SPREADSHEET_ID_COOKIE } from "../../../src/lib/google/sheets-store";
 import { getEventDefinition } from "../../../src/lib/paps/catalog";
-import type { EventId } from "../../../src/lib/paps/types";
 import { createStoreForRequest } from "../../../src/lib/store/paps-store";
 
 type StudentSessionPageProps = {
   params: Promise<{
     sessionId: string;
   }>;
-};
-
-const STUDENT_EVENT_LABELS: Record<EventId, string> = {
-  "sit-and-reach": "앉아윗몸앞으로굽히기",
-  "shuttle-run": "왕복오래달리기",
-  "long-run-walk": "오래달리기-걷기"
 };
 
 export default async function StudentSessionPage({ params }: StudentSessionPageProps) {
@@ -69,7 +62,7 @@ export default async function StudentSessionPage({ params }: StudentSessionPageP
             </p>
             <h1 className="mt-3 text-3xl font-semibold">{session.name ?? "학생 입력 세션"}</h1>
             <p className="mt-2 text-base leading-7 text-ink/75">
-              이름만 선택한 뒤 <strong>{STUDENT_EVENT_LABELS[session.eventId]}</strong> 기록을
+              이름만 선택한 뒤 <strong>{eventDefinition.label}</strong> 기록을
               입력합니다. 제출 직후에만 본인 결과를 확인할 수 있습니다.
             </p>
           </section>
@@ -77,9 +70,11 @@ export default async function StudentSessionPage({ params }: StudentSessionPageP
             sessionId={session.id}
             sessionType={session.sessionType}
             classScope={session.classScope}
-            eventLabel={STUDENT_EVENT_LABELS[session.eventId]}
+            eventId={session.eventId}
+            eventLabel={eventDefinition.label}
             unit={eventDefinition.unit}
             betterDirection={eventDefinition.betterDirection}
+            measurementConstraints={eventDefinition.measurementConstraints}
             classSections={classSections}
           />
         </div>

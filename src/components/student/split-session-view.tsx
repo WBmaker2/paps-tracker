@@ -4,10 +4,11 @@ import React, { useMemo, useState, useTransition } from "react";
 
 import { InstantResultCard } from "./instant-result-card";
 import { NamePicker } from "./name-picker";
-import { RecordForm } from "./record-form";
+import { RecordForm, type RecordFormSubmission } from "./record-form";
 import type {
   BetterDirection,
   ClassScope,
+  EventId,
   OfficialGrade,
   PAPSAttempt,
   SessionType
@@ -43,17 +44,25 @@ export function SplitSessionView({
   sessionId,
   sessionType,
   classScope,
+  eventId,
   eventLabel,
   unit,
   betterDirection,
+  measurementConstraints,
   classSections
 }: {
   sessionId: string;
   sessionType: SessionType;
   classScope: ClassScope;
+  eventId: EventId;
   eventLabel: string;
   unit: string;
   betterDirection: BetterDirection;
+  measurementConstraints: {
+    min: number;
+    max: number;
+    precision: number;
+  };
   classSections: ClassSection[];
 }) {
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
@@ -83,7 +92,7 @@ export function SplitSessionView({
     setErrorMessage(null);
   };
 
-  const handleSubmit = async (measurement: number) => {
+  const handleSubmit = async (submission: RecordFormSubmission) => {
     if (!selectedStudentId) {
       return;
     }
@@ -101,7 +110,8 @@ export function SplitSessionView({
             },
             body: JSON.stringify({
               studentId: selectedStudentId,
-              measurement,
+              measurement: submission.measurement,
+              detail: submission.detail ?? null,
               clientSubmissionKey
             })
           });
@@ -158,9 +168,11 @@ export function SplitSessionView({
       {selectedStudent && !submitResult ? (
         <RecordForm
           studentId={selectedStudent.id}
+          eventId={eventId}
           studentName={selectedStudent.name}
           eventLabel={eventLabel}
           unit={unit}
+          measurementConstraints={measurementConstraints}
           isSubmitting={isPending}
           errorMessage={errorMessage}
           onSubmit={handleSubmit}
@@ -172,6 +184,7 @@ export function SplitSessionView({
           <InstantResultCard
             studentName={submitResult.student.name}
             sessionType={sessionType}
+            eventId={eventId}
             eventLabel={eventLabel}
             unit={unit}
             attempts={submitResult.attempts}

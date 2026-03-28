@@ -1,15 +1,9 @@
 "use client";
 
-import React, { useEffect, useState, useTransition } from "react";
+import React, { useEffect, useMemo, useState, useTransition } from "react";
 
-import { getEventDefinition } from "../../lib/paps/catalog";
-import type { PAPSClassroom, PAPSSession } from "../../lib/paps/types";
-
-const EVENT_OPTIONS = [
-  { value: "sit-and-reach", label: "앉아윗몸앞으로굽히기" },
-  { value: "shuttle-run", label: "왕복오래달리기" },
-  { value: "long-run-walk", label: "오래달리기-걷기" }
-] as const;
+import { getEligibleEventDefinitions, getEventDefinition } from "../../lib/paps/catalog";
+import type { EventId, GradeLevel, PAPSClassroom, PAPSSession } from "../../lib/paps/types";
 
 export function SessionForm({
   classes,
@@ -26,15 +20,48 @@ export function SessionForm({
 }) {
   const [isPending, startTransition] = useTransition();
   const [name, setName] = useState("");
-  const [gradeLevel, setGradeLevel] = useState("5");
+  const [gradeLevel, setGradeLevel] = useState<GradeLevel>(5);
   const [sessionType, setSessionType] = useState<"official" | "practice">("practice");
   const [classScope, setClassScope] = useState<"single" | "split">("single");
   const [primaryClassId, setPrimaryClassId] = useState(classes[0]?.id ?? "");
   const [secondaryClassId, setSecondaryClassId] = useState(classes[1]?.id ?? classes[0]?.id ?? "");
-  const [primaryEventId, setPrimaryEventId] = useState<"sit-and-reach" | "shuttle-run" | "long-run-walk">("sit-and-reach");
-  const [secondaryEventId, setSecondaryEventId] = useState<"sit-and-reach" | "shuttle-run" | "long-run-walk">("sit-and-reach");
+  const eligibleEvents = useMemo(
+    () => getEligibleEventDefinitions({ gradeLevel, sessionType }),
+    [gradeLevel, sessionType]
+  );
+  const filteredClasses = useMemo(
+    () => classes.filter((classroom) => classroom.gradeLevel === gradeLevel),
+    [classes, gradeLevel]
+  );
+  const fallbackEventId = eligibleEvents[0]?.id ?? "shuttle-run";
+  const [primaryEventId, setPrimaryEventId] = useState<EventId>(fallbackEventId);
+  const [secondaryEventId, setSecondaryEventId] = useState<EventId>(fallbackEventId);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!eligibleEvents.some((eventDefinition) => eventDefinition.id === primaryEventId)) {
+      setPrimaryEventId(fallbackEventId);
+    }
+
+    if (!eligibleEvents.some((eventDefinition) => eventDefinition.id === secondaryEventId)) {
+      setSecondaryEventId(fallbackEventId);
+    }
+  }, [eligibleEvents, fallbackEventId, primaryEventId, secondaryEventId]);
+
+  useEffect(() => {
+    if (filteredClasses.length === 0) {
+      return;
+    }
+
+    if (!filteredClasses.some((classroom) => classroom.id === primaryClassId)) {
+      setPrimaryClassId(filteredClasses[0]!.id);
+    }
+
+    if (!filteredClasses.some((classroom) => classroom.id === secondaryClassId)) {
+      setSecondaryClassId(filteredClasses[1]?.id ?? filteredClasses[0]!.id);
+    }
+  }, [filteredClasses, primaryClassId, secondaryClassId]);
 
   const handleSubmit = () => {
     if (!sheetConnected) {
@@ -55,7 +82,7 @@ export function SessionForm({
           },
           body: JSON.stringify({
             name,
-            gradeLevel: Number(gradeLevel),
+            gradeLevel,
             sessionType,
             classScope,
             primaryClassId,
@@ -107,7 +134,7 @@ export function SessionForm({
           <select
             className="rounded-2xl border border-ink/15 px-4 py-3"
             value={gradeLevel}
-            onChange={(event) => setGradeLevel(event.target.value)}
+            onChange={(event) => setGradeLevel(Number(event.target.value) as GradeLevel)}
           >
             {[3, 4, 5, 6].map((value) => (
               <option key={value} value={value}>
@@ -145,7 +172,7 @@ export function SessionForm({
             value={primaryClassId}
             onChange={(event) => setPrimaryClassId(event.target.value)}
           >
-            {classes.map((classroom) => (
+            {filteredClasses.map((classroom) => (
               <option key={classroom.id} value={classroom.id}>
                 {classroom.label}
               </option>
@@ -157,15 +184,11 @@ export function SessionForm({
           <select
             className="rounded-2xl border border-ink/15 px-4 py-3"
             value={primaryEventId}
-            onChange={(event) =>
-              setPrimaryEventId(
-                event.target.value as "sit-and-reach" | "shuttle-run" | "long-run-walk"
-              )
-            }
+            onChange={(event) => setPrimaryEventId(event.target.value as EventId)}
           >
-            {EVENT_OPTIONS.map((eventOption) => (
-              <option key={eventOption.value} value={eventOption.value}>
-                {eventOption.label}
+            {eligibleEvents.map((eventDefinition) => (
+              <option key={eventDefinition.id} value={eventDefinition.id}>
+                {eventDefinition.label}
               </option>
             ))}
           </select>
@@ -179,7 +202,7 @@ export function SessionForm({
                 value={secondaryClassId}
                 onChange={(event) => setSecondaryClassId(event.target.value)}
               >
-                {classes.map((classroom) => (
+                {filteredClasses.map((classroom) => (
                   <option key={classroom.id} value={classroom.id}>
                     {classroom.label}
                   </option>
@@ -191,15 +214,11 @@ export function SessionForm({
               <select
                 className="rounded-2xl border border-ink/15 px-4 py-3"
                 value={secondaryEventId}
-                onChange={(event) =>
-                  setSecondaryEventId(
-                    event.target.value as "sit-and-reach" | "shuttle-run" | "long-run-walk"
-                  )
-                }
+                onChange={(event) => setSecondaryEventId(event.target.value as EventId)}
               >
-                {EVENT_OPTIONS.map((eventOption) => (
-                  <option key={eventOption.value} value={eventOption.value}>
-                    {eventOption.label}
+                {eligibleEvents.map((eventDefinition) => (
+                  <option key={eventDefinition.id} value={eventDefinition.id}>
+                    {eventDefinition.label}
                   </option>
                 ))}
               </select>

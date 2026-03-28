@@ -1,9 +1,19 @@
 import { randomUUID } from "node:crypto";
 
 import { getEventDefinition } from "../paps/catalog";
+import { resolveSubmissionMeasurement } from "../paps/composite-measurements";
 import { calculateOfficialGrade } from "../paps/grade";
-import type { OfficialGrade, PAPSAttempt, PAPSStoredAttempt } from "../paps/types";
-import { assertAttemptInputAllowed } from "../paps/validation";
+import type {
+  OfficialGrade,
+  PAPSAttempt,
+  PAPSMeasurementDetail,
+  PAPSStoredAttempt
+} from "../paps/types";
+import {
+  assertAttemptInputAllowed,
+  assertMeasurementAllowed,
+  assertMeasurementDetailAllowed
+} from "../paps/validation";
 import type { StudentSessionView } from "../store/paps-store-types";
 import { buildStructuredStateFromSheet } from "./sheets-bootstrap";
 import { createGoogleSheetClientFromEnv } from "./sheets-store";
@@ -38,7 +48,8 @@ const toStudentAttempt = (attempt: PAPSStoredAttempt): PAPSAttempt => ({
   attemptNumber: attempt.attemptNumber,
   measurement: attempt.measurement,
   createdAt: attempt.createdAt,
-  clientSubmissionKey: attempt.clientSubmissionKey
+  clientSubmissionKey: attempt.clientSubmissionKey,
+  detail: attempt.detail ?? null
 });
 
 const buildStudentSessionViewFromState = (
@@ -94,6 +105,7 @@ const buildAttemptRow = (input: {
   attemptNumber: number;
   clientSubmissionKey: string;
   latestOfficialGrade: OfficialGrade | null;
+  detail?: PAPSMeasurementDetail | null;
 }): string[] => {
   const session = input.state.sessions.find((entry) => entry.id === input.sessionId);
   const student = input.state.allStudents.find((entry) => entry.id === input.studentId);
@@ -130,7 +142,8 @@ const buildAttemptRow = (input: {
     formatIsoDateTime(input.createdAt),
     "완료",
     buildRecordNote({
-      clientSubmissionKey: input.clientSubmissionKey
+      clientSubmissionKey: input.clientSubmissionKey,
+      detail: input.detail ?? null
     })
   ];
 };
@@ -172,7 +185,8 @@ export const appendStudentSubmissionToSheet = async (input: {
   spreadsheetId: string;
   sessionId: string;
   studentId: string;
-  measurement: number;
+  measurement?: number;
+  detail?: PAPSMeasurementDetail | null;
   clientSubmissionKey: string;
   client?: GoogleSheetsClient;
 }): Promise<
@@ -222,14 +236,29 @@ export const appendStudentSubmissionToSheet = async (input: {
       throw new Error("Inactive students cannot submit attempts.");
     }
 
+    const resolvedSubmission = resolveSubmissionMeasurement({
+      eventId: session.eventId,
+      measurement: input.measurement,
+      detail: input.detail ?? null
+    });
+
     assertAttemptInputAllowed({
       session,
       student,
       input: {
-        measurement: input.measurement,
+        measurement: resolvedSubmission.measurement,
+        detail: resolvedSubmission.detail,
         submittedEventId: session.eventId,
         submittedSessionType: session.sessionType
       }
+    });
+    assertMeasurementDetailAllowed({
+      eventId: session.eventId,
+      detail: resolvedSubmission.detail
+    });
+    assertMeasurementAllowed({
+      eventId: session.eventId,
+      measurement: resolvedSubmission.measurement
     });
 
     const rawAttempts = sortAttempts(
@@ -247,15 +276,16 @@ export const appendStudentSubmissionToSheet = async (input: {
             gradeLevel: session.gradeLevel,
             sex: student.sex,
             eventId: session.eventId,
-            measurement: input.measurement
+            measurement: resolvedSubmission.measurement
           })
         : null;
     const appendedAttempt: PAPSAttempt = {
       id: randomUUID(),
       attemptNumber: rawAttempts.length + 1,
-      measurement: input.measurement,
+      measurement: resolvedSubmission.measurement,
       createdAt,
-      clientSubmissionKey: input.clientSubmissionKey
+      clientSubmissionKey: input.clientSubmissionKey,
+      detail: resolvedSubmission.detail
     };
 
     await client.appendRows(input.spreadsheetId, RECORD_APPEND_RANGE, [
@@ -263,12 +293,13 @@ export const appendStudentSubmissionToSheet = async (input: {
         state,
         sessionId: input.sessionId,
         studentId: input.studentId,
-        measurement: input.measurement,
+        measurement: resolvedSubmission.measurement,
         createdAt,
         attemptId: appendedAttempt.id,
         attemptNumber: appendedAttempt.attemptNumber,
         clientSubmissionKey: input.clientSubmissionKey,
-        latestOfficialGrade
+        latestOfficialGrade,
+        detail: resolvedSubmission.detail
       })
     ]);
     const summaryRebuild = await rebuildGoogleSheetSummaries({

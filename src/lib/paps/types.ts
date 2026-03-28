@@ -6,9 +6,18 @@ export type SessionType = "official" | "practice";
 
 export type ClassScope = "single" | "split";
 
-export type EventId = "sit-and-reach" | "shuttle-run" | "long-run-walk";
+export type EventId =
+  | "sit-and-reach"
+  | "shuttle-run"
+  | "long-run-walk"
+  | "step-test"
+  | "comprehensive-flexibility"
+  | "curl-up"
+  | "grip-strength"
+  | "fifty-meter-run"
+  | "standing-long-jump";
 
-export type EventUnit = "cm" | "laps" | "seconds";
+export type EventUnit = "cm" | "laps" | "seconds" | "kg" | "reps" | "PEI" | "점";
 
 export type BetterDirection = "higher" | "lower";
 
@@ -46,10 +55,33 @@ export interface PAPSSession {
 }
 
 export interface PAPSSubmissionInput {
-  measurement: number;
+  measurement?: number;
+  detail?: PAPSMeasurementDetail | null;
   submittedEventId?: EventId;
   submittedSessionType?: SessionType;
 }
+
+export interface StepTestMeasurementDetail {
+  kind: "step-test";
+  recoveryHeartRates: [number, number, number];
+}
+
+export interface ComprehensiveFlexibilitySectionDetail {
+  right: boolean;
+  left: boolean;
+}
+
+export interface ComprehensiveFlexibilityMeasurementDetail {
+  kind: "comprehensive-flexibility";
+  shoulder: ComprehensiveFlexibilitySectionDetail;
+  trunk: ComprehensiveFlexibilitySectionDetail;
+  side: ComprehensiveFlexibilitySectionDetail;
+  lowerBody: ComprehensiveFlexibilitySectionDetail;
+}
+
+export type PAPSMeasurementDetail =
+  | StepTestMeasurementDetail
+  | ComprehensiveFlexibilityMeasurementDetail;
 
 export interface PAPSAttempt {
   id: string;
@@ -57,6 +89,7 @@ export interface PAPSAttempt {
   measurement: number;
   createdAt: string;
   clientSubmissionKey?: string;
+  detail?: PAPSMeasurementDetail | null;
 }
 
 export interface PAPSAttemptRecord {
@@ -72,6 +105,7 @@ export interface PAPSAttemptDraft {
   id: string;
   measurement: number;
   createdAt: string;
+  detail?: PAPSMeasurementDetail | null;
 }
 
 export interface PAPSEventDefinition {
@@ -81,6 +115,11 @@ export interface PAPSEventDefinition {
   betterDirection: BetterDirection;
   supportedGrades: GradeLevel[];
   supportedSessionTypes: SessionType[];
+  measurementConstraints: {
+    min: number;
+    max: number;
+    precision: number;
+  };
 }
 
 export interface OfficialGradeBand {
@@ -147,6 +186,7 @@ export interface PAPSStoredAttempt {
   measurement: number;
   createdAt: string;
   clientSubmissionKey?: string;
+  detail?: PAPSMeasurementDetail | null;
 }
 
 export type PAPSSyncState = "pending" | "synced" | "failed";

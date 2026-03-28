@@ -1,7 +1,9 @@
 import { getEventDefinition, isEventEligibleForGrade, supportsSessionType } from "./catalog";
+import { isComprehensiveFlexibilityMeasurementDetail, isStepTestMeasurementDetail } from "./composite-measurements";
 import type {
   PAPSAttemptDraft,
   PAPSAttemptRecord,
+  PAPSMeasurementDetail,
   PAPSSession,
   PAPSStudent,
   PAPSSubmissionInput
@@ -76,6 +78,55 @@ export const assertAttemptInputAllowed = ({
   }
 };
 
+export const assertMeasurementAllowed = ({
+  eventId,
+  measurement
+}: {
+  eventId: PAPSSession["eventId"];
+  measurement: number;
+}): void => {
+  const { label, measurementConstraints } = getEventDefinition(eventId);
+  const { min, max, precision } = measurementConstraints;
+
+  if (measurement < min || measurement > max) {
+    throw new Error(
+      `${label} 기록은 ${min}~${max} 범위에서만 입력할 수 있습니다.`
+    );
+  }
+
+  const multiplier = 10 ** precision;
+  const normalized = Math.round(measurement * multiplier);
+
+  if (Math.abs(normalized / multiplier - measurement) > Number.EPSILON * 10) {
+    const precisionLabel =
+      precision === 0 ? "정수" : `소수점 ${precision}자리`;
+
+    throw new Error(`${label} 기록은 ${precisionLabel}까지만 입력할 수 있습니다.`);
+  }
+};
+
+export const assertMeasurementDetailAllowed = ({
+  eventId,
+  detail
+}: {
+  eventId: PAPSSession["eventId"];
+  detail?: PAPSMeasurementDetail | null;
+}): void => {
+  if (eventId === "step-test") {
+    if (!isStepTestMeasurementDetail(detail)) {
+      throw new Error("스텝검사 세부 기록을 입력해 주세요.");
+    }
+
+    return;
+  }
+
+  if (eventId === "comprehensive-flexibility") {
+    if (!isComprehensiveFlexibilityMeasurementDetail(detail)) {
+      throw new Error("종합유연성 세부 기록을 입력해 주세요.");
+    }
+  }
+};
+
 export const createAttemptRecord = (
   session: PAPSSession,
   student: PAPSStudent
@@ -110,7 +161,8 @@ export const appendAttempt = (
       id: draft.id,
       attemptNumber: record.attempts.length + 1,
       measurement: draft.measurement,
-      createdAt: draft.createdAt
+      createdAt: draft.createdAt,
+      detail: draft.detail ?? null
     }
   ]
 });

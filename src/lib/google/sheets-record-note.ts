@@ -1,9 +1,14 @@
+import type { PAPSMeasurementDetail } from "../paps/types";
+import { parseMeasurementDetail } from "../paps/composite-measurements";
+
 const RECORD_NOTE_CLIENT_SUBMISSION_KEY = "clientSubmissionKey";
 const RECORD_NOTE_REASON = "reason";
+const RECORD_NOTE_DETAIL = "detail";
 
 export interface ParsedRecordNote {
   clientSubmissionKey: string | null;
   reason: string | null;
+  detail: PAPSMeasurementDetail | null;
 }
 
 const normalizeOptionalText = (value: string | null | undefined): string | null => {
@@ -16,16 +21,18 @@ export const parseRecordNote = (value?: string | null): ParsedRecordNote => {
   const normalizedValue = normalizeOptionalText(value);
 
   if (!normalizedValue) {
-    return {
-      clientSubmissionKey: null,
-      reason: null
-    };
+      return {
+        clientSubmissionKey: null,
+        reason: null,
+        detail: null
+      };
   }
 
   try {
     const parsed = JSON.parse(normalizedValue) as {
       clientSubmissionKey?: unknown;
       reason?: unknown;
+      detail?: unknown;
     };
 
     return {
@@ -33,12 +40,14 @@ export const parseRecordNote = (value?: string | null): ParsedRecordNote => {
         typeof parsed.clientSubmissionKey === "string"
           ? normalizeOptionalText(parsed.clientSubmissionKey)
           : null,
-      reason: typeof parsed.reason === "string" ? normalizeOptionalText(parsed.reason) : null
+      reason: typeof parsed.reason === "string" ? normalizeOptionalText(parsed.reason) : null,
+      detail: parseMeasurementDetail(parsed.detail)
     };
   } catch {
     return {
       clientSubmissionKey: null,
-      reason: normalizedValue
+      reason: normalizedValue,
+      detail: null
     };
   }
 };
@@ -46,16 +55,19 @@ export const parseRecordNote = (value?: string | null): ParsedRecordNote => {
 export const buildRecordNote = (input: {
   clientSubmissionKey?: string | null;
   reason?: string | null;
+  detail?: PAPSMeasurementDetail | null;
 }): string => {
   const clientSubmissionKey = normalizeOptionalText(input.clientSubmissionKey);
   const reason = normalizeOptionalText(input.reason);
+  const detail = input.detail ?? null;
 
-  if (!clientSubmissionKey) {
+  if (!clientSubmissionKey && !detail) {
     return reason ?? "";
   }
 
   return JSON.stringify({
-    [RECORD_NOTE_CLIENT_SUBMISSION_KEY]: clientSubmissionKey,
+    ...(clientSubmissionKey ? { [RECORD_NOTE_CLIENT_SUBMISSION_KEY]: clientSubmissionKey } : {}),
+    ...(detail ? { [RECORD_NOTE_DETAIL]: detail } : {}),
     ...(reason ? { [RECORD_NOTE_REASON]: reason } : {})
   });
 };

@@ -157,7 +157,7 @@ describe("PAPS summaries", () => {
     });
 
     expect(summary.representativeMeasurement).toBe(18);
-    expect(summary.officialGrade).toBe(4);
+    expect(summary.officialGrade).toBe(1);
   });
 
   it("uses the session grade context instead of the student's current grade snapshot", () => {
@@ -195,7 +195,7 @@ describe("PAPS summaries", () => {
       record
     });
 
-    expect(summary.officialGrade).toBe(4);
+    expect(summary.officialGrade).toBe(1);
   });
 
   it("rejects mismatched context, bad units, and missing representative attempts", () => {
@@ -361,7 +361,7 @@ describe("PAPS summaries", () => {
         studentId: "student-1",
         eventId: "sit-and-reach",
         representativeMeasurement: 21,
-        officialGrade: 3,
+        officialGrade: 1,
         sessionId: "official-1",
         note: "공식 기록 완료"
       })

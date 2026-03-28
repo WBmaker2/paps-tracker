@@ -30,6 +30,15 @@ const buildStudentSeed = (): PAPSDemoStoreData => ({
   ],
   classes: [
     {
+      id: "demo-class-4-1",
+      schoolId: "demo-school",
+      academicYear: 2026,
+      gradeLevel: 4,
+      classNumber: 1,
+      label: "4-1",
+      active: true
+    },
+    {
       id: "demo-class-5-1",
       schoolId: "demo-school",
       academicYear: 2026,
@@ -59,6 +68,16 @@ const buildStudentSeed = (): PAPSDemoStoreData => ({
     }
   ],
   students: [
+    {
+      id: "student-choi",
+      schoolId: "demo-school",
+      classId: "demo-class-4-1",
+      studentNumber: 1,
+      name: "Choi",
+      sex: "male",
+      gradeLevel: 4,
+      active: true
+    },
     {
       id: "student-kim",
       schoolId: "demo-school",
@@ -92,6 +111,20 @@ const buildStudentSeed = (): PAPSDemoStoreData => ({
   ],
   sessions: [
     {
+      id: "session-grade4-jump",
+      schoolId: "demo-school",
+      teacherId: "demo-teacher",
+      academicYear: 2026,
+      name: "4-1 Standing Long Jump",
+      gradeLevel: 4,
+      sessionType: "official",
+      classScope: "single",
+      eventId: "standing-long-jump",
+      classTargets: [{ classId: "demo-class-4-1", eventId: "standing-long-jump" }],
+      isOpen: true,
+      createdAt: "2026-03-23T09:05:00.000Z"
+    },
+    {
       id: "session-open-single",
       schoolId: "demo-school",
       teacherId: "demo-teacher",
@@ -104,6 +137,36 @@ const buildStudentSeed = (): PAPSDemoStoreData => ({
       classTargets: [{ classId: "demo-class-5-1", eventId: "sit-and-reach" }],
       isOpen: true,
       createdAt: "2026-03-23T09:10:00.000Z"
+    },
+    {
+      id: "session-step-test",
+      schoolId: "demo-school",
+      teacherId: "demo-teacher",
+      academicYear: 2026,
+      name: "5-1 Step Test",
+      gradeLevel: 5,
+      sessionType: "official",
+      classScope: "single",
+      eventId: "step-test",
+      classTargets: [{ classId: "demo-class-5-1", eventId: "step-test" }],
+      isOpen: true,
+      createdAt: "2026-03-23T09:15:00.000Z"
+    },
+    {
+      id: "session-flexibility",
+      schoolId: "demo-school",
+      teacherId: "demo-teacher",
+      academicYear: 2026,
+      name: "4-1 Comprehensive Flexibility",
+      gradeLevel: 4,
+      sessionType: "official",
+      classScope: "single",
+      eventId: "comprehensive-flexibility",
+      classTargets: [
+        { classId: "demo-class-4-1", eventId: "comprehensive-flexibility" }
+      ],
+      isOpen: true,
+      createdAt: "2026-03-23T09:16:00.000Z"
     },
     {
       id: "session-open-split",
@@ -229,6 +292,92 @@ describe("student session flow", () => {
     expect(screen.getByRole("button", { name: "Park" })).toBeInTheDocument();
     expect(screen.queryByLabelText("앉아윗몸앞으로굽히기 기록")).not.toBeInTheDocument();
     expect(screen.queryByText("즉시 결과")).not.toBeInTheDocument();
+  });
+
+  it("renders three heart-rate inputs for a step-test session and stores the derived PEI score", async () => {
+    await installStudentApiFetch();
+    await renderStudentSessionPage("session-step-test");
+
+    fireEvent.click(screen.getByRole("button", { name: "Kim" }));
+    fireEvent.change(screen.getByLabelText("심박수(1분~1분30초)"), {
+      target: { value: "50" }
+    });
+    fireEvent.change(screen.getByLabelText("심박수(2분~2분30초)"), {
+      target: { value: "50" }
+    });
+    fireEvent.change(screen.getByLabelText("심박수(3분~3분30초)"), {
+      target: { value: "49" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "기록 제출" }));
+
+    await screen.findByText("Kim 학생 결과");
+    expect(screen.getByText("회복심박수 50 / 50 / 49회")).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(
+        getRequestStore()
+          .getAttemptRecord({
+            sessionId: "session-step-test",
+            studentId: "student-kim"
+          })
+          .attempts.at(-1)?.measurement
+      ).toBe(60.5);
+    });
+  });
+
+  it("renders comprehensive flexibility toggles and stores the summed score", async () => {
+    await installStudentApiFetch();
+    await renderStudentSessionPage("session-flexibility");
+
+    fireEvent.click(screen.getByRole("button", { name: "Choi" }));
+    fireEvent.click(screen.getByLabelText("어깨 오른쪽 성공"));
+    fireEvent.click(screen.getByLabelText("어깨 왼쪽 성공"));
+    fireEvent.click(screen.getByLabelText("몸통 오른쪽 성공"));
+    fireEvent.click(screen.getByLabelText("몸통 왼쪽 실패"));
+    fireEvent.click(screen.getByLabelText("옆구리 오른쪽 실패"));
+    fireEvent.click(screen.getByLabelText("옆구리 왼쪽 실패"));
+    fireEvent.click(screen.getByLabelText("하체 오른쪽 성공"));
+    fireEvent.click(screen.getByLabelText("하체 왼쪽 성공"));
+    fireEvent.click(screen.getByRole("button", { name: "기록 제출" }));
+
+    await screen.findByText("Choi 학생 결과");
+    expect(screen.getByText("어깨 2점 · 몸통 1점 · 옆구리 0점 · 하체 2점")).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(
+        getRequestStore()
+          .getAttemptRecord({
+            sessionId: "session-flexibility",
+            studentId: "student-choi"
+          })
+          .attempts.at(-1)?.measurement
+      ).toBe(5);
+    });
+  });
+
+  it("submits an official grade 4 standing long jump attempt", async () => {
+    await installStudentApiFetch();
+    await renderStudentSessionPage("session-grade4-jump");
+
+    fireEvent.click(screen.getByRole("button", { name: "Choi" }));
+    fireEvent.change(screen.getByLabelText("제자리멀리뛰기 기록"), {
+      target: { value: "171" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "기록 제출" }));
+
+    await screen.findByText("Choi 학생 결과");
+    expect(screen.getByText("제자리멀리뛰기")).toBeInTheDocument();
+    expect(screen.getByText((content) => content.includes("이번 기록 기준 등급:"))).toBeInTheDocument();
+    expect(screen.getByText((content) => content.includes("1등급"))).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(
+        getRequestStore().getAttemptRecord({
+          sessionId: "session-grade4-jump",
+          studentId: "student-choi"
+        }).attempts
+      ).toHaveLength(1);
+    });
   });
 
   it("submits a new attempt for a one-class session", async () => {

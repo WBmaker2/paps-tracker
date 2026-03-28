@@ -19,6 +19,7 @@ const toPapsStoredAttempts = (
       attemptNumber: number;
       measurement: number;
       createdAt: string;
+      detail?: PAPSStoredAttempt["detail"];
     }>;
   }>
 ): PAPSStoredAttempt[] =>
@@ -31,7 +32,8 @@ const toPapsStoredAttempts = (
       unit: record.unit,
       attemptNumber: attempt.attemptNumber,
       measurement: attempt.measurement,
-      createdAt: attempt.createdAt
+      createdAt: attempt.createdAt,
+      detail: attempt.detail ?? null
     }))
   );
 

@@ -4,12 +4,21 @@ describe("PAPS official grade rules", () => {
   it("computes official grades for shuttle-run because it is a supported official event", () => {
     expect(
       calculateOfficialGrade({
+        gradeLevel: 4,
+        sex: "male",
+        eventId: "shuttle-run",
+        measurement: 96
+      })
+    ).toBe(1);
+
+    expect(
+      calculateOfficialGrade({
         gradeLevel: 5,
         sex: "male",
         eventId: "shuttle-run",
         measurement: 52
       })
-    ).toBe(2);
+    ).toBe(3);
 
     expect(
       calculateOfficialGrade({
@@ -21,6 +30,62 @@ describe("PAPS official grade rules", () => {
     ).toBe(4);
   });
 
+  it("computes official grades for newly supported elementary events", () => {
+    expect(
+      calculateOfficialGrade({
+        gradeLevel: 4,
+        sex: "female",
+        eventId: "fifty-meter-run",
+        measurement: 10.2
+      })
+    ).toBe(2);
+
+    expect(
+      calculateOfficialGrade({
+        gradeLevel: 5,
+        sex: "female",
+        eventId: "curl-up",
+        measurement: 36
+      })
+    ).toBe(2);
+
+    expect(
+      calculateOfficialGrade({
+        gradeLevel: 6,
+        sex: "male",
+        eventId: "grip-strength",
+        measurement: 35
+      })
+    ).toBe(1);
+
+    expect(
+      calculateOfficialGrade({
+        gradeLevel: 5,
+        sex: "male",
+        eventId: "standing-long-jump",
+        measurement: 160
+      })
+    ).toBe(2);
+
+    expect(
+      calculateOfficialGrade({
+        gradeLevel: 5,
+        sex: "female",
+        eventId: "step-test",
+        measurement: 60.5
+      })
+    ).toBe(3);
+
+    expect(
+      calculateOfficialGrade({
+        gradeLevel: 4,
+        sex: "male",
+        eventId: "comprehensive-flexibility",
+        measurement: 8
+      })
+    ).toBe(1);
+  });
+
   it("enforces sex-specific official grade lookup", () => {
     expect(
       calculateOfficialGrade({
@@ -29,7 +94,7 @@ describe("PAPS official grade rules", () => {
         eventId: "long-run-walk",
         measurement: 360
       })
-    ).toBe(2);
+    ).toBe(3);
 
     expect(
       calculateOfficialGrade({

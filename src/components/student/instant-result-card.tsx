@@ -1,7 +1,14 @@
 import React from "react";
 
 import { ProgressMiniChart } from "../charts/progress-mini-chart";
-import type { BetterDirection, OfficialGrade, PAPSAttempt, SessionType } from "../../lib/paps/types";
+import { formatAttemptDetailSummary } from "../../lib/paps/composite-measurements";
+import type {
+  BetterDirection,
+  EventId,
+  OfficialGrade,
+  PAPSAttempt,
+  SessionType
+} from "../../lib/paps/types";
 
 const formatImprovement = ({
   attempts,
@@ -31,6 +38,7 @@ const formatImprovement = ({
 export function InstantResultCard({
   studentName,
   sessionType,
+  eventId,
   eventLabel,
   unit,
   attempts,
@@ -39,6 +47,7 @@ export function InstantResultCard({
 }: {
   studentName: string;
   sessionType: SessionType;
+  eventId: EventId;
   eventLabel: string;
   unit: string;
   attempts: PAPSAttempt[];
@@ -50,6 +59,21 @@ export function InstantResultCard({
     attempts,
     betterDirection
   });
+  const latestDetailSummary =
+    latestAttempt === null
+      ? null
+      : formatAttemptDetailSummary({
+          eventId,
+          detail: latestAttempt.detail
+        });
+  const attemptRows = attempts.map((attempt) => ({
+    attempt,
+    detailSummary: formatAttemptDetailSummary({
+      eventId,
+      detail: attempt.detail
+    })
+  }));
+  const hasDetailSummary = attemptRows.some((entry) => entry.detailSummary !== null);
 
   if (!latestAttempt) {
     return null;
@@ -70,6 +94,9 @@ export function InstantResultCard({
           <p className="text-3xl font-semibold">
             {latestAttempt.measurement} {unit}
           </p>
+          {latestDetailSummary ? (
+            <p className="text-sm text-ink/70">{latestDetailSummary}</p>
+          ) : null}
           {improvement !== null ? (
             <p className="text-sm text-ink/70">
               직전 대비 {improvement > 0 ? "+" : ""}
@@ -90,15 +117,21 @@ export function InstantResultCard({
             <tr>
               <th className="px-4 py-3 font-medium">회차</th>
               <th className="px-4 py-3 font-medium">기록</th>
+              {hasDetailSummary ? <th className="px-4 py-3 font-medium">세부 기록</th> : null}
             </tr>
           </thead>
           <tbody className="divide-y divide-ink/10">
-            {attempts.map((attempt) => (
+            {attemptRows.map(({ attempt, detailSummary }) => (
               <tr key={attempt.id}>
                 <td className="px-4 py-3">{attempt.attemptNumber}회차</td>
                 <td className="px-4 py-3">
                   {attempt.measurement} {unit}
                 </td>
+                {hasDetailSummary ? (
+                  <td className="px-4 py-3 text-ink/70">
+                    {detailSummary ? `세부: ${detailSummary}` : "-"}
+                  </td>
+                ) : null}
               </tr>
             ))}
           </tbody>

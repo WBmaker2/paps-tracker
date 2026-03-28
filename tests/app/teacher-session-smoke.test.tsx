@@ -195,4 +195,53 @@ describe("teacher session smoke flow", () => {
       expect(getRequestStore().getSession(createdSession?.id ?? "").isOpen).toBe(false);
     });
   });
+
+  it("filters event choices by grade so grade 4 and grade 5+ follow the manual", async () => {
+    const { AppShell } = await import("../../src/components/layout/app-shell");
+    const { TeacherSessionWorkspace } = await import("../../src/components/teacher/session-form");
+
+    render(
+      <AppShell
+        title="교사 대시보드"
+        eyebrow="Teacher"
+        description="학년별 종목 선택을 점검합니다."
+      >
+        <TeacherSessionWorkspace
+          classes={getRequestStore().listClasses()}
+          sessions={[]}
+          defaultTeacherId="demo-teacher"
+          defaultSchoolId="demo-school"
+        />
+      </AppShell>
+    );
+
+    fireEvent.change(screen.getByLabelText("학년"), {
+      target: { value: "4" }
+    });
+
+    const eventSelect = screen.getByLabelText("주 종목");
+    const grade4Options = Array.from(eventSelect.querySelectorAll("option")).map(
+      (option) => option.textContent
+    );
+
+    expect(grade4Options).toContain("왕복오래달리기");
+    expect(grade4Options).toContain("윗몸말아올리기");
+    expect(grade4Options).toContain("악력");
+    expect(grade4Options).toContain("50m달리기");
+    expect(grade4Options).toContain("제자리멀리뛰기");
+    expect(grade4Options).not.toContain("앉아윗몸앞으로굽히기");
+    expect(grade4Options).not.toContain("오래달리기-걷기");
+
+    fireEvent.change(screen.getByLabelText("학년"), {
+      target: { value: "5" }
+    });
+
+    const grade5Options = Array.from(eventSelect.querySelectorAll("option")).map(
+      (option) => option.textContent
+    );
+
+    expect(grade5Options).toContain("앉아윗몸앞으로굽히기");
+    expect(grade5Options).toContain("오래달리기-걷기");
+    expect(grade5Options).toContain("윗몸말아올리기");
+  });
 });

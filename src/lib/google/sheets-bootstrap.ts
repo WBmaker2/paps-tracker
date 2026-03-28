@@ -406,9 +406,15 @@ const buildEventIdByLabel = (): Map<string, PAPSSession["eventId"]> => {
     map.set(eventDefinition.label, eventDefinition.id);
   }
 
-  map.set("앉아윗몸앞으로굽히기", "sit-and-reach");
-  map.set("왕복오래달리기", "shuttle-run");
-  map.set("오래달리기-걷기", "long-run-walk");
+  map.set("Sit and Reach", "sit-and-reach");
+  map.set("Shuttle Run", "shuttle-run");
+  map.set("Long Run Walk", "long-run-walk");
+  map.set("Step Test", "step-test");
+  map.set("Comprehensive Flexibility", "comprehensive-flexibility");
+  map.set("Curl Up", "curl-up");
+  map.set("Grip Strength", "grip-strength");
+  map.set("50m Run", "fifty-meter-run");
+  map.set("Standing Long Jump", "standing-long-jump");
 
   return map;
 };
@@ -458,7 +464,8 @@ const parseRecordArtifacts = (input: {
       attemptNumber: Number(row[13]) || 1,
       measurement,
       createdAt,
-      clientSubmissionKey: recordNote.clientSubmissionKey ?? undefined
+      clientSubmissionKey: recordNote.clientSubmissionKey ?? undefined,
+      detail: recordNote.detail ?? null
     };
 
     attempts.push(attempt);
