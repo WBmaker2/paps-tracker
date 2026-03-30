@@ -38,9 +38,14 @@ vi.mock("../../src/components/charts/teacher-progress-chart", () => ({
   TeacherProgressChart: ({ title }: { title: string }) => <div>{title}</div>
 }));
 
-vi.mock("../../src/lib/teacher-results", () => ({
-  selectPrimaryResultsSession: (sessions: Array<{ id: string }>) => sessions[0] ?? null
-}));
+vi.mock("../../src/lib/teacher-results", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../src/lib/teacher-results")>();
+
+  return {
+    ...actual,
+    selectPrimaryResultsSession: (sessions: Array<{ id: string }>) => sessions[0] ?? null
+  };
+});
 
 vi.mock("../../src/lib/google/sheets", () => ({
   createPapsGoogleSheetTabPayloads: vi.fn(() => [
@@ -148,7 +153,12 @@ vi.mock("../../src/lib/google/sheets-store", () => ({
       classes: [
         {
           id: "class-1",
-          label: "5학년 1반"
+          schoolId: "school-1",
+          academicYear: 2026,
+          gradeLevel: 5,
+          classNumber: 1,
+          label: "5학년 1반",
+          active: true
         }
       ],
       teachers: [
@@ -161,14 +171,26 @@ vi.mock("../../src/lib/google/sheets-store", () => ({
         {
           id: "student-kim",
           classId: "class-1",
-          name: "홍길동"
+          schoolId: "school-1",
+          gradeLevel: 5,
+          studentNumber: 1,
+          sex: "male",
+          name: "홍길동",
+          active: true
         }
       ],
       sessions: [
         {
           id: "session-official-1",
+          schoolId: "school-1",
+          teacherId: "teacher-1",
+          academicYear: 2026,
           name: "5학년 1반 3월 공식 검증",
+          gradeLevel: 5,
+          sessionType: "official",
+          classScope: "single",
           eventId: "sit-and-reach",
+          classTargets: [{ classId: "class-1", eventId: "sit-and-reach" }],
           isOpen: true,
           createdAt: "2026-03-25T10:56:05.317Z"
         }
@@ -206,8 +228,12 @@ describe("teacher results page copy", () => {
     expect(screen.getByRole("link", { name: "학생요약 CSV 다운로드" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "공식평가요약 CSV 다운로드" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "요약 XLSX 다운로드" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "검색 및 필터" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "학생요약 미리보기" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "공식평가요약 미리보기" })).toBeInTheDocument();
+    expect(
+      screen.getByText("이 요약표는 현재 화면 필터와 별개로 전체 연결 시트 기준입니다.")
+    ).toBeInTheDocument();
     expect(screen.getAllByText("홍길동")).toHaveLength(2);
     expect(screen.getByText("지난 기록 대비 +2cm")).toBeInTheDocument();
     expect(screen.getByText("5학년 1반 3월 공식 검증")).toBeInTheDocument();

@@ -564,6 +564,54 @@ describe("teacher representative and session flows", () => {
     ).toBe("attempt-2");
   });
 
+  it("notifies the parent when the representative attempt changes", async () => {
+    await installTeacherApiFetch();
+    const { ResultTable } = await import("../../src/components/teacher/result-table");
+    const onRepresentativeChange = vi.fn();
+
+    render(
+      <ResultTable
+        rows={[
+          {
+            recordId: "session-official-1:student-kim",
+            sessionId: "session-official-1",
+            studentId: "student-kim",
+            studentName: "Kim",
+            classLabel: "5-1",
+            sessionName: "5-1 Sit And Reach",
+            eventLabel: "앉아윗몸앞으로굽히기",
+            unit: "cm",
+            representativeAttemptId: null,
+            attempts: [
+              {
+                id: "attempt-1",
+                attemptNumber: 1,
+                measurement: 18,
+                createdAt: "2026-03-23T09:20:00.000Z"
+              },
+              {
+                id: "attempt-2",
+                attemptNumber: 2,
+                measurement: 22,
+                createdAt: "2026-03-23T09:22:00.000Z"
+              }
+            ]
+          }
+        ]}
+        onRepresentativeChange={onRepresentativeChange}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "2회차 대표값으로 선택" }));
+
+    await waitFor(() => {
+      expect(onRepresentativeChange).toHaveBeenCalledWith(
+        "session-official-1:student-kim",
+        "attempt-2"
+      );
+    });
+  });
+
   it("shows sync failure status with a resync action", async () => {
     await installTeacherApiFetch();
     const { SyncStatusCard } = await import("../../src/components/teacher/sync-status-card");

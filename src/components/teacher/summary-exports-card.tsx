@@ -55,7 +55,13 @@ function SummaryPreviewTable({
   );
 }
 
-export function SummaryExportsCard({ tabs }: { tabs: GoogleSheetTabPayload[] }) {
+export function SummaryExportsCard({
+  tabs,
+  note
+}: {
+  tabs: GoogleSheetTabPayload[];
+  note?: string;
+}) {
   const studentSummaryTab = getSummaryTab(tabs, "학생요약");
   const officialSummaryTab = getSummaryTab(tabs, "공식평가요약");
 
@@ -74,6 +80,7 @@ export function SummaryExportsCard({ tabs }: { tabs: GoogleSheetTabPayload[] }) 
           <p className="mt-1 text-sm text-ink/70">
             학생요약과 공식평가요약을 바로 내려받고, 두 요약표를 화면에서 함께 확인합니다.
           </p>
+          {note ? <p className="mt-2 text-sm text-ink/65">{note}</p> : null}
         </div>
         <div className="flex flex-wrap gap-2">
           {studentSummaryTab ? (

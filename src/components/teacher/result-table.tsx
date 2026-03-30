@@ -1,30 +1,33 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useEffect, useState, useTransition } from "react";
 
-import type { PAPSAttempt } from "../../lib/paps/types";
+import type { TeacherResultRowView } from "../../lib/teacher-results";
 
-export interface TeacherResultRow {
-  recordId: string;
-  sessionId: string;
-  studentId: string;
-  studentName: string;
-  classLabel: string;
-  sessionName: string;
-  eventLabel: string;
-  unit: string;
-  representativeAttemptId: string | null;
-  attempts: PAPSAttempt[];
-  duplicateAttemptCount?: number;
-}
+export type TeacherResultRow = TeacherResultRowView;
 
-export function ResultTable({ rows }: { rows: TeacherResultRow[] }) {
+export function ResultTable({
+  rows,
+  activeRecordId,
+  onRecordFocus,
+  onRepresentativeChange
+}: {
+  rows: TeacherResultRow[];
+  activeRecordId?: string | null;
+  onRecordFocus?: (recordId: string) => void;
+  onRepresentativeChange?: (recordId: string, representativeAttemptId: string | null) => void;
+}) {
   const [items, setItems] = useState(rows);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  useEffect(() => {
+    setItems(rows);
+  }, [rows]);
+
   const selectRepresentative = (recordId: string, attemptId: string) => {
     setFeedback(null);
+    onRecordFocus?.(recordId);
 
     startTransition(async () => {
       try {
@@ -58,6 +61,7 @@ export function ResultTable({ rows }: { rows: TeacherResultRow[] }) {
               : row
           )
         );
+        onRepresentativeChange?.(recordId, payload.record?.representativeAttemptId ?? null);
         setFeedback("대표값이 업데이트되었습니다.");
       } catch (error) {
         setFeedback(error instanceof Error ? error.message : "대표값을 저장하지 못했습니다.");
@@ -78,7 +82,14 @@ export function ResultTable({ rows }: { rows: TeacherResultRow[] }) {
       </div>
       <div className="space-y-4">
         {items.map((row) => (
-          <article key={row.recordId} className="rounded-2xl border border-ink/10 p-4">
+          <article
+            key={row.recordId}
+            className={`rounded-2xl border p-4 ${
+              activeRecordId && activeRecordId === row.recordId
+                ? "border-accent/40 bg-accent/5"
+                : "border-ink/10"
+            }`}
+          >
             <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
               <div>
                 <h3 className="font-semibold">
