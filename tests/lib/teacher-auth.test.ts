@@ -23,6 +23,8 @@ describe("teacher auth helpers", () => {
 
   afterEach(() => {
     vi.clearAllMocks();
+    delete process.env.GOOGLE_HOSTED_DOMAIN;
+    delete process.env.TEACHER_EMAIL_ALLOWLIST;
   });
 
   it("redirects unauthenticated teachers to the custom sign-in page", async () => {
@@ -32,10 +34,11 @@ describe("teacher auth helpers", () => {
     expect(redirectMock).toHaveBeenCalledWith("/auth/signin");
   });
 
-  it("accepts any signed-in Google session with an email", async () => {
+  it("accepts a signed-in teacher within the configured access scope", async () => {
+    process.env.GOOGLE_HOSTED_DOMAIN = "school.example.com";
     authMock.mockResolvedValue({
       user: {
-        email: "teacher@example.com",
+        email: "teacher@school.example.com",
         name: "Teacher",
         image: null
       }
@@ -44,8 +47,24 @@ describe("teacher auth helpers", () => {
     const teacherAuthModule = await import("../../src/lib/teacher-auth");
 
     await expect(teacherAuthModule.requireTeacherSession()).resolves.toMatchObject({
-      email: "teacher@example.com",
+      email: "teacher@school.example.com",
       name: "Teacher"
     });
+  });
+
+  it("redirects signed-in users outside the configured access scope", async () => {
+    process.env.TEACHER_EMAIL_ALLOWLIST = "lead@school.example.com";
+    authMock.mockResolvedValue({
+      user: {
+        email: "teacher@school.example.com",
+        name: "Teacher",
+        image: null
+      }
+    });
+
+    const teacherAuthModule = await import("../../src/lib/teacher-auth");
+
+    await expect(teacherAuthModule.requireTeacherSession()).rejects.toThrow("REDIRECT");
+    expect(redirectMock).toHaveBeenCalledWith("/auth/signin");
   });
 });

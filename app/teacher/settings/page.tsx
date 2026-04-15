@@ -2,8 +2,10 @@ import React from "react";
 import { cookies } from "next/headers";
 
 import { AppShell } from "../../../src/components/layout/app-shell";
+import { TeacherDataRefresh } from "../../../src/components/teacher/teacher-data-refresh";
 import { TeacherSettingsManager } from "../../../src/components/teacher/settings-management";
-import { getGoogleSheetsSetupStatus } from "../../../src/lib/env";
+import { getAppOperationalReadiness, getGoogleSheetsSetupStatus } from "../../../src/lib/env";
+import { buildTeacherStateVersion } from "../../../src/lib/google/sheet-state-version";
 import { createPapsGoogleSheetTabPayloads } from "../../../src/lib/google/sheets";
 import { loadTeacherPageState, PAPS_SPREADSHEET_ID_COOKIE } from "../../../src/lib/google/sheets-store";
 import { requireTeacherSession } from "../../../src/lib/teacher-auth";
@@ -12,10 +14,12 @@ export default async function TeacherSettingsPage() {
   const teacherSession = await requireTeacherSession();
   const cookieStore = await cookies();
   const spreadsheetId = cookieStore.get(PAPS_SPREADSHEET_ID_COOKIE)?.value ?? null;
-  const { bootstrap, sheetConnected } = await loadTeacherPageState({
+  const { bootstrap, sheetConnected, sheetStatus } = await loadTeacherPageState({
     teacherEmail: teacherSession.email,
     spreadsheetId
   });
+  const initialVersion =
+    sheetConnected && bootstrap.teacher ? buildTeacherStateVersion(bootstrap) : null;
   const school = bootstrap.teacher?.schoolId ? bootstrap.school : bootstrap.schools[0] ?? null;
   const schoolId = school?.id ?? null;
   const classes = (
@@ -43,6 +47,7 @@ export default async function TeacherSettingsPage() {
     (entry) => sessionIds.has(entry.sessionId)
   );
   const sheetSetupStatus = getGoogleSheetsSetupStatus();
+  const operationalReadiness = getAppOperationalReadiness();
   const sheetTabs = school
     ? createPapsGoogleSheetTabPayloads({
         school,
@@ -63,11 +68,61 @@ export default async function TeacherSettingsPage() {
       title="학교 및 학급 설정"
       description="학교 정보 수정과 학급 추가를 바로 처리하는 MVP 관리 화면입니다."
     >
+      <TeacherDataRefresh initialVersion={initialVersion} pollIntervalMs={60000} />
       <div className="space-y-6">
+        <section className="rounded-[1.75rem] border border-ink/10 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">운영 준비 상태</h2>
+              <p className="mt-1 text-sm text-ink/70">
+                로그인, 접근 정책, Google Sheets 연동 준비 여부를 한 번에 확인합니다.
+              </p>
+            </div>
+            <span
+              className={`rounded-full px-3 py-1 text-xs font-medium ${
+                operationalReadiness.ready
+                  ? "bg-emerald-100 text-emerald-800"
+                  : "bg-amber-100 text-amber-800"
+              }`}
+            >
+              {operationalReadiness.ready ? "준비 완료" : "설정 필요"}
+            </span>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <article className="rounded-2xl border border-ink/10 px-4 py-3">
+              <p className="text-sm text-ink/60">교사 로그인</p>
+              <p className="mt-2 font-medium text-ink">
+                {operationalReadiness.checks.teacherAccess.summary}
+              </p>
+              <p className="mt-1 text-sm text-ink/65">
+                {operationalReadiness.checks.googleOAuth.summary}
+              </p>
+            </article>
+            <article className="rounded-2xl border border-ink/10 px-4 py-3">
+              <p className="text-sm text-ink/60">Google Sheets 연동</p>
+              <p className="mt-2 font-medium text-ink">
+                {operationalReadiness.checks.googleSheets.summary}
+              </p>
+              <p className="mt-1 text-sm text-ink/65">
+                {operationalReadiness.checks.googleSheets.ready
+                  ? "시트 검증과 동기화를 실행할 수 있습니다."
+                  : operationalReadiness.checks.googleSheets.missingKeys.join(", ")}
+              </p>
+            </article>
+            <article className="rounded-2xl border border-ink/10 px-4 py-3">
+              <p className="text-sm text-ink/60">현재 연결 상태</p>
+              <p className="mt-2 font-medium text-ink">{sheetStatus.summary}</p>
+              <p className="mt-1 text-sm text-ink/65">
+                {sheetStatus.detail ?? "현재 연결된 구글 시트에서 바로 작업할 수 있습니다."}
+              </p>
+            </article>
+          </div>
+        </section>
         <TeacherSettingsManager
           school={school}
           classes={classes}
           sheetConnected={sheetConnected}
+          sheetStatus={sheetStatus}
           sheetSetupStatus={sheetSetupStatus}
         />
         {school ? (

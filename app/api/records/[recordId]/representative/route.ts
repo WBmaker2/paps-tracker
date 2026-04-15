@@ -1,40 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { createTeacherRuntimeStoreForRequest, type TeacherCrudStore } from "../../../../../src/lib/google/sheets-store";
+import { publishTeacherLiveUpdate } from "../../../../../src/lib/teacher-live-updates";
 import { parseRecordId } from "../../../../../src/lib/paps/record-id";
 import { requireTeacherRouteSession } from "../../../../../src/lib/teacher-auth";
-import type { PAPSTeacher } from "../../../../../src/lib/paps/types";
-
-const forbiddenResponse = (message = "Forbidden") =>
-  NextResponse.json(
-    {
-      error: message
-    },
-    {
-      status: 403
-    }
-  );
-
-const getAuthorizedTeacherContext = async (
-  request: NextRequest,
-  teacherEmail: string
-): Promise<{
-  store: TeacherCrudStore;
-  teacher: PAPSTeacher;
-}> => {
-  const store = await createTeacherRuntimeStoreForRequest(request, teacherEmail);
-  const bootstrap = await store.getTeacherBootstrap({ teacherEmail });
-  const teacher = bootstrap.teacher;
-
-  if (!teacher?.schoolId) {
-    throw new Error("Forbidden");
-  }
-
-  return {
-    store,
-    teacher: teacher as PAPSTeacher
-  };
-};
+import {
+  forbiddenTeacherRouteResponse,
+  getAuthorizedTeacherRouteContext
+} from "../../../../../src/lib/teacher-route-context";
 
 type RepresentativeRouteContext = {
   params: Promise<{
@@ -53,16 +26,17 @@ export async function PATCH(request: NextRequest, context: RepresentativeRouteCo
   const { recordId } = await context.params;
 
   try {
-    const { store, teacher } = await getAuthorizedTeacherContext(
+    const { store, teacher } = await getAuthorizedTeacherRouteContext({
       request,
-      teacherSession.session.email
-    );
+      teacherEmail: teacherSession.session.email,
+      createStore: createTeacherRuntimeStoreForRequest
+    });
     const selector = parseRecordId(recordId);
     const session = await store.getSession(selector.sessionId);
     const student = await store.getStudent(selector.studentId);
 
     if (session.schoolId !== teacher.schoolId || student.schoolId !== teacher.schoolId) {
-      return forbiddenResponse();
+      return forbiddenTeacherRouteResponse();
     }
 
     if (body?.intent === "requeue-sync") {
@@ -74,9 +48,16 @@ export async function PATCH(request: NextRequest, context: RepresentativeRouteCo
         updatedAt: new Date().toISOString()
       });
 
-      return NextResponse.json({
+      const response = NextResponse.json({
         syncStatus
       });
+
+      publishTeacherLiveUpdate({
+        teacherEmail: teacherSession.session.email,
+        source: "record"
+      });
+
+      return response;
     }
 
     const record = await store.selectRepresentativeAttempt({
@@ -87,15 +68,22 @@ export async function PATCH(request: NextRequest, context: RepresentativeRouteCo
       reason: typeof body?.reason === "string" ? body.reason : undefined
     });
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       record
     });
+
+    publishTeacherLiveUpdate({
+      teacherEmail: teacherSession.session.email,
+      source: "record"
+    });
+
+    return response;
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Could not update the representative attempt.";
 
     if (message === "Forbidden") {
-      return forbiddenResponse();
+      return forbiddenTeacherRouteResponse();
     }
 
     return NextResponse.json(

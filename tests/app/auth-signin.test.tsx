@@ -43,7 +43,7 @@ describe("auth sign-in page", () => {
   it("shows a Google sign-in button when auth config exists", async () => {
     process.env.GOOGLE_CLIENT_ID = "client-id";
     process.env.GOOGLE_CLIENT_SECRET = "client-secret";
-    delete process.env.TEACHER_EMAIL_ALLOWLIST;
+    process.env.TEACHER_EMAIL_ALLOWLIST = "teacher@example.com";
     delete process.env.GOOGLE_HOSTED_DOMAIN;
 
     const pageModule = await import("../../app/auth/signin/page");
@@ -54,5 +54,24 @@ describe("auth sign-in page", () => {
 
     expect(button).toHaveAttribute("type", "submit");
     expect(screen.queryByRole("link", { name: "Google로 교사 로그인" })).not.toBeInTheDocument();
+  });
+
+  it("shows setup guidance when teacher access scope is not configured", async () => {
+    process.env.GOOGLE_CLIENT_ID = "client-id";
+    process.env.GOOGLE_CLIENT_SECRET = "client-secret";
+    delete process.env.TEACHER_EMAIL_ALLOWLIST;
+    delete process.env.GOOGLE_HOSTED_DOMAIN;
+
+    const pageModule = await import("../../app/auth/signin/page");
+
+    render(await pageModule.default());
+
+    expect(screen.getByText("교사 로그인 설정 필요")).toBeInTheDocument();
+    expect(
+      screen.getByText("GOOGLE_HOSTED_DOMAIN 또는 TEACHER_EMAIL_ALLOWLIST")
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Google로 교사 로그인" })
+    ).not.toBeInTheDocument();
   });
 });

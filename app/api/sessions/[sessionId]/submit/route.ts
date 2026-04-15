@@ -9,8 +9,8 @@ import {
   assertMeasurementAllowed,
   assertMeasurementDetailAllowed
 } from "../../../../../src/lib/paps/validation";
-import { PAPS_SPREADSHEET_ID_COOKIE } from "../../../../../src/lib/google/sheets-store";
 import { createStoreForRequest } from "../../../../../src/lib/store/paps-store";
+import { resolveStudentSessionAccess } from "../../../../../src/lib/student-session-access";
 import type { OfficialGrade } from "../../../../../src/lib/paps/types";
 
 type SubmitRouteContext = {
@@ -49,12 +49,20 @@ export async function POST(request: NextRequest, context: SubmitRouteContext) {
       throw new Error("A studentId is required.");
     }
 
-    const spreadsheetId = request.cookies.get(PAPS_SPREADSHEET_ID_COOKIE)?.value ?? null;
-
     if (process.env.NODE_ENV === "production") {
-      if (!spreadsheetId) {
-        throw new Error("Google Sheets is not connected.");
+      const accessToken =
+        typeof body?.accessToken === "string" && body.accessToken.trim()
+          ? body.accessToken.trim()
+          : null;
+
+      if (!accessToken) {
+        throw new Error("Student session access token is required.");
       }
+
+      const { spreadsheetId } = resolveStudentSessionAccess({
+        token: accessToken,
+        sessionId
+      });
 
       const clientSubmissionKey =
         typeof body?.clientSubmissionKey === "string" && body.clientSubmissionKey.trim()

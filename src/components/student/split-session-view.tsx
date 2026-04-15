@@ -42,6 +42,7 @@ const createClientSubmissionKey = (): string => {
 
 export function SplitSessionView({
   sessionId,
+  studentAccessToken,
   sessionType,
   classScope,
   eventId,
@@ -52,6 +53,7 @@ export function SplitSessionView({
   classSections
 }: {
   sessionId: string;
+  studentAccessToken?: string | null;
   sessionType: SessionType;
   classScope: ClassScope;
   eventId: EventId;
@@ -112,7 +114,8 @@ export function SplitSessionView({
               studentId: selectedStudentId,
               measurement: submission.measurement,
               detail: submission.detail ?? null,
-              clientSubmissionKey
+              clientSubmissionKey,
+              accessToken: studentAccessToken ?? undefined
             })
           });
           const payload = (await response.json()) as {

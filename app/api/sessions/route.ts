@@ -3,9 +3,16 @@ import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 import { createTeacherRuntimeStoreForRequest, type TeacherCrudStore } from "../../../src/lib/google/sheets-store";
+import { PAPS_SPREADSHEET_ID_COOKIE } from "../../../src/lib/google/sheets-store";
+import { publishTeacherLiveUpdate } from "../../../src/lib/teacher-live-updates";
 import { requireTeacherRouteSession } from "../../../src/lib/teacher-auth";
-import type { TeacherBootstrap } from "../../../src/lib/store/paps-store-types";
+import type { AuthorizedTeacherRouteContext } from "../../../src/lib/teacher-route-context";
+import {
+  forbiddenTeacherRouteResponse,
+  getAuthorizedTeacherRouteContext
+} from "../../../src/lib/teacher-route-context";
 import type { EventId, GradeLevel, PAPSSession, PAPSTeacher, SessionType } from "../../../src/lib/paps/types";
+import { createStudentSessionUrl } from "../../../src/lib/student-session-access";
 
 const parseGradeLevel = (value: unknown): GradeLevel => {
   const numericValue = Number(value);
@@ -33,45 +40,11 @@ const parseEventId = (value: unknown, fieldName: string): EventId => {
   throw new Error(`${fieldName} is required.`);
 };
 
-const forbiddenResponse = (message = "Forbidden") =>
-  NextResponse.json(
-    {
-      error: message
-    },
-    {
-      status: 403
-    }
-  );
-
-const getAuthorizedTeacherContext = async (
-  request: NextRequest,
-  teacherEmail: string
-): Promise<{
-  store: TeacherCrudStore;
-  teacher: PAPSTeacher;
-  bootstrap: TeacherBootstrap;
-}> => {
-  const store = await createTeacherRuntimeStoreForRequest(request, teacherEmail);
-  const bootstrap = await store.getTeacherBootstrap({ teacherEmail });
-  const teacher = bootstrap.teacher;
-
-  if (!teacher?.schoolId) {
-    throw new Error("Forbidden");
-  }
-
-  return {
-    store,
-    teacher: teacher as PAPSTeacher,
-    bootstrap
-  };
-};
-
 const toSessionInput = async (
-  request: NextRequest,
   body: Record<string, unknown>,
-  teacherEmail: string
+  context: AuthorizedTeacherRouteContext<TeacherCrudStore>
 ): Promise<PAPSSession> => {
-  const { store, teacher, bootstrap } = await getAuthorizedTeacherContext(request, teacherEmail);
+  const { store, teacher, bootstrap } = context;
   const gradeLevel = parseGradeLevel(body.gradeLevel);
   const sessionType = parseSessionType(body.sessionType);
   const classScope = body.classScope === "split" ? "split" : "single";
@@ -166,23 +139,26 @@ export async function GET(request: NextRequest) {
     return teacherSession.response;
   }
 
-  let store: Awaited<ReturnType<typeof getAuthorizedTeacherContext>>["store"];
   let teacher: PAPSTeacher;
+  let bootstrap: AuthorizedTeacherRouteContext<TeacherCrudStore>["bootstrap"];
 
   try {
-    ({ store, teacher } = await getAuthorizedTeacherContext(request, teacherSession.session.email));
+    ({ teacher, bootstrap } = await getAuthorizedTeacherRouteContext({
+      request,
+      teacherEmail: teacherSession.session.email,
+      createStore: createTeacherRuntimeStoreForRequest
+    }));
   } catch {
-    return forbiddenResponse();
+    return forbiddenTeacherRouteResponse();
   }
 
   const requestedSchoolId = request.nextUrl.searchParams.get("schoolId");
 
   if (requestedSchoolId && requestedSchoolId !== teacher.schoolId) {
-    return forbiddenResponse();
+    return forbiddenTeacherRouteResponse();
   }
 
   const schoolId = teacher.schoolId;
-  const bootstrap = await store.getTeacherBootstrap({ teacherEmail: teacherSession.session.email });
   const sessions = bootstrap
     .sessions
     .filter((session) => !schoolId || session.schoolId === schoolId)
@@ -203,22 +179,42 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
 
   try {
-    const { store } = await getAuthorizedTeacherContext(request, teacherSession.session.email);
+    const context = await getAuthorizedTeacherRouteContext({
+      request,
+      teacherEmail: teacherSession.session.email,
+      createStore: createTeacherRuntimeStoreForRequest
+    });
+    const { store } = context;
     const session = await store.saveSession(
-      await toSessionInput(request, (body ?? {}) as Record<string, unknown>, teacherSession.session.email)
+      await toSessionInput((body ?? {}) as Record<string, unknown>, context)
     );
+    const spreadsheetId = request.cookies.get(PAPS_SPREADSHEET_ID_COOKIE)?.value ?? null;
 
-    return NextResponse.json(
+    const response = NextResponse.json(
       {
-        session
+        session,
+        studentSessionUrl:
+          spreadsheetId && process.env.NODE_ENV === "production"
+            ? createStudentSessionUrl({
+                sessionId: session.id,
+                spreadsheetId
+              })
+            : null
       },
       {
         status: 201
       }
     );
+
+    publishTeacherLiveUpdate({
+      teacherEmail: teacherSession.session.email,
+      source: "session"
+    });
+
+    return response;
   } catch (error) {
     if (error instanceof Error && error.message === "Forbidden") {
-      return forbiddenResponse();
+      return forbiddenTeacherRouteResponse();
     }
 
     return NextResponse.json(

@@ -2,7 +2,9 @@ import React from "react";
 
 import { AppShell } from "../../../src/components/layout/app-shell";
 import { ResultTable, type TeacherResultRow } from "../../../src/components/teacher/result-table";
+import { TeacherDataRefresh } from "../../../src/components/teacher/teacher-data-refresh";
 import { TeacherResultsWorkspace } from "../../../src/components/teacher/teacher-results-workspace";
+import { buildTeacherStateVersion } from "../../../src/lib/google/sheet-state-version";
 import { createPapsGoogleSheetTabPayloads } from "../../../src/lib/google/sheets";
 import { loadTeacherPageState, PAPS_SPREADSHEET_ID_COOKIE } from "../../../src/lib/google/sheets-store";
 import { buildTeacherResultsViewModel } from "../../../src/lib/teacher-results";
@@ -15,10 +17,12 @@ export default async function TeacherResultsPage() {
   const teacherSession = await requireTeacherSession();
   const cookieStore = await cookies();
   const spreadsheetId = cookieStore.get(PAPS_SPREADSHEET_ID_COOKIE)?.value ?? null;
-  const { store, bootstrap, sheetConnected } = await loadTeacherPageState({
+  const { store, bootstrap, sheetConnected, sheetStatus } = await loadTeacherPageState({
     teacherEmail: teacherSession.email,
     spreadsheetId
   });
+  const initialVersion =
+    sheetConnected && bootstrap.teacher ? buildTeacherStateVersion(bootstrap) : null;
   const schoolId = bootstrap.teacher?.schoolId ?? null;
   const school = schoolId ? bootstrap.school : bootstrap.schools[0] ?? null;
   const sessions = bootstrap.sessions;
@@ -28,8 +32,14 @@ export default async function TeacherResultsPage() {
       <AppShell
         eyebrow="Results"
         title="결과 검토"
-        description="구글 시트를 다시 연결하면 대표값 선택과 동기화 상태를 확인할 수 있습니다."
+        description={sheetStatus.summary}
       >
+        <TeacherDataRefresh initialVersion={initialVersion} pollIntervalMs={30000} />
+        {sheetStatus.detail ? (
+          <section className="rounded-[1.75rem] border border-amber-300/70 bg-amber-50 px-5 py-4 text-sm text-ink/80">
+            {sheetStatus.detail}
+          </section>
+        ) : null}
         <ResultTable rows={emptyResults} />
       </AppShell>
     );
@@ -42,6 +52,7 @@ export default async function TeacherResultsPage() {
         title="결과 검토"
         description="대표값 선택과 동기화 상태를 확인할 세션이 아직 없습니다."
       >
+        <TeacherDataRefresh initialVersion={initialVersion} pollIntervalMs={30000} />
         <ResultTable rows={emptyResults} />
       </AppShell>
     );
@@ -86,6 +97,7 @@ export default async function TeacherResultsPage() {
       title="측정 결과 검토"
       description="대표 기록 확정, 요약 재계산, 시트 반영 현황을 한 화면에서 확인합니다."
     >
+      <TeacherDataRefresh initialVersion={initialVersion} pollIntervalMs={30000} />
       <TeacherResultsWorkspace
         rows={viewModel.rows}
         filterOptions={viewModel.filterOptions}

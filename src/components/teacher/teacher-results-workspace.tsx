@@ -2,7 +2,6 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 
-import { TeacherProgressChart } from "../charts/teacher-progress-chart";
 import type { GoogleSheetTabPayload } from "../../lib/google/sheets";
 import type {
   TeacherResultRowView,
@@ -11,47 +10,11 @@ import type {
 } from "../../lib/teacher-results";
 import { ResultTable } from "./result-table";
 import { ResultsFilterPanel, type TeacherResultsFilterState } from "./results-filter-panel";
-import { SummaryExportsCard } from "./summary-exports-card";
-import { SyncStatusCard } from "./sync-status-card";
-
-const createDefaultFilterState = (): TeacherResultsFilterState => ({
-  query: "",
-  grade: "all",
-  classId: "all",
-  eventId: "all",
-  sessionType: "all"
-});
-
-const filterRows = (
-  rows: TeacherResultRowView[],
-  filterState: TeacherResultsFilterState
-): TeacherResultRowView[] =>
-  rows.filter((row) => {
-    if (
-      filterState.query &&
-      !row.studentNameNormalized.includes(filterState.query.trim().toLocaleLowerCase("ko-KR"))
-    ) {
-      return false;
-    }
-
-    if (filterState.grade !== "all" && row.gradeLevel !== filterState.grade) {
-      return false;
-    }
-
-    if (filterState.classId !== "all" && row.classId !== filterState.classId) {
-      return false;
-    }
-
-    if (filterState.eventId !== "all" && row.eventId !== filterState.eventId) {
-      return false;
-    }
-
-    if (filterState.sessionType !== "all" && row.sessionType !== filterState.sessionType) {
-      return false;
-    }
-
-    return true;
-  });
+import {
+  createDefaultFilterState,
+  filterTeacherResultRows
+} from "./teacher-results-workspace-filters";
+import { TeacherResultsSidebar } from "./teacher-results-sidebar";
 
 function ResultCountSummary({
   visibleCount,
@@ -106,7 +69,10 @@ export function TeacherResultsWorkspace({
   const [filterState, setFilterState] = useState<TeacherResultsFilterState>(createDefaultFilterState);
   const [focusedRecordId, setFocusedRecordId] = useState<string | null>(initialFocusRecordId);
 
-  const filteredRows = useMemo(() => filterRows(rows, filterState), [rows, filterState]);
+  const filteredRows = useMemo(
+    () => filterTeacherResultRows(rows, filterState),
+    [rows, filterState]
+  );
 
   useEffect(() => {
     if (filteredRows.length === 0) {
@@ -165,50 +131,13 @@ export function TeacherResultsWorkspace({
         )}
       </div>
 
-      <div className="space-y-6">
-        <TeacherProgressChart
-          title={`${focusedRow?.studentName ?? "선택 학생"} 추이`}
-          attempts={focusedRow?.attempts ?? []}
-          unit={focusedRow?.unit ?? ""}
-        />
-        {focusedRow && focusedSync ? (
-          <SyncStatusCard
-            recordId={focusedRow.recordId}
-            status={focusedSync.status}
-            updatedAt={focusedSync.updatedAt}
-            message={focusedSync.message}
-            rebuildSessionId={focusedRow.sessionId}
-            duplicateAttemptCount={focusedRow.duplicateAttemptCount}
-            initialRebuildNeeded={focusedRow.duplicateAttemptCount > 0}
-          />
-        ) : null}
-        {sheetTabs.length > 0 ? (
-          <section className="rounded-[1.75rem] border border-ink/10 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-accent">
-                  Sheet
-                </p>
-                <h2 className="text-lg font-semibold">구글 시트 반영 현황</h2>
-              </div>
-              <span className="rounded-full bg-ink/5 px-3 py-1 text-xs text-ink/70">
-                오류로그 {failedSyncCount}건
-              </span>
-            </div>
-            <div className="mt-4 space-y-3">
-              {sheetTabs.map((tab) => (
-                <div key={tab.tabName} className="flex items-center justify-between gap-3 text-sm">
-                  <span>{tab.tabName}</span>
-                  <span className="text-ink/65">
-                    {tab.header.length} cols · {tab.rows.length} rows
-                  </span>
-                </div>
-              ))}
-            </div>
-          </section>
-        ) : null}
-        <SummaryExportsCard tabs={sheetTabs} note={summariesNote} />
-      </div>
+      <TeacherResultsSidebar
+        focusedRow={focusedRow}
+        focusedSync={focusedSync}
+        sheetTabs={sheetTabs}
+        failedSyncCount={failedSyncCount}
+        summariesNote={summariesNote}
+      />
     </div>
   );
 }

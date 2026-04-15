@@ -37,6 +37,13 @@ vi.mock("../../src/lib/google/sheets-store", () => ({
   PAPS_SPREADSHEET_ID_COOKIE: "paps-spreadsheet-id",
   loadTeacherPageState: vi.fn(async () => ({
     sheetConnected: true,
+    sheetStatus: {
+      code: "connected",
+      isConnected: true,
+      canReconnect: false,
+      summary: "구글 시트가 연결되었습니다.",
+      detail: null
+    },
     store: null,
     bootstrap: {
       teacher: {

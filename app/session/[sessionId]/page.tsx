@@ -1,31 +1,41 @@
 import React from "react";
 import Link from "next/link";
-import { cookies } from "next/headers";
 
 import { SplitSessionView } from "../../../src/components/student/split-session-view";
 import { loadStudentSessionViewFromSheet } from "../../../src/lib/google/sheets-submit";
-import { PAPS_SPREADSHEET_ID_COOKIE } from "../../../src/lib/google/sheets-store";
 import { getEventDefinition } from "../../../src/lib/paps/catalog";
 import { createStoreForRequest } from "../../../src/lib/store/paps-store";
+import { resolveStudentSessionAccess } from "../../../src/lib/student-session-access";
 
 type StudentSessionPageProps = {
   params: Promise<{
     sessionId: string;
   }>;
+  searchParams: Promise<{
+    access?: string;
+  }>;
 };
 
-export default async function StudentSessionPage({ params }: StudentSessionPageProps) {
+export default async function StudentSessionPage({
+  params,
+  searchParams
+}: StudentSessionPageProps) {
   const { sessionId } = await params;
+  const { access } = await searchParams;
 
   try {
     const { session, classSections } =
       process.env.NODE_ENV === "production"
         ? await loadStudentSessionViewFromSheet({
             spreadsheetId:
-              (await cookies()).get(PAPS_SPREADSHEET_ID_COOKIE)?.value ??
-              (() => {
-                throw new Error("Google Sheets is not connected.");
-              })(),
+              typeof access === "string" && access.trim()
+                ? resolveStudentSessionAccess({
+                    token: access.trim(),
+                    sessionId
+                  }).spreadsheetId
+                : (() => {
+                    throw new Error("Student session access token is required.");
+                  })(),
             sessionId
           })
         : await (await createStoreForRequest()).getStudentSessionView(sessionId);
@@ -68,6 +78,7 @@ export default async function StudentSessionPage({ params }: StudentSessionPageP
           </section>
           <SplitSessionView
             sessionId={session.id}
+            studentAccessToken={typeof access === "string" ? access : null}
             sessionType={session.sessionType}
             classScope={session.classScope}
             eventId={session.eventId}

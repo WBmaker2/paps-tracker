@@ -1,28 +1,118 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useEffect, useState, useTransition } from "react";
 
 import type { GoogleSheetsSetupStatus } from "../../lib/env";
+import type { TeacherSheetStatus } from "../../lib/google/sheet-connection-status";
 import type { PAPSClassroom, PAPSSchool } from "../../lib/paps/types";
+import { notifyTeacherDataRefresh } from "./teacher-data-refresh";
+
+const SCHOOL_SETTINGS_STORAGE_KEY = "paps:teacher-settings:saved-school";
+
+type SavedSchoolSettings = {
+  schoolId: string | null;
+  schoolName: string;
+  sheetUrl: string;
+};
+
+const areSavedSchoolSettingsEqual = (
+  left: SavedSchoolSettings | null,
+  right: SavedSchoolSettings | null
+): boolean =>
+  left?.schoolId === right?.schoolId &&
+  left?.schoolName === right?.schoolName &&
+  left?.sheetUrl === right?.sheetUrl;
+
+const readSavedSchoolSettings = (): SavedSchoolSettings | null => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const rawValue = window.localStorage.getItem(SCHOOL_SETTINGS_STORAGE_KEY);
+
+    if (!rawValue) {
+      return null;
+    }
+
+    const parsedValue = JSON.parse(rawValue) as Partial<SavedSchoolSettings>;
+
+    return {
+      schoolId: typeof parsedValue.schoolId === "string" ? parsedValue.schoolId : null,
+      schoolName: typeof parsedValue.schoolName === "string" ? parsedValue.schoolName : "",
+      sheetUrl: typeof parsedValue.sheetUrl === "string" ? parsedValue.sheetUrl : ""
+    };
+  } catch {
+    return null;
+  }
+};
+
+const persistSavedSchoolSettings = (value: SavedSchoolSettings | null) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    if (!value) {
+      window.localStorage.removeItem(SCHOOL_SETTINGS_STORAGE_KEY);
+      return;
+    }
+
+    window.localStorage.setItem(SCHOOL_SETTINGS_STORAGE_KEY, JSON.stringify(value));
+  } catch {
+    // Ignore storage errors so the settings screen still works in restricted browsers.
+  }
+};
+
+const createSavedSchoolSettings = (
+  school: PAPSSchool | null,
+  fallback?: {
+    schoolName?: string;
+    sheetUrl?: string;
+  }
+): SavedSchoolSettings | null => {
+  if (school) {
+    return {
+      schoolId: school.id,
+      schoolName: school.name,
+      sheetUrl: school.sheetUrl ?? ""
+    };
+  }
+
+  if (!fallback?.schoolName && !fallback?.sheetUrl) {
+    return null;
+  }
+
+  return {
+    schoolId: null,
+    schoolName: fallback?.schoolName ?? "",
+    sheetUrl: fallback?.sheetUrl ?? ""
+  };
+};
 
 export function TeacherSettingsManager({
   school,
   classes,
   sheetConnected = true,
+  sheetStatus,
   sheetSetupStatus
 }: {
   school: PAPSSchool | null;
   classes: PAPSClassroom[];
   sheetConnected?: boolean;
+  sheetStatus?: TeacherSheetStatus;
   sheetSetupStatus: GoogleSheetsSetupStatus;
 }) {
+  const initialSavedSchoolSettings = createSavedSchoolSettings(school) ?? readSavedSchoolSettings();
   const [schoolState, setSchoolState] = useState(school);
   const [classItems, setClassItems] = useState(classes);
-  const [schoolName, setSchoolName] = useState(school?.name ?? "");
-  const [sheetUrl, setSheetUrl] = useState(school?.sheetUrl ?? "");
+  const [savedSchoolSettings, setSavedSchoolSettings] = useState<SavedSchoolSettings | null>(
+    initialSavedSchoolSettings
+  );
+  const [schoolName, setSchoolName] = useState(initialSavedSchoolSettings?.schoolName ?? "");
+  const [sheetUrl, setSheetUrl] = useState(initialSavedSchoolSettings?.sheetUrl ?? "");
   const [newGradeLevel, setNewGradeLevel] = useState("5");
   const [newClassNumber, setNewClassNumber] = useState("1");
-  const [newClassLabel, setNewClassLabel] = useState("");
   const [schoolMessage, setSchoolMessage] = useState<string | null>(null);
   const [classMessage, setClassMessage] = useState<string | null>(null);
   const [isSchoolPending, startSchoolTransition] = useTransition();
@@ -30,6 +120,31 @@ export function TeacherSettingsManager({
   const [isClassPending, startClassTransition] = useTransition();
   const serviceAccountMissing = !sheetSetupStatus.serviceAccountConfigured;
   const templateMissing = !sheetSetupStatus.templateConfigured;
+  const isSchoolDirty =
+    schoolName !== (savedSchoolSettings?.schoolName ?? "") ||
+    sheetUrl !== (savedSchoolSettings?.sheetUrl ?? "");
+
+  useEffect(() => {
+    setClassItems(classes);
+  }, [classes]);
+
+  useEffect(() => {
+    const nextSavedSchoolSettings = createSavedSchoolSettings(school) ?? readSavedSchoolSettings();
+
+    setSchoolState(school);
+
+    if (areSavedSchoolSettingsEqual(savedSchoolSettings, nextSavedSchoolSettings)) {
+      return;
+    }
+
+    setSavedSchoolSettings(nextSavedSchoolSettings);
+    persistSavedSchoolSettings(nextSavedSchoolSettings);
+
+    if (!isSchoolDirty && nextSavedSchoolSettings) {
+      setSchoolName(nextSavedSchoolSettings.schoolName);
+      setSheetUrl(nextSavedSchoolSettings.sheetUrl);
+    }
+  }, [isSchoolDirty, savedSchoolSettings, school]);
 
   const saveSchool = () => {
     if (!sheetUrl.trim()) {
@@ -61,10 +176,17 @@ export function TeacherSettingsManager({
           throw new Error(payload.error ?? "구글 시트를 연결하지 못했습니다.");
         }
 
+        const nextSavedSchoolSettings = createSavedSchoolSettings(payload.school, {
+          sheetUrl: payload.normalizedUrl ?? payload.school.sheetUrl ?? ""
+        });
+
         setSchoolState(payload.school);
-        setSchoolName(payload.school.name);
-        setSheetUrl(payload.normalizedUrl ?? payload.school.sheetUrl ?? "");
+        setSavedSchoolSettings(nextSavedSchoolSettings);
+        persistSavedSchoolSettings(nextSavedSchoolSettings);
+        setSchoolName(nextSavedSchoolSettings?.schoolName ?? "");
+        setSheetUrl(nextSavedSchoolSettings?.sheetUrl ?? "");
         setSchoolMessage("학교 정보를 저장했습니다.");
+        notifyTeacherDataRefresh();
       } catch (error) {
         setSchoolMessage(error instanceof Error ? error.message : "학교 정보를 저장하지 못했습니다.");
       }
@@ -131,7 +253,7 @@ export function TeacherSettingsManager({
             academicYear: new Date().getUTCFullYear(),
             gradeLevel,
             classNumber,
-            label: newClassLabel || `${gradeLevel}-${classNumber}`,
+            label: `${gradeLevel}-${classNumber}`,
             active: true
           })
         });
@@ -148,8 +270,8 @@ export function TeacherSettingsManager({
           [...currentItems, payload.classroom!].sort((left, right) => left.label.localeCompare(right.label))
         );
         setClassMessage("학급을 추가했습니다.");
-        setNewClassLabel("");
         setNewClassNumber("1");
+        notifyTeacherDataRefresh();
       } catch (error) {
         setClassMessage(error instanceof Error ? error.message : "학급을 추가하지 못했습니다.");
       }
@@ -265,6 +387,15 @@ export function TeacherSettingsManager({
               </div>
             </div>
           ) : null}
+          {!sheetConnected && sheetStatus && sheetStatus.code !== "not_connected" ? (
+            <div className="rounded-2xl border border-rose-200/70 bg-rose-50 px-4 py-3">
+              <p className="text-sm font-semibold text-ink">현재 연결 문제</p>
+              <p className="mt-1 text-sm text-ink/80">{sheetStatus.summary}</p>
+              {sheetStatus.detail ? (
+                <p className="mt-2 text-sm text-ink/70">{sheetStatus.detail}</p>
+              ) : null}
+            </div>
+          ) : null}
           <label className="flex flex-col gap-2 text-sm">
             학교명
             <input
@@ -284,7 +415,11 @@ export function TeacherSettingsManager({
           <p className="text-sm text-ink/65">
             {sheetConnected
               ? "현재 연결된 시트를 다시 검증하고 학교 정보를 갱신합니다."
-              : "위 4단계를 완료한 뒤 학교 정보를 저장하면 학급과 세션을 바로 관리할 수 있습니다."}
+              : sheetStatus?.code === "not_connected"
+                ? "위 4단계를 완료한 뒤 학교 정보를 저장하면 학급과 세션을 바로 관리할 수 있습니다."
+                : sheetStatus?.detail ??
+                  sheetStatus?.summary ??
+                  "구글 시트 연결 상태를 다시 확인해 주세요."}
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <button
@@ -306,7 +441,7 @@ export function TeacherSettingsManager({
           </div>
           {classMessage ? <p className="text-sm text-ink/70">{classMessage}</p> : null}
         </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
           <label className="flex flex-col gap-2 text-sm">
             새 학급 학년
             <select
@@ -322,19 +457,11 @@ export function TeacherSettingsManager({
             </select>
           </label>
           <label className="flex flex-col gap-2 text-sm">
-            새 학급 반 번호
+            반(숫자입력)
             <input
               className="rounded-2xl border border-ink/15 px-4 py-3"
               value={newClassNumber}
               onChange={(event) => setNewClassNumber(event.target.value)}
-            />
-          </label>
-          <label className="flex flex-col gap-2 text-sm">
-            새 학급 이름
-            <input
-              className="rounded-2xl border border-ink/15 px-4 py-3"
-              value={newClassLabel}
-              onChange={(event) => setNewClassLabel(event.target.value)}
             />
           </label>
         </div>

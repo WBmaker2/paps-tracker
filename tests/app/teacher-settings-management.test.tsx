@@ -7,8 +7,14 @@ import type { PAPSDemoStoreData } from "../../src/lib/paps/types";
 import { GoogleSheetsAccessError } from "../../src/lib/google/sheets-client";
 
 vi.mock("next/link", () => ({
-  default: ({ children, href, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & {
+  default: ({
+    children,
+    href,
+    prefetch: _prefetch,
+    ...props
+  }: React.AnchorHTMLAttributes<HTMLAnchorElement> & {
     href: string;
+    prefetch?: boolean;
   }) => (
     <a href={href} {...props}>
       {children}
@@ -182,6 +188,7 @@ describe("teacher settings management", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    window.localStorage.clear();
     delete process.env.GOOGLE_SHEETS_TEMPLATE_ID;
     delete process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
     delete process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
@@ -274,11 +281,8 @@ describe("teacher settings management", () => {
     fireEvent.change(screen.getByLabelText("새 학급 학년"), {
       target: { value: "6" }
     });
-    fireEvent.change(screen.getByLabelText("새 학급 반 번호"), {
+    fireEvent.change(screen.getByLabelText("반(숫자입력)"), {
       target: { value: "2" }
-    });
-    fireEvent.change(screen.getByLabelText("새 학급 이름"), {
-      target: { value: "6-2" }
     });
     fireEvent.click(screen.getByRole("button", { name: "학급 추가" }));
 
@@ -295,6 +299,74 @@ describe("teacher settings management", () => {
     });
 
     expect(screen.getByText("6-2")).toBeInTheDocument();
+    expect(screen.queryByLabelText("새 학급 이름")).not.toBeInTheDocument();
+  });
+
+  it("restores the last saved school info after the settings form remounts", async () => {
+    const { TeacherSettingsManager } = await import(
+      "../../src/components/teacher/settings-management"
+    );
+    const fetchMock = vi.fn(async () =>
+      Response.json({
+        school: {
+          id: "demo-school",
+          name: "도촌초등학교",
+          teacherIds: ["demo-teacher"],
+          sheetUrl:
+            "https://docs.google.com/spreadsheets/d/1nkle8q817RCds477sj3f5Ajya5eqVYgzJlkfNZ8nZYQ/edit",
+          createdAt: "2026-03-23T09:00:00.000Z",
+          updatedAt: "2026-04-15T09:00:00.000Z"
+        },
+        normalizedUrl:
+          "https://docs.google.com/spreadsheets/d/1nkle8q817RCds477sj3f5Ajya5eqVYgzJlkfNZ8nZYQ/edit"
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const renderManager = () =>
+      render(
+        <TeacherSettingsManager
+          school={null}
+          classes={[]}
+          sheetConnected={false}
+          sheetStatus={{
+            code: "not_connected",
+            isConnected: false,
+            canReconnect: true,
+            summary: "연결된 구글 시트가 없습니다.",
+            detail: null
+          }}
+          sheetSetupStatus={{
+            templateConfigured: true,
+            serviceAccountConfigured: true,
+            serviceAccountEmail: "service-account@example.com",
+            missingKeys: []
+          }}
+        />
+      );
+
+    const firstRender = renderManager();
+
+    fireEvent.change(screen.getByLabelText("학교명"), {
+      target: { value: "도촌초등학교" }
+    });
+    fireEvent.change(screen.getByLabelText("구글 시트 URL"), {
+      target: {
+        value:
+          "https://docs.google.com/spreadsheets/d/1nkle8q817RCds477sj3f5Ajya5eqVYgzJlkfNZ8nZYQ/edit"
+      }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "학교 정보 저장" }));
+
+    await screen.findByText("학교 정보를 저장했습니다.");
+
+    firstRender.unmount();
+    renderManager();
+
+    expect((screen.getByLabelText("학교명") as HTMLInputElement).value).toBe("도촌초등학교");
+    expect((screen.getByLabelText("구글 시트 URL") as HTMLInputElement).value).toBe(
+      "https://docs.google.com/spreadsheets/d/1nkle8q817RCds477sj3f5Ajya5eqVYgzJlkfNZ8nZYQ/edit"
+    );
   });
 
   it("shows setup guidance and missing env warning when service account config is incomplete", async () => {
@@ -313,6 +385,13 @@ describe("teacher settings management", () => {
           school={null}
           classes={[]}
           sheetConnected={false}
+          sheetStatus={{
+            code: "missing_service_account",
+            isConnected: false,
+            canReconnect: false,
+            summary: "배포 환경에 Google Sheets 서비스 계정 설정이 없습니다.",
+            detail: "설정 화면의 환경변수 경고를 확인한 뒤 다시 시도해 주세요."
+          }}
           sheetSetupStatus={{
             templateConfigured: true,
             serviceAccountConfigured: false,
@@ -334,6 +413,48 @@ describe("teacher settings management", () => {
     expect(screen.getByText("배포 설정 확인 필요")).toBeInTheDocument();
     expect(screen.getByText(/GOOGLE_SERVICE_ACCOUNT_EMAIL/)).toBeInTheDocument();
     expect(screen.getByText(/GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY/)).toBeInTheDocument();
+  });
+
+  it("shows the current spreadsheet issue separately from first-time setup guidance", async () => {
+    const { AppShell } = await import("../../src/components/layout/app-shell");
+    const { TeacherSettingsManager } = await import(
+      "../../src/components/teacher/settings-management"
+    );
+
+    render(
+      <AppShell
+        title="학교 및 학급 설정"
+        eyebrow="Settings"
+        description="학교 정보와 학급을 관리합니다."
+      >
+        <TeacherSettingsManager
+          school={null}
+          classes={[]}
+          sheetConnected={false}
+          sheetStatus={{
+            code: "access_denied",
+            isConnected: false,
+            canReconnect: true,
+            summary: "서비스 계정이 현재 구글 시트에 접근할 수 없습니다.",
+            detail: "복사한 시트를 서비스 계정 이메일에 편집자로 공유했는지 확인해 주세요."
+          }}
+          sheetSetupStatus={{
+            templateConfigured: true,
+            serviceAccountConfigured: true,
+            serviceAccountEmail: "service-account@example.com",
+            missingKeys: []
+          }}
+        />
+      </AppShell>
+    );
+
+    expect(screen.getByText("현재 연결 문제")).toBeInTheDocument();
+    expect(
+      screen.getByText("서비스 계정이 현재 구글 시트에 접근할 수 없습니다.")
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByText("복사한 시트를 서비스 계정 이메일에 편집자로 공유했는지 확인해 주세요.")
+    ).toHaveLength(2);
   });
 
   it("rejects connect requests when the service account is not shared on the sheet", async () => {
@@ -497,11 +618,13 @@ describe("teacher settings management", () => {
     );
     const payload = await response.json();
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(409);
     expect(payload).toMatchObject({
-      ok: true,
+      ok: false,
+      status: "missing_service_account",
       spreadsheetId: "sheet-verified",
-      templateVersion: null
+      templateVersion: null,
+      summary: "배포 환경에 Google Sheets 서비스 계정 설정이 없습니다."
     });
   });
 });

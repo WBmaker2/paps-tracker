@@ -4,38 +4,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { createTeacherSchoolRuntimeStoreForRequest, type TeacherSchoolStore } from "../../../src/lib/google/sheets-store";
 import { requireTeacherRouteSession } from "../../../src/lib/teacher-auth";
-import type { PAPSTeacher } from "../../../src/lib/paps/types";
-
-const forbiddenResponse = (message = "Forbidden") =>
-  NextResponse.json(
-    {
-      error: message
-    },
-    {
-      status: 403
-    }
-  );
-
-const getAuthorizedTeacherContext = async (
-  request: NextRequest,
-  teacherEmail: string
-): Promise<{
-  store: TeacherSchoolStore;
-  teacher: PAPSTeacher;
-}> => {
-  const store = await createTeacherSchoolRuntimeStoreForRequest(request, teacherEmail);
-  const bootstrap = await store.getTeacherBootstrap({ teacherEmail });
-  const teacher = bootstrap.teacher;
-
-  if (!teacher?.schoolId) {
-    throw new Error("Forbidden");
-  }
-
-  return {
-    store,
-    teacher: teacher as PAPSTeacher
-  };
-};
+import {
+  forbiddenTeacherRouteResponse,
+  getAuthorizedTeacherRouteContext
+} from "../../../src/lib/teacher-route-context";
 
 export async function GET(request: NextRequest) {
   const teacherSession = await requireTeacherRouteSession();
@@ -44,23 +16,31 @@ export async function GET(request: NextRequest) {
     return teacherSession.response;
   }
 
-  let store: Awaited<ReturnType<typeof getAuthorizedTeacherContext>>["store"];
-  let teacher: PAPSTeacher;
+  let store: TeacherSchoolStore;
+  let teacher: Awaited<
+    ReturnType<typeof getAuthorizedTeacherRouteContext<TeacherSchoolStore>>
+  >["teacher"];
+  let bootstrap: Awaited<
+    ReturnType<typeof getAuthorizedTeacherRouteContext<TeacherSchoolStore>>
+  >["bootstrap"];
 
   try {
-    ({ store, teacher } = await getAuthorizedTeacherContext(request, teacherSession.session.email));
+    ({ store, teacher, bootstrap } = await getAuthorizedTeacherRouteContext({
+      request,
+      teacherEmail: teacherSession.session.email,
+      createStore: createTeacherSchoolRuntimeStoreForRequest
+    }));
   } catch {
-    return forbiddenResponse();
+    return forbiddenTeacherRouteResponse();
   }
 
   const requestedSchoolId = request.nextUrl.searchParams.get("schoolId");
 
   if (requestedSchoolId && requestedSchoolId !== teacher.schoolId) {
-    return forbiddenResponse();
+    return forbiddenTeacherRouteResponse();
   }
 
   const schoolId = teacher.schoolId;
-  const bootstrap = await store.getTeacherBootstrap({ teacherEmail: teacherSession.session.email });
   const schools = bootstrap.schools.filter((school) => !schoolId || school.id === schoolId);
 
   return NextResponse.json({
@@ -78,14 +58,17 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
 
   try {
-    const { store, teacher } = await getAuthorizedTeacherContext(request, teacherSession.session.email);
-    const bootstrap = await store.getTeacherBootstrap({ teacherEmail: teacherSession.session.email });
+    const { store, teacher, bootstrap } = await getAuthorizedTeacherRouteContext({
+      request,
+      teacherEmail: teacherSession.session.email,
+      createStore: createTeacherSchoolRuntimeStoreForRequest
+    });
     const requestedId =
       typeof body?.id === "string" && body.id.trim() ? body.id.trim() : teacher.schoolId;
     const existingSchool = bootstrap.schools.find((school) => school.id === requestedId) ?? null;
 
     if (requestedId !== teacher.schoolId || (existingSchool && existingSchool.id !== teacher.schoolId)) {
-      return forbiddenResponse();
+      return forbiddenTeacherRouteResponse();
     }
 
     const now = new Date().toISOString();
@@ -122,7 +105,7 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     if (error instanceof Error && error.message === "Forbidden") {
-      return forbiddenResponse();
+      return forbiddenTeacherRouteResponse();
     }
 
     return NextResponse.json(
@@ -150,10 +133,14 @@ export async function DELETE(request: NextRequest) {
   }
 
   try {
-    const { store, teacher } = await getAuthorizedTeacherContext(request, teacherSession.session.email);
+    const { store, teacher } = await getAuthorizedTeacherRouteContext({
+      request,
+      teacherEmail: teacherSession.session.email,
+      createStore: createTeacherSchoolRuntimeStoreForRequest
+    });
 
     if (schoolId !== teacher.schoolId) {
-      return forbiddenResponse();
+      return forbiddenTeacherRouteResponse();
     }
 
     if ("deleteSchool" in store && typeof store.deleteSchool === "function") {
@@ -163,7 +150,7 @@ export async function DELETE(request: NextRequest) {
     }
   } catch (error) {
     if (error instanceof Error && error.message === "Forbidden") {
-      return forbiddenResponse();
+      return forbiddenTeacherRouteResponse();
     }
 
     throw error;

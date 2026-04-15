@@ -1,7 +1,7 @@
 import React from "react";
 
 import { signIn } from "../../../src/auth";
-import { hasGoogleOAuthEnv } from "../../../src/lib/env";
+import { hasGoogleOAuthEnv, hasTeacherAccessConfig } from "../../../src/lib/env";
 
 const getMissingConfigKeys = (): string[] => {
   const missingKeys: string[] = [];
@@ -10,11 +10,15 @@ const getMissingConfigKeys = (): string[] => {
     missingKeys.push("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET");
   }
 
+  if (!hasTeacherAccessConfig()) {
+    missingKeys.push("GOOGLE_HOSTED_DOMAIN 또는 TEACHER_EMAIL_ALLOWLIST");
+  }
+
   return missingKeys;
 };
 
 export default async function TeacherSignInPage() {
-  const isReady = hasGoogleOAuthEnv();
+  const isReady = hasGoogleOAuthEnv() && hasTeacherAccessConfig();
   const missingKeys = getMissingConfigKeys();
   const signInWithGoogle = async () => {
     "use server";
@@ -35,7 +39,7 @@ export default async function TeacherSignInPage() {
           <p className="text-base leading-7 text-ink/75">
             {isReady
               ? "구글 계정으로 로그인한 뒤 교사 대시보드로 이동합니다."
-              : "아직 Google OAuth 설정이 없어 교사 로그인을 시작할 수 없습니다."}
+              : "Google OAuth와 교사 접근 범위 설정이 있어야 교사 로그인을 시작할 수 있습니다."}
           </p>
         </div>
 
@@ -50,7 +54,7 @@ export default async function TeacherSignInPage() {
               </button>
             </form>
             <p className="text-sm text-ink/75">
-              추가 승인 목록 없이, 구글 로그인만 완료하면 교사 관리 화면으로 이동합니다.
+              허용된 도메인 또는 승인된 이메일만 교사 관리 화면으로 이동할 수 있습니다.
             </p>
           </div>
         ) : (

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { createPapsGoogleSheetTabPayloads } from "../../../../src/lib/google/sheets";
+import { getTeacherSheetStatusHttpStatus } from "../../../../src/lib/google/sheet-connection-status";
 import {
   loadTeacherPageState,
   PAPS_SPREADSHEET_ID_COOKIE
@@ -21,11 +22,7 @@ export async function GET(request: NextRequest) {
   const spreadsheetId = request.cookies.get(PAPS_SPREADSHEET_ID_COOKIE)?.value ?? null;
 
   try {
-    if (!spreadsheetId) {
-      throw new Error("Google Sheets is not connected.");
-    }
-
-    const { bootstrap, sheetConnected } = await loadTeacherPageState({
+    const { bootstrap, sheetConnected, sheetStatus } = await loadTeacherPageState({
       teacherEmail: teacherSession.session.email,
       spreadsheetId
     });
@@ -33,7 +30,16 @@ export async function GET(request: NextRequest) {
     const school = schoolId ? bootstrap.school : bootstrap.schools[0] ?? null;
 
     if (!sheetConnected || !school) {
-      throw new Error("Google Sheets is not connected.");
+      return NextResponse.json(
+        {
+          error: sheetConnected ? "요약 XLSX를 준비할 학교 데이터가 없습니다." : sheetStatus.summary,
+          detail: sheetConnected ? null : sheetStatus.detail,
+          status: sheetConnected ? "load_failed" : sheetStatus.code
+        },
+        {
+          status: sheetConnected ? 409 : getTeacherSheetStatusHttpStatus(sheetStatus)
+        }
+      );
     }
 
     const sessionIds = new Set(bootstrap.sessions.map((entry) => entry.id));
@@ -69,7 +75,7 @@ export async function GET(request: NextRequest) {
         error: message
       },
       {
-        status: message === "Google Sheets is not connected." ? 409 : 400
+        status: 400
       }
     );
   }

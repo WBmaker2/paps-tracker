@@ -8,6 +8,7 @@ import {
   createPapsGoogleSheetTabPayloads,
   parseGoogleSheetTabPayloads
 } from "../../../../src/lib/google/sheets";
+import { publishTeacherLiveUpdate } from "../../../../src/lib/teacher-live-updates";
 import type { PAPSStoredAttempt } from "../../../../src/lib/paps/types";
 import { requireTeacherRouteSession } from "../../../../src/lib/teacher-auth";
 
@@ -102,9 +103,16 @@ export async function POST(request: NextRequest) {
           }),
       triggeredByTeacherEmail: teacherSession.session.email,
       source: body?.source === "file-store" ? "file-store" : "manual",
-      dryRun: body?.dryRun !== false
+      dryRun: body?.dryRun === true
     };
     const result = await resyncGoogleSheet(input);
+
+    if (result.ok && result.dryRun !== true) {
+      publishTeacherLiveUpdate({
+        teacherEmail: teacherSession.session.email,
+        source: "resync"
+      });
+    }
 
     return NextResponse.json(result);
   } catch (error) {

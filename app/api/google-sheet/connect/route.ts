@@ -6,6 +6,7 @@ import {
   createGoogleSheetClientFromEnv,
   PAPS_SPREADSHEET_ID_COOKIE
 } from "../../../../src/lib/google/sheets-store";
+import { publishTeacherLiveUpdate } from "../../../../src/lib/teacher-live-updates";
 import { createSchoolStoreForRequest } from "../../../../src/lib/store/paps-store";
 import { requireTeacherRouteSession } from "../../../../src/lib/teacher-auth";
 
@@ -77,6 +78,10 @@ export async function POST(request: NextRequest) {
       httpOnly: true,
       sameSite: "lax",
       path: "/"
+    });
+    publishTeacherLiveUpdate({
+      teacherEmail: teacherSession.session.email,
+      source: "school"
     });
 
     return response;

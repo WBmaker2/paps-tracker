@@ -7,14 +7,17 @@ const cookies = vi.fn(async () => ({
     value: "sheet-live"
   })
 }));
+const refresh = vi.fn();
 
 vi.mock("next/link", () => ({
   default: ({
     children,
     href,
+    prefetch: _prefetch,
     ...props
   }: React.AnchorHTMLAttributes<HTMLAnchorElement> & {
     href: string;
+    prefetch?: boolean;
   }) => (
     <a href={href} {...props}>
       {children}
@@ -24,6 +27,17 @@ vi.mock("next/link", () => ({
 
 vi.mock("next/headers", () => ({
   cookies
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    refresh,
+    push: vi.fn(),
+    replace: vi.fn(),
+    prefetch: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn()
+  })
 }));
 
 vi.mock("../../src/lib/teacher-auth", () => ({
@@ -117,102 +131,118 @@ vi.mock("../../src/lib/google/sheets", () => ({
   ])
 }));
 
-vi.mock("../../src/lib/google/sheets-store", () => ({
-  PAPS_SPREADSHEET_ID_COOKIE: "paps-spreadsheet-id",
-  loadTeacherPageState: vi.fn(async () => ({
-    sheetConnected: true,
-    store: {
-      listSessionRecords: vi.fn(async () => [
-        {
-          sessionId: "session-official-1",
-          studentId: "student-kim",
-          eventId: "sit-and-reach",
-          unit: "cm",
-          representativeAttemptId: null,
-          attempts: [
-            {
-              id: "attempt-1",
-              attemptNumber: 1,
-              measurement: 21,
-              createdAt: "2026-03-25T10:58:18.000Z"
-            }
-          ]
-        }
-      ])
+vi.mock("../../src/components/teacher/teacher-data-refresh", () => ({
+  TeacherDataRefresh: () => null,
+  notifyTeacherDataRefresh: vi.fn()
+}));
+
+const loadTeacherPageState = vi.fn(async () => ({
+  sheetConnected: true,
+  sheetStatus: {
+    code: "connected",
+    isConnected: true,
+    canReconnect: false,
+    summary: "구글 시트가 연결되었습니다.",
+    detail: null
+  },
+  store: {
+    listSessionRecords: vi.fn(async () => [
+      {
+        sessionId: "session-official-1",
+        studentId: "student-kim",
+        eventId: "sit-and-reach",
+        unit: "cm",
+        representativeAttemptId: null,
+        attempts: [
+          {
+            id: "attempt-1",
+            attemptNumber: 1,
+            measurement: 21,
+            createdAt: "2026-03-25T10:58:18.000Z"
+          }
+        ]
+      }
+    ])
+  },
+  bootstrap: {
+    teacher: {
+      id: "teacher-1",
+      schoolId: "school-1"
     },
-    bootstrap: {
-      teacher: {
+    school: {
+      id: "school-1",
+      name: "PAPS Demo School"
+    },
+    schools: [],
+    classes: [
+      {
+        id: "class-1",
+        schoolId: "school-1",
+        academicYear: 2026,
+        gradeLevel: 5,
+        classNumber: 1,
+        label: "5학년 1반",
+        active: true
+      }
+    ],
+    teachers: [
+      {
         id: "teacher-1",
         schoolId: "school-1"
-      },
-      school: {
-        id: "school-1",
-        name: "PAPS Demo School"
-      },
-      schools: [],
-      classes: [
-        {
-          id: "class-1",
-          schoolId: "school-1",
-          academicYear: 2026,
-          gradeLevel: 5,
-          classNumber: 1,
-          label: "5학년 1반",
-          active: true
-        }
-      ],
-      teachers: [
-        {
-          id: "teacher-1",
-          schoolId: "school-1"
-        }
-      ],
-      students: [
-        {
-          id: "student-kim",
-          classId: "class-1",
-          schoolId: "school-1",
-          gradeLevel: 5,
-          studentNumber: 1,
-          sex: "male",
-          name: "홍길동",
-          active: true
-        }
-      ],
-      sessions: [
-        {
-          id: "session-official-1",
-          schoolId: "school-1",
-          teacherId: "teacher-1",
-          academicYear: 2026,
-          name: "5학년 1반 3월 공식 검증",
-          gradeLevel: 5,
-          sessionType: "official",
-          classScope: "single",
-          eventId: "sit-and-reach",
-          classTargets: [{ classId: "class-1", eventId: "sit-and-reach" }],
-          isOpen: true,
-          createdAt: "2026-03-25T10:56:05.317Z"
-        }
-      ],
-      attempts: [],
-      syncStatuses: [
-        {
-          sessionId: "session-official-1",
-          studentId: "student-kim",
-          status: "synced",
-          updatedAt: "2026-03-25T10:58:41.000Z"
-        }
-      ],
-      syncErrorLogs: [],
-      representativeSelectionAuditLogs: []
-    }
-  }))
+      }
+    ],
+    students: [
+      {
+        id: "student-kim",
+        classId: "class-1",
+        schoolId: "school-1",
+        gradeLevel: 5,
+        studentNumber: 1,
+        sex: "male",
+        name: "홍길동",
+        active: true
+      }
+    ],
+    sessions: [
+      {
+        id: "session-official-1",
+        schoolId: "school-1",
+        teacherId: "teacher-1",
+        academicYear: 2026,
+        name: "5학년 1반 3월 공식 검증",
+        gradeLevel: 5,
+        sessionType: "official",
+        classScope: "single",
+        eventId: "sit-and-reach",
+        classTargets: [{ classId: "class-1", eventId: "sit-and-reach" }],
+        isOpen: true,
+        createdAt: "2026-03-25T10:56:05.317Z"
+      }
+    ],
+    attempts: [],
+    syncStatuses: [
+      {
+        sessionId: "session-official-1",
+        studentId: "student-kim",
+        status: "synced",
+        updatedAt: "2026-03-25T10:58:41.000Z"
+      }
+    ],
+    syncErrorLogs: [],
+    representativeSelectionAuditLogs: []
+  }
+}));
+
+vi.mock("../../src/lib/google/sheets-store", () => ({
+  PAPS_SPREADSHEET_ID_COOKIE: "paps-spreadsheet-id",
+  loadTeacherPageState
 }));
 
 describe("teacher results page copy", () => {
   afterEach(() => {
     cookies.mockReset();
+    loadTeacherPageState.mockClear();
+    refresh.mockReset();
   });
 
   it("shows school-friendly wording on the results screen", async () => {
@@ -238,5 +268,41 @@ describe("teacher results page copy", () => {
     expect(screen.getByText("지난 기록 대비 +2cm")).toBeInTheDocument();
     expect(screen.getByText("5학년 1반 3월 공식 검증")).toBeInTheDocument();
     expect(screen.getByText("3등급")).toBeInTheDocument();
+  });
+
+  it("shows the specific spreadsheet problem when results cannot load", async () => {
+    loadTeacherPageState.mockResolvedValueOnce({
+      sheetConnected: false,
+      sheetStatus: {
+        code: "access_denied",
+        isConnected: false,
+        canReconnect: true,
+        summary: "서비스 계정이 현재 구글 시트에 접근할 수 없습니다.",
+        detail: "복사한 시트를 서비스 계정 이메일에 편집자로 공유했는지 확인해 주세요."
+      },
+      store: null,
+      bootstrap: {
+        teacher: null,
+        school: null,
+        schools: [],
+        classes: [],
+        teachers: [],
+        students: [],
+        sessions: [],
+        attempts: [],
+        syncStatuses: [],
+        syncErrorLogs: [],
+        representativeSelectionAuditLogs: []
+      }
+    });
+
+    const { default: TeacherResultsPage } = await import("../../app/teacher/results/page");
+
+    render(await TeacherResultsPage());
+
+    expect(screen.getByText("서비스 계정이 현재 구글 시트에 접근할 수 없습니다.")).toBeInTheDocument();
+    expect(
+      screen.getByText("복사한 시트를 서비스 계정 이메일에 편집자로 공유했는지 확인해 주세요.")
+    ).toBeInTheDocument();
   });
 });

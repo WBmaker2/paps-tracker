@@ -243,7 +243,8 @@ const renderStudentSessionPage = async (sessionId: string) => {
     await pageModule.default({
       params: Promise.resolve({
         sessionId
-      })
+      }),
+      searchParams: Promise.resolve({})
     })
   );
 };

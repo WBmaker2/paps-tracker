@@ -3,8 +3,14 @@ import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 import { createTeacherRuntimeStoreForRequest, type TeacherCrudStore } from "../../../src/lib/google/sheets-store";
+import { publishTeacherLiveUpdate } from "../../../src/lib/teacher-live-updates";
 import { requireTeacherRouteSession } from "../../../src/lib/teacher-auth";
-import type { GradeLevel, PAPSTeacher } from "../../../src/lib/paps/types";
+import {
+  forbiddenTeacherRouteResponse,
+  getAuthorizedTeacherRouteContext,
+  notFoundTeacherRouteResponse
+} from "../../../src/lib/teacher-route-context";
+import type { GradeLevel } from "../../../src/lib/paps/types";
 
 const parseGradeLevel = (value: unknown): GradeLevel => {
   const numericValue = Number(value);
@@ -16,44 +22,6 @@ const parseGradeLevel = (value: unknown): GradeLevel => {
   throw new Error("A valid grade level is required.");
 };
 
-const forbiddenResponse = (message = "Forbidden") =>
-  NextResponse.json(
-    {
-      error: message
-    },
-    {
-      status: 403
-    }
-  );
-
-const notFoundResponse = (message: string) =>
-  NextResponse.json(
-    {
-      error: message
-    },
-    {
-      status: 404
-    }
-  );
-
-const getAuthorizedTeacherContext = async (request: NextRequest, teacherEmail: string): Promise<{
-  store: TeacherCrudStore;
-  teacher: PAPSTeacher;
-}> => {
-  const store = await createTeacherRuntimeStoreForRequest(request, teacherEmail);
-  const bootstrap = await store.getTeacherBootstrap({ teacherEmail });
-  const teacher = bootstrap.teacher;
-
-  if (!teacher?.schoolId) {
-    throw new Error("Forbidden");
-  }
-
-  return {
-    store,
-    teacher: teacher as PAPSTeacher
-  };
-};
-
 export async function GET(request: NextRequest) {
   const teacherSession = await requireTeacherRouteSession();
 
@@ -61,22 +29,29 @@ export async function GET(request: NextRequest) {
     return teacherSession.response;
   }
 
-  let store: Awaited<ReturnType<typeof getAuthorizedTeacherContext>>["store"];
-  let teacher: PAPSTeacher;
+  let teacher: Awaited<
+    ReturnType<typeof getAuthorizedTeacherRouteContext<TeacherCrudStore>>
+  >["teacher"];
+  let bootstrap: Awaited<
+    ReturnType<typeof getAuthorizedTeacherRouteContext<TeacherCrudStore>>
+  >["bootstrap"];
 
   try {
-    ({ store, teacher } = await getAuthorizedTeacherContext(request, teacherSession.session.email));
+    ({ teacher, bootstrap } = await getAuthorizedTeacherRouteContext({
+      request,
+      teacherEmail: teacherSession.session.email,
+      createStore: createTeacherRuntimeStoreForRequest
+    }));
   } catch {
-    return forbiddenResponse();
+    return forbiddenTeacherRouteResponse();
   }
 
   const requestedSchoolId = request.nextUrl.searchParams.get("schoolId");
 
   if (requestedSchoolId && requestedSchoolId !== teacher.schoolId) {
-    return forbiddenResponse();
+    return forbiddenTeacherRouteResponse();
   }
 
-  const bootstrap = await store.getTeacherBootstrap({ teacherEmail: teacherSession.session.email });
   const classes = bootstrap.classes.filter((classroom) => classroom.schoolId === teacher.schoolId);
 
   return NextResponse.json({
@@ -94,15 +69,18 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
 
   try {
-    const { store, teacher } = await getAuthorizedTeacherContext(request, teacherSession.session.email);
-    const bootstrap = await store.getTeacherBootstrap({ teacherEmail: teacherSession.session.email });
+    const { store, teacher, bootstrap } = await getAuthorizedTeacherRouteContext({
+      request,
+      teacherEmail: teacherSession.session.email,
+      createStore: createTeacherRuntimeStoreForRequest
+    });
     const schoolId =
       typeof body?.schoolId === "string" && body.schoolId.trim()
         ? body.schoolId.trim()
         : teacher.schoolId;
 
     if (schoolId !== teacher.schoolId) {
-      return forbiddenResponse();
+      return forbiddenTeacherRouteResponse();
     }
 
     const requestedId =
@@ -110,7 +88,7 @@ export async function POST(request: NextRequest) {
     const existingClass = bootstrap.classes.find((classroom) => classroom.id === requestedId) ?? null;
 
     if (existingClass && existingClass.schoolId !== teacher.schoolId) {
-      return forbiddenResponse();
+      return forbiddenTeacherRouteResponse();
     }
 
     const gradeLevel = parseGradeLevel(body?.gradeLevel);
@@ -133,7 +111,7 @@ export async function POST(request: NextRequest) {
       active: body?.active !== false
     });
 
-    return NextResponse.json(
+    const response = NextResponse.json(
       {
         classroom
       },
@@ -141,9 +119,16 @@ export async function POST(request: NextRequest) {
         status: 201
       }
     );
+
+    publishTeacherLiveUpdate({
+      teacherEmail: teacherSession.session.email,
+      source: "class"
+    });
+
+    return response;
   } catch (error) {
     if (error instanceof Error && error.message === "Forbidden") {
-      return forbiddenResponse();
+      return forbiddenTeacherRouteResponse();
     }
 
     return NextResponse.json(
@@ -171,24 +156,33 @@ export async function DELETE(request: NextRequest) {
   }
 
   try {
-    const { store, teacher } = await getAuthorizedTeacherContext(request, teacherSession.session.email);
+    const { store, teacher } = await getAuthorizedTeacherRouteContext({
+      request,
+      teacherEmail: teacherSession.session.email,
+      createStore: createTeacherRuntimeStoreForRequest
+    });
 
     if ((await store.getClass(classId)).schoolId !== teacher.schoolId) {
-      return forbiddenResponse();
+      return forbiddenTeacherRouteResponse();
     }
 
     await store.deleteClass(classId);
   } catch (error) {
     if (error instanceof Error && error.message === "Forbidden") {
-      return forbiddenResponse();
+      return forbiddenTeacherRouteResponse();
     }
 
     if (error instanceof Error && error.message.includes("was not found")) {
-      return notFoundResponse(error.message);
+      return notFoundTeacherRouteResponse(error.message);
     }
 
     throw error;
   }
+
+  publishTeacherLiveUpdate({
+    teacherEmail: teacherSession.session.email,
+    source: "class"
+  });
 
   return NextResponse.json({
     ok: true

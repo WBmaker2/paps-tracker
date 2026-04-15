@@ -8,10 +8,17 @@ import type { PAPSDemoStoreData } from "../../src/lib/paps/types";
 const cookies = vi.fn(async () => ({
   get: () => undefined
 }));
+const refresh = vi.fn();
 
 vi.mock("next/link", () => ({
-  default: ({ children, href, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & {
+  default: ({
+    children,
+    href,
+    prefetch: _prefetch,
+    ...props
+  }: React.AnchorHTMLAttributes<HTMLAnchorElement> & {
     href: string;
+    prefetch?: boolean;
   }) => (
     <a href={href} {...props}>
       {children}
@@ -21,6 +28,17 @@ vi.mock("next/link", () => ({
 
 vi.mock("next/headers", () => ({
   cookies
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    refresh,
+    push: vi.fn(),
+    replace: vi.fn(),
+    prefetch: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn()
+  })
 }));
 
 type MockWorkbook = Record<string, string[][]>;
@@ -221,6 +239,11 @@ vi.mock("../../src/lib/teacher-auth", () => ({
   }))
 }));
 
+vi.mock("../../src/components/teacher/teacher-data-refresh", () => ({
+  TeacherDataRefresh: () => null,
+  notifyTeacherDataRefresh: vi.fn()
+}));
+
 const buildTeacherSeed = (): PAPSDemoStoreData => ({
   version: 1,
   schools: [
@@ -402,6 +425,7 @@ describe("teacher representative and session flows", () => {
   afterEach(async () => {
     vi.unstubAllGlobals();
     cookies.mockReset();
+    refresh.mockReset();
     liveWorkbookState.clear();
     sheetOperations.length = 0;
     delete process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;

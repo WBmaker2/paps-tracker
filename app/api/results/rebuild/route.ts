@@ -6,16 +6,11 @@ import {
   PAPS_SPREADSHEET_ID_COOKIE
 } from "../../../../src/lib/google/sheets-store";
 import { requireTeacherRouteSession } from "../../../../src/lib/teacher-auth";
-
-const forbiddenResponse = (message = "Forbidden") =>
-  NextResponse.json(
-    {
-      error: message
-    },
-    {
-      status: 403
-    }
-  );
+import {
+  forbiddenTeacherRouteResponse,
+  getAuthorizedTeacherRouteContext
+} from "../../../../src/lib/teacher-route-context";
+import { publishTeacherLiveUpdate } from "../../../../src/lib/teacher-live-updates";
 
 export async function POST(request: NextRequest) {
   const teacherSession = await requireTeacherRouteSession();
@@ -31,14 +26,11 @@ export async function POST(request: NextRequest) {
       throw new Error("Google Sheets is not connected.");
     }
 
-    const store = await createTeacherRuntimeStoreForRequest(request, teacherSession.session.email);
-    const bootstrap = await store.getTeacherBootstrap({
-      teacherEmail: teacherSession.session.email
+    await getAuthorizedTeacherRouteContext({
+      request,
+      teacherEmail: teacherSession.session.email,
+      createStore: createTeacherRuntimeStoreForRequest
     });
-
-    if (!bootstrap.teacher?.schoolId) {
-      return forbiddenResponse();
-    }
 
     const result = await rebuildGoogleSheetSummaries({
       spreadsheetId,
@@ -51,13 +43,18 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    publishTeacherLiveUpdate({
+      teacherEmail: teacherSession.session.email,
+      source: "summary"
+    });
+
     return NextResponse.json(result);
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "요약 재계산을 준비하지 못했습니다.";
 
     if (message === "Forbidden") {
-      return forbiddenResponse();
+      return forbiddenTeacherRouteResponse();
     }
 
     return NextResponse.json(

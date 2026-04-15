@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { getGoogleSheetsSetupStatus, getNextAuthSecret } from "../../src/lib/env";
+import {
+  getGoogleSheetsSetupStatus,
+  getNextAuthSecret,
+  hasTeacherAccessConfig,
+  isTeacherEmailAllowed
+} from "../../src/lib/env";
 
 const ORIGINAL_NODE_ENV = process.env.NODE_ENV;
 const ORIGINAL_NEXTAUTH_SECRET = process.env.NEXTAUTH_SECRET;
@@ -8,6 +13,8 @@ const ORIGINAL_GOOGLE_SHEETS_TEMPLATE_ID = process.env.GOOGLE_SHEETS_TEMPLATE_ID
 const ORIGINAL_GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
 const ORIGINAL_GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY =
   process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
+const ORIGINAL_GOOGLE_HOSTED_DOMAIN = process.env.GOOGLE_HOSTED_DOMAIN;
+const ORIGINAL_TEACHER_EMAIL_ALLOWLIST = process.env.TEACHER_EMAIL_ALLOWLIST;
 
 describe("env helpers", () => {
   afterEach(() => {
@@ -37,6 +44,18 @@ describe("env helpers", () => {
       process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY =
         ORIGINAL_GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
     }
+
+    if (ORIGINAL_GOOGLE_HOSTED_DOMAIN === undefined) {
+      delete process.env.GOOGLE_HOSTED_DOMAIN;
+    } else {
+      process.env.GOOGLE_HOSTED_DOMAIN = ORIGINAL_GOOGLE_HOSTED_DOMAIN;
+    }
+
+    if (ORIGINAL_TEACHER_EMAIL_ALLOWLIST === undefined) {
+      delete process.env.TEACHER_EMAIL_ALLOWLIST;
+    } else {
+      process.env.TEACHER_EMAIL_ALLOWLIST = ORIGINAL_TEACHER_EMAIL_ALLOWLIST;
+    }
   });
 
   it("uses an explicit NEXTAUTH_SECRET when provided", () => {
@@ -57,7 +76,35 @@ describe("env helpers", () => {
     process.env.NODE_ENV = "production";
     delete process.env.NEXTAUTH_SECRET;
 
-    expect(getNextAuthSecret()).toBeNull();
+    expect(() => getNextAuthSecret()).toThrow(
+      "Missing required environment variable NEXTAUTH_SECRET."
+    );
+  });
+
+  it("reports teacher access config as missing when neither domain nor allowlist is set", () => {
+    delete process.env.GOOGLE_HOSTED_DOMAIN;
+    delete process.env.TEACHER_EMAIL_ALLOWLIST;
+
+    expect(hasTeacherAccessConfig()).toBe(false);
+    expect(isTeacherEmailAllowed("teacher@example.com")).toBe(false);
+  });
+
+  it("allows a teacher when the email matches the hosted domain", () => {
+    process.env.GOOGLE_HOSTED_DOMAIN = "school.example.com";
+    delete process.env.TEACHER_EMAIL_ALLOWLIST;
+
+    expect(hasTeacherAccessConfig()).toBe(true);
+    expect(isTeacherEmailAllowed("teacher@school.example.com")).toBe(true);
+    expect(isTeacherEmailAllowed("teacher@example.com")).toBe(false);
+  });
+
+  it("allows a teacher when the email is included in the allowlist", () => {
+    delete process.env.GOOGLE_HOSTED_DOMAIN;
+    process.env.TEACHER_EMAIL_ALLOWLIST = "lead@example.com, teacher@example.com ";
+
+    expect(hasTeacherAccessConfig()).toBe(true);
+    expect(isTeacherEmailAllowed("teacher@example.com")).toBe(true);
+    expect(isTeacherEmailAllowed("other@example.com")).toBe(false);
   });
 
   it("reports missing Google Sheets setup keys explicitly", () => {

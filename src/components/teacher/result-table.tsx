@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useTransition } from "react";
 
 import type { TeacherResultRowView } from "../../lib/teacher-results";
+import { notifyTeacherDataRefresh } from "./teacher-data-refresh";
 
 export type TeacherResultRow = TeacherResultRowView;
 
@@ -63,6 +64,7 @@ export function ResultTable({
         );
         onRepresentativeChange?.(recordId, payload.record?.representativeAttemptId ?? null);
         setFeedback("대표값이 업데이트되었습니다.");
+        notifyTeacherDataRefresh();
       } catch (error) {
         setFeedback(error instanceof Error ? error.message : "대표값을 저장하지 못했습니다.");
       }

@@ -7,8 +7,14 @@ import type { PAPSDemoStoreData } from "../../src/lib/paps/types";
 import { resetRequestStore, getRequestStore } from "../../src/lib/store/paps-memory-store";
 
 vi.mock("next/link", () => ({
-  default: ({ children, href, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & {
+  default: ({
+    children,
+    href,
+    prefetch: _prefetch,
+    ...props
+  }: React.AnchorHTMLAttributes<HTMLAnchorElement> & {
     href: string;
+    prefetch?: boolean;
   }) => (
     <a href={href} {...props}>
       {children}

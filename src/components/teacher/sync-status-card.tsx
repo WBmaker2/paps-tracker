@@ -3,6 +3,7 @@
 import React, { useState, useTransition } from "react";
 
 import type { PAPSSyncState } from "../../lib/paps/types";
+import { notifyTeacherDataRefresh } from "./teacher-data-refresh";
 
 const STATUS_LABELS: Record<PAPSSyncState, string> = {
   pending: "대기 중",
@@ -60,6 +61,7 @@ export function SyncStatusCard({
         setCurrentStatus(payload.syncStatus.status);
         setCurrentUpdatedAt(payload.syncStatus.updatedAt);
         setFeedback("재동기화를 다시 대기열에 넣었습니다.");
+        notifyTeacherDataRefresh();
       } catch (error) {
         setFeedback(error instanceof Error ? error.message : "재동기화 요청에 실패했습니다.");
       }
@@ -97,6 +99,7 @@ export function SyncStatusCard({
 
         setRebuildNeeded(false);
         setFeedback("학생요약과 공식평가요약을 다시 정리했습니다.");
+        notifyTeacherDataRefresh();
       } catch (error) {
         if (error && typeof error === "object" && "rebuildNeeded" in error) {
           setRebuildNeeded(Boolean((error as { rebuildNeeded?: boolean }).rebuildNeeded));

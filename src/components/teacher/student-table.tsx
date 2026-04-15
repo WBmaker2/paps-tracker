@@ -2,18 +2,22 @@
 
 import React, { useState, useTransition } from "react";
 
+import type { TeacherSheetStatus } from "../../lib/google/sheet-connection-status";
 import type { PAPSClassroom, PAPSStudent } from "../../lib/paps/types";
+import { notifyTeacherDataRefresh } from "./teacher-data-refresh";
 
 export function StudentTable({
   students,
   classes,
   schoolId,
-  sheetConnected = true
+  sheetConnected = true,
+  sheetStatus
 }: {
   students: PAPSStudent[];
   classes: PAPSClassroom[];
   schoolId?: string;
   sheetConnected?: boolean;
+  sheetStatus?: TeacherSheetStatus;
 }) {
   const [items, setItems] = useState(students);
   const [name, setName] = useState("");
@@ -25,7 +29,7 @@ export function StudentTable({
 
   const submitStudent = () => {
     if (!sheetConnected) {
-      setMessage("구글 시트를 먼저 연결해주세요.");
+      setMessage(sheetStatus?.summary ?? "구글 시트를 먼저 연결해주세요.");
       return;
     }
 
@@ -64,6 +68,7 @@ export function StudentTable({
         setItems((currentItems) => [...currentItems, payload.student!]);
         setMessage("학생 명단을 저장했습니다.");
         setName("");
+        notifyTeacherDataRefresh();
       } catch (error) {
         setMessage(error instanceof Error ? error.message : "학생을 저장하지 못했습니다.");
       }
@@ -76,6 +81,11 @@ export function StudentTable({
         <h2 className="text-lg font-semibold">학생 명단</h2>
         <p className="text-sm text-ink/70">반별 학생을 추가하고 현재 로스터를 확인합니다.</p>
       </div>
+      {!sheetConnected ? (
+        <div className="mb-4 rounded-2xl border border-amber-300/70 bg-amber-50 px-4 py-3 text-sm text-ink/80">
+          {sheetStatus?.summary ?? "구글 시트를 먼저 연결해주세요."}
+        </div>
+      ) : null}
       <div className="grid gap-3 md:grid-cols-4">
         <label className="flex flex-col gap-2 text-sm">
           학생 이름

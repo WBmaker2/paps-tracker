@@ -490,7 +490,7 @@ describe("Google Sheet routes", () => {
     vi.clearAllMocks();
   });
 
-  it("returns prototype tab metadata when validating a sheet URL", async () => {
+  it("surfaces setup readiness when validating a sheet URL without service-account env", async () => {
     const route = await import("../../app/api/google-sheet/validate/route");
     const response = await route.POST(
       jsonRequest("/api/google-sheet/validate", "POST", {
@@ -498,10 +498,12 @@ describe("Google Sheet routes", () => {
       })
     );
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(409);
     await expect(response.json()).resolves.toMatchObject({
-      ok: true,
+      ok: false,
+      status: "missing_service_account",
       spreadsheetId: "sheet-123",
+      templateVersion: null,
       prototypeTabs: PAPS_GOOGLE_SHEET_PROTOTYPE_TABS
     });
   });
@@ -511,30 +513,29 @@ describe("Google Sheet routes", () => {
     const response = await route.POST(
       jsonRequest("/api/google-sheet/resync", "POST", {
         spreadsheetUrl: "https://docs.google.com/spreadsheets/d/sheet-123/edit",
-        source: "file-store"
+        source: "file-store",
+        dryRun: true
       })
     );
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
       ok: true,
-      stubbed: true,
-      plan: {
+      dryRun: true,
+      updatedTabs: [],
+      request: {
         spreadsheetId: "sheet-123",
-        source: "file-store",
-        request: {
-          data: expect.arrayContaining([
-            expect.objectContaining({
-              tabName: "설정",
-              values: expect.arrayContaining([
-                PAPS_GOOGLE_SHEET_PROTOTYPE_TABS[0]!.header
-              ])
-            }),
-            expect.objectContaining({
-              tabName: "학생요약"
-            })
-          ])
-        }
+        data: expect.arrayContaining([
+          expect.objectContaining({
+            tabName: "설정",
+            values: expect.arrayContaining([
+              PAPS_GOOGLE_SHEET_PROTOTYPE_TABS[0]!.header
+            ])
+          }),
+          expect.objectContaining({
+            tabName: "학생요약"
+          })
+        ])
       }
     });
   });
