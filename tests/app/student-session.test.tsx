@@ -591,6 +591,28 @@ describe("student session flow", () => {
     expect(screen.getByText("이름을 선택하세요")).toBeInTheDocument();
   });
 
+  it("allows switching to another student from the name list after submit", async () => {
+    await installStudentApiFetch();
+    await renderStudentSessionPage("session-open-single");
+
+    fireEvent.click(screen.getByRole("button", { name: "Kim" }));
+    fireEvent.change(screen.getByLabelText("앉아윗몸앞으로굽히기 기록"), {
+      target: { value: "25" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "기록 제출" }));
+
+    await screen.findByText("Kim 학생 결과");
+
+    fireEvent.click(screen.getByRole("button", { name: "Park" }));
+
+    await waitFor(() => {
+      expect(screen.queryByText("Kim 학생 결과")).not.toBeInTheDocument();
+      expect(screen.queryByText("즉시 결과")).not.toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Park" })).toBeInTheDocument();
+      expect(screen.getByLabelText("앉아윗몸앞으로굽히기 기록")).toBeInTheDocument();
+    });
+  });
+
   it("keeps the input form visible when submit fails", async () => {
     vi.stubGlobal(
       "fetch",
