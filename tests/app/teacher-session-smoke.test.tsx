@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { PAPSDemoStoreData } from "../../src/lib/paps/types";
+import type { PAPSDemoStoreData, PAPSSession } from "../../src/lib/paps/types";
 import { resetRequestStore, getRequestStore } from "../../src/lib/store/paps-memory-store";
 
 vi.mock("next/link", () => ({
@@ -306,5 +306,51 @@ describe("teacher session smoke flow", () => {
 
     expect(splitEventOptions).toContain("왕복오래달리기");
     expect(screen.queryByLabelText("보조 종목")).not.toBeInTheDocument();
+  });
+
+  it("shows one unified session list card with consistent session detail text", async () => {
+    const { AppShell } = await import("../../src/components/layout/app-shell");
+    const { TeacherSessionWorkspace } = await import("../../src/components/teacher/session-form");
+
+    const sessions: PAPSSession[] = [
+      {
+        id: "session-1",
+        schoolId: "demo-school",
+        teacherId: "demo-teacher",
+        academicYear: 2026,
+        name: "3월",
+        gradeLevel: 3,
+        sessionType: "official",
+        classScope: "split",
+        eventId: "standing-long-jump",
+        classTargets: [
+          { classId: "demo-class-3-1", eventId: "standing-long-jump" },
+          { classId: "demo-class-4-1", eventId: "standing-long-jump" }
+        ],
+        isOpen: true,
+        createdAt: "2026-03-23T09:20:00.000Z"
+      }
+    ];
+
+    render(
+      <AppShell
+        title="교사 대시보드"
+        eyebrow="Teacher"
+        description="세션 카드 구성을 점검합니다."
+      >
+        <TeacherSessionWorkspace
+          classes={getRequestStore().listClasses()}
+          sessions={sessions}
+          studentSessionUrls={{ "session-1": "/session/session-1" }}
+          defaultTeacherId="demo-teacher"
+          defaultSchoolId="demo-school"
+        />
+      </AppShell>
+    );
+
+    expect(screen.getByText("세션 목록")).toBeInTheDocument();
+    expect(screen.queryByText("최근 세션")).not.toBeInTheDocument();
+    expect(screen.queryByText("세션 상태")).not.toBeInTheDocument();
+    expect(screen.getByText("2반 분할 · 공식 · 제자리멀리뛰기")).toBeInTheDocument();
   });
 });

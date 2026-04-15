@@ -3,7 +3,6 @@
 import React, { useState } from "react";
 
 import type { TeacherSheetStatus } from "../../lib/google/sheet-connection-status";
-import { getEventDefinition } from "../../lib/paps/catalog";
 import type { PAPSClassroom, PAPSSession } from "../../lib/paps/types";
 import { SessionForm } from "./session-form-card";
 import { SessionStatusList } from "./session-status-list";
@@ -20,39 +19,6 @@ export interface TeacherSessionWorkspaceProps {
   sheetStatus?: TeacherSheetStatus;
 }
 
-function RecentSessionsCard({
-  sessions,
-  studentSessionUrls
-}: {
-  sessions: PAPSSession[];
-  studentSessionUrls: Record<string, string>;
-}) {
-  return (
-    <section className="rounded-[1.75rem] border border-ink/10 bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-semibold">최근 세션</h2>
-      <div className="mt-4 space-y-3">
-        {sessions.slice(0, 4).map((session) => (
-          <article key={session.id} className="rounded-2xl border border-ink/10 px-4 py-3">
-            <p className="font-medium">{session.name}</p>
-            <p className="mt-1 text-sm text-ink/65">
-              {session.classScope === "split" ? "2반 분할" : "단일 반"} ·{" "}
-              {getEventDefinition(session.eventId).label}
-            </p>
-            {studentSessionUrls[session.id] ? (
-              <a
-                href={studentSessionUrls[session.id]}
-                className="mt-2 inline-flex text-sm font-medium text-accent underline-offset-2 hover:underline"
-              >
-                학생 입력 열기
-              </a>
-            ) : null}
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 export function TeacherSessionWorkspace({
   classes,
   sessions,
@@ -65,6 +31,9 @@ export function TeacherSessionWorkspace({
 }: TeacherSessionWorkspaceProps) {
   const [sessionItems, setSessionItems] = useState(() => sortSessionsByRecency(sessions));
   const [sessionUrlItems, setSessionUrlItems] = useState(studentSessionUrls ?? {});
+  const listDescription = showRecentSessions
+    ? "최근 생성 순으로 확인하고 열기와 닫기를 바로 전환할 수 있습니다."
+    : "세션을 확인하고 열기와 닫기를 바로 전환할 수 있습니다.";
 
   const handleCreated = (session: PAPSSession, studentSessionUrl?: string | null) => {
     setSessionItems((currentItems) =>
@@ -96,13 +65,12 @@ export function TeacherSessionWorkspace({
         sheetStatus={sheetStatus}
       />
       <div className="space-y-6">
-        {showRecentSessions ? (
-          <RecentSessionsCard sessions={sessionItems} studentSessionUrls={sessionUrlItems} />
-        ) : null}
         <SessionStatusList
           sessions={sessionItems}
           studentSessionUrls={sessionUrlItems}
           onUpdated={handleUpdated}
+          title="세션 목록"
+          description={listDescription}
         />
       </div>
     </div>
