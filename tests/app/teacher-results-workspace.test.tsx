@@ -10,9 +10,11 @@ import type {
 
 vi.mock("../../src/components/teacher/result-table", () => ({
   ResultTable: ({
-    rows
+    rows,
+    onRepresentativeChange
   }: {
     rows: TeacherResultRowView[];
+    onRepresentativeChange?: (recordId: string, representativeAttemptId: string | null) => void;
   }) => (
     <div>
       <p data-testid="result-count">{rows.length}</p>
@@ -21,6 +23,12 @@ vi.mock("../../src/components/teacher/result-table", () => ({
           <li key={row.recordId}>{row.studentName}</li>
         ))}
       </ul>
+      <button
+        type="button"
+        onClick={() => onRepresentativeChange?.("session-practice-1:student-lee", "attempt-99")}
+      >
+        대표값 변경 시뮬레이션
+      </button>
     </div>
   )
 }));
@@ -30,7 +38,41 @@ vi.mock("../../src/components/charts/teacher-progress-chart", () => ({
 }));
 
 vi.mock("../../src/components/teacher/sync-status-card", () => ({
-  SyncStatusCard: ({ status }: { status: string }) => <div>sync:{status}</div>
+  SyncStatusCard: ({
+    status,
+    initialRebuildNeeded,
+    onSyncStatusChange,
+    onSummariesRebuilt
+  }: {
+    status: string;
+    initialRebuildNeeded?: boolean;
+    onSyncStatusChange?: (input: {
+      status: string;
+      updatedAt: string;
+      message: string | null;
+    }) => void;
+    onSummariesRebuilt?: () => void;
+  }) => (
+    <div>
+      <div>sync:{status}</div>
+      {initialRebuildNeeded ? <div>rebuild-needed</div> : null}
+      <button
+        type="button"
+        onClick={() =>
+          onSyncStatusChange?.({
+            status: "pending",
+            updatedAt: "2026-04-15T10:10:00.000Z",
+            message: null
+          })
+        }
+      >
+        재동기화 시뮬레이션
+      </button>
+      <button type="button" onClick={() => onSummariesRebuilt?.()}>
+        요약 재계산 시뮬레이션
+      </button>
+    </div>
+  )
 }));
 
 vi.mock("../../src/components/teacher/summary-exports-card", () => ({
@@ -123,9 +165,9 @@ const syncStateByRecordId: Record<string, TeacherResultSyncView> = {
     message: null
   },
   "session-practice-1:student-lee": {
-    status: "pending",
-    updatedAt: "-",
-    message: null
+    status: "failed",
+    updatedAt: "2026-04-15T10:00:00.000Z",
+    message: "Google Sheets API unavailable"
   }
 };
 
@@ -175,5 +217,49 @@ describe("teacher results workspace", () => {
     expect(screen.getByText("현재 2건 / 전체 2건")).toBeInTheDocument();
     expect(screen.getByText("이하나")).toBeInTheDocument();
     expect(screen.getByText("홍길동")).toBeInTheDocument();
+  });
+
+  it("keeps sidebar sync metadata in local state after sync-related actions", async () => {
+    const { TeacherResultsWorkspace } = await import(
+      "../../src/components/teacher/teacher-results-workspace"
+    );
+
+    render(
+      <TeacherResultsWorkspace
+        rows={[
+          rows[0]!,
+          {
+            ...rows[1]!,
+            duplicateAttemptCount: 1
+          }
+        ]}
+        filterOptions={filterOptions}
+        initialFocusRecordId="session-practice-1:student-lee"
+        syncStateByRecordId={syncStateByRecordId}
+        sheetTabs={[
+          {
+            tabName: "오류로그",
+            header: ["시간"],
+            rows: []
+          }
+        ]}
+        failedSyncCount={1}
+        summariesNote="이 요약표는 현재 화면 필터와 별개로 전체 연결 시트 기준입니다."
+      />
+    );
+
+    expect(screen.getByText("sync:failed")).toBeInTheDocument();
+    expect(screen.getByText("오류로그 1건")).toBeInTheDocument();
+    expect(screen.getByText("rebuild-needed")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "재동기화 시뮬레이션" }));
+
+    expect(screen.getByText("sync:pending")).toBeInTheDocument();
+    expect(screen.getByText("오류로그 0건")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "요약 재계산 시뮬레이션" }));
+
+    expect(screen.queryByText("rebuild-needed")).not.toBeInTheDocument();
+    expect(screen.getByText("방금 학생요약과 공식평가요약을 다시 정리했습니다.")).toBeInTheDocument();
   });
 });

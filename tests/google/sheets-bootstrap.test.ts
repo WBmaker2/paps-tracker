@@ -105,6 +105,10 @@ const createClient = (): GoogleSheetsClient => ({
 
     return [];
   }),
+  readRanges: vi.fn(async (spreadsheetId: string, ranges: string[]) => {
+    const client = createClient();
+    return Promise.all(ranges.map((range) => client.readRange(spreadsheetId, range)));
+  }),
   appendRows: vi.fn(async () => ({})),
   updateRange: vi.fn(async () => ({}))
 });

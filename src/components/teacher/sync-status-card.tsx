@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useEffect, useState, useTransition } from "react";
 
 import type { PAPSSyncState } from "../../lib/paps/types";
-import { notifyTeacherDataRefresh } from "./teacher-data-refresh";
+import type { TeacherResultSyncView } from "../../lib/teacher-results";
+import { buildTeacherMutationHeaders, notifyTeacherDataRefresh } from "./teacher-data-refresh";
 
 const STATUS_LABELS: Record<PAPSSyncState, string> = {
   pending: "대기 중",
@@ -18,7 +19,9 @@ export function SyncStatusCard({
   message,
   rebuildSessionId,
   duplicateAttemptCount = 0,
-  initialRebuildNeeded = false
+  initialRebuildNeeded = false,
+  onSyncStatusChange,
+  onSummariesRebuilt
 }: {
   recordId: string;
   status: PAPSSyncState;
@@ -27,6 +30,8 @@ export function SyncStatusCard({
   rebuildSessionId?: string | null;
   duplicateAttemptCount?: number;
   initialRebuildNeeded?: boolean;
+  onSyncStatusChange?: (sync: TeacherResultSyncView) => void;
+  onSummariesRebuilt?: () => void;
 }) {
   const [currentStatus, setCurrentStatus] = useState(status);
   const [currentUpdatedAt, setCurrentUpdatedAt] = useState(updatedAt);
@@ -34,14 +39,27 @@ export function SyncStatusCard({
   const [rebuildNeeded, setRebuildNeeded] = useState(initialRebuildNeeded);
   const [isPending, startTransition] = useTransition();
 
+  useEffect(() => {
+    setCurrentStatus(status);
+    setCurrentUpdatedAt(updatedAt);
+  }, [recordId, status, updatedAt]);
+
+  useEffect(() => {
+    setFeedback(message ?? null);
+  }, [message, recordId]);
+
+  useEffect(() => {
+    setRebuildNeeded(initialRebuildNeeded);
+  }, [initialRebuildNeeded, recordId]);
+
   const requeueSync = () => {
     startTransition(async () => {
       try {
         const response = await fetch(`/api/records/${recordId}/representative`, {
           method: "PATCH",
-          headers: {
+          headers: buildTeacherMutationHeaders({
             "content-type": "application/json"
-          },
+          }),
           body: JSON.stringify({
             intent: "requeue-sync"
           })
@@ -52,6 +70,7 @@ export function SyncStatusCard({
             status: PAPSSyncState;
             updatedAt: string;
           };
+          teacherStateVersion?: string;
         };
 
         if (!response.ok || !payload.syncStatus) {
@@ -61,7 +80,15 @@ export function SyncStatusCard({
         setCurrentStatus(payload.syncStatus.status);
         setCurrentUpdatedAt(payload.syncStatus.updatedAt);
         setFeedback("재동기화를 다시 대기열에 넣었습니다.");
-        notifyTeacherDataRefresh();
+        onSyncStatusChange?.({
+          status: payload.syncStatus.status,
+          updatedAt: payload.syncStatus.updatedAt,
+          message: null
+        });
+        notifyTeacherDataRefresh({
+          refresh: false,
+          nextVersion: payload.teacherStateVersion ?? null
+        });
       } catch (error) {
         setFeedback(error instanceof Error ? error.message : "재동기화 요청에 실패했습니다.");
       }
@@ -77,9 +104,9 @@ export function SyncStatusCard({
       try {
         const response = await fetch("/api/results/rebuild", {
           method: "POST",
-          headers: {
+          headers: buildTeacherMutationHeaders({
             "content-type": "application/json"
-          },
+          }),
           body: JSON.stringify({
             sessionId: rebuildSessionId
           })
@@ -99,7 +126,7 @@ export function SyncStatusCard({
 
         setRebuildNeeded(false);
         setFeedback("학생요약과 공식평가요약을 다시 정리했습니다.");
-        notifyTeacherDataRefresh();
+        onSummariesRebuilt?.();
       } catch (error) {
         if (error && typeof error === "object" && "rebuildNeeded" in error) {
           setRebuildNeeded(Boolean((error as { rebuildNeeded?: boolean }).rebuildNeeded));

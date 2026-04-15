@@ -11,6 +11,7 @@ export type TeacherLiveUpdateEvent = {
   type: "teacher-data-changed";
   source: TeacherLiveUpdateSource;
   emittedAt: string;
+  originClientId: string | null;
 };
 
 type TeacherLiveUpdateListener = (event: TeacherLiveUpdateEvent) => void;
@@ -69,11 +70,13 @@ export const subscribeTeacherLiveUpdate = (
 export const publishTeacherLiveUpdate = ({
   teacherEmail,
   source,
-  emittedAt = new Date().toISOString()
+  emittedAt = new Date().toISOString(),
+  originClientId = null
 }: {
   teacherEmail: string;
   source: TeacherLiveUpdateSource;
   emittedAt?: string;
+  originClientId?: string | null;
 }) => {
   const listeners = getTeacherLiveUpdateChannels().get(normalizeTeacherChannel(teacherEmail));
 
@@ -84,7 +87,8 @@ export const publishTeacherLiveUpdate = ({
   const event: TeacherLiveUpdateEvent = {
     type: "teacher-data-changed",
     source,
-    emittedAt
+    emittedAt,
+    originClientId
   };
 
   for (const listener of Array.from(listeners)) {

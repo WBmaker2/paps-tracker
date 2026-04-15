@@ -10,6 +10,7 @@ import {
   forbiddenTeacherRouteResponse,
   getAuthorizedTeacherRouteContext
 } from "../../../../src/lib/teacher-route-context";
+import { TEACHER_LIVE_UPDATE_CLIENT_HEADER } from "../../../../src/lib/teacher-live-update-protocol";
 import { publishTeacherLiveUpdate } from "../../../../src/lib/teacher-live-updates";
 
 export async function POST(request: NextRequest) {
@@ -45,7 +46,8 @@ export async function POST(request: NextRequest) {
 
     publishTeacherLiveUpdate({
       teacherEmail: teacherSession.session.email,
-      source: "summary"
+      source: "summary",
+      originClientId: request.headers.get(TEACHER_LIVE_UPDATE_CLIENT_HEADER)
     });
 
     return NextResponse.json(result);

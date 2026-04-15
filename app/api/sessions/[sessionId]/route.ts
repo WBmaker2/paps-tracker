@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { createTeacherRuntimeStoreForRequest, type TeacherCrudStore } from "../../../../src/lib/google/sheets-store";
+import { TEACHER_LIVE_UPDATE_CLIENT_HEADER } from "../../../../src/lib/teacher-live-update-protocol";
 import { publishTeacherLiveUpdate } from "../../../../src/lib/teacher-live-updates";
 import { requireTeacherRouteSession } from "../../../../src/lib/teacher-auth";
 import type { AuthorizedTeacherRouteContext } from "../../../../src/lib/teacher-route-context";
@@ -8,6 +9,7 @@ import {
   forbiddenTeacherRouteResponse,
   getAuthorizedTeacherRouteContext
 } from "../../../../src/lib/teacher-route-context";
+import { buildTeacherStateVersion } from "../../../../src/lib/google/sheet-state-version";
 import type { EventId, GradeLevel, PAPSSession, SessionType } from "../../../../src/lib/paps/types";
 
 const parseOptionalGradeLevel = (value: unknown, fallback: GradeLevel): GradeLevel => {
@@ -59,6 +61,7 @@ const getOwnedSession = (
 ): Promise<{
   store: TeacherCrudStore;
   teacher: AuthorizedTeacherRouteContext<TeacherCrudStore>["teacher"];
+  bootstrap: AuthorizedTeacherRouteContext<TeacherCrudStore>["bootstrap"];
   session: PAPSSession;
 }> => {
   return getAuthorizedTeacherRouteContext({
@@ -66,7 +69,7 @@ const getOwnedSession = (
     teacherEmail,
     createStore: createTeacherRuntimeStoreForRequest
   }).then(async (context) => {
-    const { store, teacher } = context;
+    const { store, teacher, bootstrap } = context;
     const session = await store.getSession(sessionId);
 
     if (session.schoolId !== teacher.schoolId) {
@@ -76,6 +79,7 @@ const getOwnedSession = (
     return {
       store,
       teacher,
+      bootstrap,
       session
     };
   });
@@ -169,7 +173,11 @@ export async function PATCH(request: NextRequest, context: SessionRouteContext) 
   const { sessionId } = await context.params;
 
   try {
-    const { store, teacher, session } = await getOwnedSession(request, teacherSession.session.email, sessionId);
+    const { store, teacher, bootstrap, session } = await getOwnedSession(
+      request,
+      teacherSession.session.email,
+      sessionId
+    );
     const bodyRecord = (body ?? {}) as Record<string, unknown>;
 
     if (
@@ -190,14 +198,22 @@ export async function PATCH(request: NextRequest, context: SessionRouteContext) 
     const updatedSession = await store.saveSession(
       mergeSession(session, bodyRecord)
     );
+    const teacherStateVersion = buildTeacherStateVersion({
+      ...bootstrap,
+      sessions: bootstrap.sessions.map((entry) =>
+        entry.id === updatedSession.id ? updatedSession : entry
+      )
+    });
 
     const response = NextResponse.json({
-      session: updatedSession
+      session: updatedSession,
+      teacherStateVersion
     });
 
     publishTeacherLiveUpdate({
       teacherEmail: teacherSession.session.email,
-      source: "session"
+      source: "session",
+      originClientId: request.headers.get(TEACHER_LIVE_UPDATE_CLIENT_HEADER)
     });
 
     return response;

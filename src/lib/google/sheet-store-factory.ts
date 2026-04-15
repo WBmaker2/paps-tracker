@@ -15,7 +15,8 @@ import type {
 } from "../store/paps-store-types";
 import {
   buildStructuredStateFromSheet,
-  buildTeacherBootstrapFromSheet
+  toTeacherBootstrapFromStructuredState,
+  type GoogleSheetStructuredState
 } from "./sheets-bootstrap";
 import { GOOGLE_SHEET_SERVICE_ACCOUNT_ERROR } from "./sheet-connection-status";
 import {
@@ -70,23 +71,22 @@ export const createGoogleSheetsStoreForRequest = async (
   input: CreateGoogleSheetsStoreForRequestInput
 ): Promise<TeacherSheetsStore> => {
   const client = input.client ?? createGoogleSheetClientFromEnv();
+  let statePromise: Promise<GoogleSheetStructuredState> | null = null;
+
+  const getState = async () => {
+    statePromise ??= readGoogleSheetState({
+      ...input,
+      client
+    });
+
+    return statePromise;
+  };
 
   const getTeacherBootstrap = async ({
     teacherEmail
   }: {
     teacherEmail: string;
-  }): Promise<TeacherBootstrap> =>
-    buildTeacherBootstrapFromSheet({
-      client,
-      spreadsheetId: input.spreadsheetId,
-      teacherEmail
-    });
-
-  const getState = async () =>
-    readGoogleSheetState({
-      ...input,
-      client
-    });
+  }): Promise<TeacherBootstrap> => toTeacherBootstrapFromStructuredState(await getState(), teacherEmail);
 
   const saveSchool = async (school: PAPSSchool): Promise<PAPSSchool> => {
     return saveGoogleSheetSchool({

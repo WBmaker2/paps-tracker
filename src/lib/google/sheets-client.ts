@@ -27,6 +27,11 @@ export interface GoogleSheetsValuesResponse {
   values?: string[][];
 }
 
+export interface GoogleSheetsBatchValuesResponse {
+  spreadsheetId?: string;
+  valueRanges?: GoogleSheetsValuesResponse[];
+}
+
 export interface GoogleSheetsMutationResponse {
   spreadsheetId?: string;
   tableRange?: string;
@@ -90,6 +95,7 @@ export interface GoogleSheetsClientOptions {
 export interface GoogleSheetsClient {
   getSpreadsheet(spreadsheetId: string): Promise<GoogleSpreadsheetMetadata>;
   readRange(spreadsheetId: string, range: string): Promise<string[][]>;
+  readRanges(spreadsheetId: string, ranges: string[]): Promise<string[][][]>;
   appendRows(spreadsheetId: string, range: string, values: GoogleSheetsCellValue[][]): Promise<GoogleSheetsMutationResponse>;
   updateRange(spreadsheetId: string, range: string, values: GoogleSheetsCellValue[][]): Promise<GoogleSheetsMutationResponse>;
 }
@@ -287,6 +293,27 @@ export const createGoogleSheetsClient = (
     );
   };
 
+  const readRanges = async (spreadsheetId: string, ranges: string[]): Promise<string[][][]> => {
+    const searchParams = new URLSearchParams();
+    searchParams.set("majorDimension", "ROWS");
+
+    for (const range of ranges) {
+      searchParams.append("ranges", range);
+    }
+
+    const url = `${API_BASE_URL}/spreadsheets/${spreadsheetId}/values:batchGet?${searchParams.toString()}`;
+
+    return request(
+      url,
+      { method: "GET" },
+      spreadsheetId,
+      async (response) =>
+        ((await response.json()) as GoogleSheetsBatchValuesResponse).valueRanges?.map((valueRange) =>
+          normalizeSheetResponse(valueRange)
+        ) ?? []
+    );
+  };
+
   const appendRows = async (
     spreadsheetId: string,
     range: string,
@@ -332,6 +359,7 @@ export const createGoogleSheetsClient = (
   return {
     getSpreadsheet,
     readRange,
+    readRanges,
     appendRows,
     updateRange
   };

@@ -5,7 +5,7 @@ import React, { useEffect, useMemo, useState, useTransition } from "react";
 import type { TeacherSheetStatus } from "../../lib/google/sheet-connection-status";
 import { getEligibleEventDefinitions } from "../../lib/paps/catalog";
 import type { EventId, GradeLevel, PAPSClassroom, PAPSSession } from "../../lib/paps/types";
-import { notifyTeacherDataRefresh } from "./teacher-data-refresh";
+import { buildTeacherMutationHeaders, notifyTeacherDataRefresh } from "./teacher-data-refresh";
 
 export interface SessionFormProps {
   classes: PAPSClassroom[];
@@ -83,9 +83,9 @@ export function SessionForm({
       try {
         const response = await fetch("/api/sessions", {
           method: "POST",
-          headers: {
+          headers: buildTeacherMutationHeaders({
             "content-type": "application/json"
-          },
+          }),
           body: JSON.stringify({
             name,
             gradeLevel,
@@ -104,6 +104,7 @@ export function SessionForm({
           error?: string;
           session?: PAPSSession;
           studentSessionUrl?: string | null;
+          teacherStateVersion?: string;
         };
 
         if (!response.ok || !payload.session) {
@@ -113,7 +114,10 @@ export function SessionForm({
         setFeedback("세션을 저장했습니다.");
         setName("");
         onCreated?.(payload.session, payload.studentSessionUrl ?? null);
-        notifyTeacherDataRefresh();
+        notifyTeacherDataRefresh({
+          refresh: false,
+          nextVersion: payload.teacherStateVersion ?? null
+        });
       } catch (error) {
         setErrorMessage(error instanceof Error ? error.message : "세션을 저장하지 못했습니다.");
       }

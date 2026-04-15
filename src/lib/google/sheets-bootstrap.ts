@@ -47,6 +47,18 @@ const parseSex = (value: string): PAPSStudent["sex"] => (value === "남" ? "male
 
 const parseActive = (value: string): boolean => value !== "N";
 
+const readSheetRanges = async (
+  client: GoogleSheetsClient,
+  spreadsheetId: string,
+  ranges: string[]
+): Promise<string[][][]> => {
+  if ("readRanges" in client && typeof client.readRanges === "function") {
+    return client.readRanges(spreadsheetId, ranges);
+  }
+
+  return Promise.all(ranges.map((range) => client.readRange(spreadsheetId, range)));
+};
+
 const parseStudents = (rows: string[][], classes: PAPSClassroom[], schoolId: string): PAPSStudent[] => {
   const classByIdentity = new Map(
     classes.map((classroom) => [
@@ -86,13 +98,11 @@ export const buildStructuredStateFromSheet = async ({
   spreadsheetId,
   teacherEmail
 }: BuildTeacherBootstrapFromSheetInput): Promise<GoogleSheetStructuredState> => {
-  const [settingsRows, studentRows, recordRows, errorRows, auditRows] = await Promise.all([
-    client.readRange(spreadsheetId, SETTINGS_RANGE),
-    client.readRange(spreadsheetId, STUDENTS_RANGE),
-    client.readRange(spreadsheetId, RECORDS_RANGE),
-    client.readRange(spreadsheetId, ERRORS_RANGE),
-    client.readRange(spreadsheetId, AUDITS_RANGE)
-  ]);
+  const [settingsRows, studentRows, recordRows, errorRows, auditRows] = await readSheetRanges(
+    client,
+    spreadsheetId,
+    [SETTINGS_RANGE, STUDENTS_RANGE, RECORDS_RANGE, ERRORS_RANGE, AUDITS_RANGE]
+  );
   const structuredSettings = parseGoogleSheetStructuredSettings({
     settingsRows,
     spreadsheetId,

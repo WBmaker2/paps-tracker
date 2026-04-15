@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { buildTeacherStateVersion } from "../../src/lib/google/sheet-state-version";
-
-const { requireTeacherRouteSession, loadTeacherPageState } = vi.hoisted(() => ({
+const {
+  requireTeacherRouteSession,
+  createGoogleSheetClientFromEnv,
+  readTeacherSheetVersion
+} = vi.hoisted(() => ({
   requireTeacherRouteSession: vi.fn(),
-  loadTeacherPageState: vi.fn()
+  createGoogleSheetClientFromEnv: vi.fn(),
+  readTeacherSheetVersion: vi.fn()
 }));
 
 vi.mock("../../src/lib/teacher-auth", () => ({
@@ -14,56 +17,12 @@ vi.mock("../../src/lib/teacher-auth", () => ({
 
 vi.mock("../../src/lib/google/sheets-store", () => ({
   PAPS_SPREADSHEET_ID_COOKIE: "paps-spreadsheet-id",
-  loadTeacherPageState
+  createGoogleSheetClientFromEnv
 }));
 
-const connectedState = {
-  store: null,
-  sheetConnected: true,
-  sheetStatus: {
-    code: "connected",
-    isConnected: true,
-    canReconnect: false,
-    summary: "구글 시트가 연결되었습니다.",
-    detail: null
-  },
-  bootstrap: {
-    teacher: {
-      id: "teacher-1",
-      schoolId: "school-1",
-      name: "홍교사",
-      email: "teacher@example.com",
-      createdAt: "2026-04-01T09:00:00.000Z",
-      updatedAt: "2026-04-01T09:00:00.000Z"
-    },
-    school: {
-      id: "school-1",
-      name: "테스트 초등학교",
-      teacherIds: ["teacher-1"],
-      sheetUrl: "https://docs.google.com/spreadsheets/d/sheet-123/edit",
-      createdAt: "2026-04-01T09:00:00.000Z",
-      updatedAt: "2026-04-01T09:00:00.000Z"
-    },
-    schools: [],
-    classes: [],
-    teachers: [
-      {
-        id: "teacher-1",
-        schoolId: "school-1",
-        name: "홍교사",
-        email: "teacher@example.com",
-        createdAt: "2026-04-01T09:00:00.000Z",
-        updatedAt: "2026-04-01T09:00:00.000Z"
-      }
-    ],
-    students: [],
-    sessions: [],
-    attempts: [],
-    syncStatuses: [],
-    syncErrorLogs: [],
-    representativeSelectionAuditLogs: []
-  }
-};
+vi.mock("../../src/lib/google/sheet-state-version", () => ({
+  readTeacherSheetVersion
+}));
 
 describe("teacher state version route", () => {
   afterEach(() => {
@@ -92,7 +51,12 @@ describe("teacher state version route", () => {
         image: null
       }
     });
-    loadTeacherPageState.mockResolvedValueOnce(connectedState);
+    createGoogleSheetClientFromEnv.mockReturnValueOnce({ kind: "google-client" });
+    readTeacherSheetVersion.mockResolvedValueOnce({
+      connected: true,
+      version: "version-123",
+      reason: null
+    });
 
     const route = await import("../../app/api/teacher/state-version/route");
     const response = await route.GET(
@@ -107,10 +71,11 @@ describe("teacher state version route", () => {
     expect(response.status).toBe(200);
     expect(body).toMatchObject({
       connected: true,
-      version: buildTeacherStateVersion(connectedState.bootstrap),
+      version: "version-123",
       reason: null
     });
-    expect(loadTeacherPageState).toHaveBeenCalledWith({
+    expect(readTeacherSheetVersion).toHaveBeenCalledWith({
+      client: { kind: "google-client" },
       teacherEmail: "teacher@example.com",
       spreadsheetId: "sheet-live"
     });
@@ -125,23 +90,6 @@ describe("teacher state version route", () => {
         image: null
       }
     });
-    loadTeacherPageState.mockResolvedValueOnce({
-      ...connectedState,
-      sheetConnected: false,
-      sheetStatus: {
-        code: "not_connected",
-        isConnected: false,
-        canReconnect: true,
-        summary: "연결된 구글 시트가 없습니다.",
-        detail: "설정 화면에서 템플릿 사본을 만들고 시트 URL을 저장해 주세요."
-      },
-      bootstrap: {
-        ...connectedState.bootstrap,
-        teacher: null,
-        school: null
-      }
-    });
-
     const route = await import("../../app/api/teacher/state-version/route");
     const response = await route.GET(new NextRequest("http://localhost/api/teacher/state-version"));
     const body = await response.json();
@@ -151,6 +99,40 @@ describe("teacher state version route", () => {
       connected: false,
       version: null,
       reason: "not_connected"
+    });
+  });
+
+  it("returns a disconnected payload when the sheet version reader reports unauthorized teacher access", async () => {
+    requireTeacherRouteSession.mockResolvedValueOnce({
+      ok: true,
+      session: {
+        email: "teacher@example.com",
+        name: "홍교사",
+        image: null
+      }
+    });
+    createGoogleSheetClientFromEnv.mockReturnValueOnce({ kind: "google-client" });
+    readTeacherSheetVersion.mockResolvedValueOnce({
+      connected: false,
+      version: null,
+      reason: "teacher_not_authorized"
+    });
+
+    const route = await import("../../app/api/teacher/state-version/route");
+    const response = await route.GET(
+      new NextRequest("http://localhost/api/teacher/state-version", {
+        headers: {
+          cookie: "paps-spreadsheet-id=sheet-live"
+        }
+      })
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      connected: false,
+      version: null,
+      reason: "teacher_not_authorized"
     });
   });
 });

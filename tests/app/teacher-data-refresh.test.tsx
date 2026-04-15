@@ -91,7 +91,7 @@ describe("teacher data refresh bridge", () => {
 
     await flushEffects();
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(0);
     expect(refresh).not.toHaveBeenCalled();
   });
 
@@ -99,14 +99,6 @@ describe("teacher data refresh bridge", () => {
     vi.useFakeTimers();
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(
-        Response.json({
-          connected: true,
-          version: "version-1",
-          checkedAt: "2026-04-15T09:00:00.000Z",
-          reason: null
-        })
-      )
       .mockResolvedValueOnce(
         Response.json({
           connected: true,
@@ -122,7 +114,7 @@ describe("teacher data refresh bridge", () => {
     render(<TeacherDataRefresh initialVersion="version-1" pollIntervalMs={5000} />);
 
     await flushEffects();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(0);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5000);
@@ -197,36 +189,53 @@ describe("teacher data refresh bridge", () => {
 
     render(<TeacherDataRefresh initialVersion="version-1" pollIntervalMs={5000} />);
 
-    await flushEffects();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-
     notifyTeacherDataRefresh();
 
     await flushEffects();
 
     expect(refresh).toHaveBeenCalledTimes(1);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("updates the local version baseline without refreshing when a mutation provides the next version", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn().mockResolvedValue(
+      Response.json({
+        connected: true,
+        version: "version-2",
+        checkedAt: "2026-04-15T09:00:05.000Z",
+        reason: null
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { TeacherDataRefresh, notifyTeacherDataRefresh } = await import(
+      "../../src/components/teacher/teacher-data-refresh"
+    );
+
+    render(<TeacherDataRefresh initialVersion="version-1" pollIntervalMs={5000} />);
+
+    notifyTeacherDataRefresh({
+      refresh: false,
+      nextVersion: "version-2"
+    });
+
+    await flushEffects();
+
+    expect(refresh).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+
+    await flushEffects();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(refresh).not.toHaveBeenCalled();
   });
 
   it("subscribes to the teacher SSE stream and refreshes when the server broadcasts a change", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        Response.json({
-          connected: true,
-          version: "version-1",
-          checkedAt: "2026-04-15T09:00:00.000Z",
-          reason: null
-        })
-      )
-      .mockResolvedValueOnce(
-        Response.json({
-          connected: true,
-          version: "version-2",
-          checkedAt: "2026-04-15T09:00:05.000Z",
-          reason: null
-        })
-      );
+    const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     vi.stubGlobal("EventSource", MockEventSource as unknown as typeof EventSource);
 
@@ -246,7 +255,32 @@ describe("teacher data refresh bridge", () => {
     await flushEffects();
 
     expect(refresh).toHaveBeenCalledTimes(1);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("ignores SSE events emitted by the same browser tab", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("EventSource", MockEventSource as unknown as typeof EventSource);
+
+    const {
+      TeacherDataRefresh,
+      getTeacherLiveUpdateClientId
+    } = await import("../../src/components/teacher/teacher-data-refresh");
+
+    render(<TeacherDataRefresh initialVersion="version-1" pollIntervalMs={60000} />);
+
+    await flushEffects();
+
+    MockEventSource.instances[0]!.emit("teacher-data-changed", {
+      source: "session",
+      originClientId: getTeacherLiveUpdateClientId()
+    });
+
+    await flushEffects();
+
+    expect(refresh).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("defers SSE-triggered refresh while the tab is hidden until visibility returns", async () => {
@@ -289,6 +323,6 @@ describe("teacher data refresh bridge", () => {
     await flushEffects();
 
     expect(refresh).toHaveBeenCalledTimes(1);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(0);
   });
 });

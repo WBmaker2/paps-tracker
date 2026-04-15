@@ -15,6 +15,9 @@ export interface TeacherResultsSidebarProps {
   sheetTabs: GoogleSheetTabPayload[];
   failedSyncCount: number;
   summariesNote?: string;
+  rebuildNeeded?: boolean;
+  onSyncStatusChange?: (sync: TeacherResultSyncView) => void;
+  onSummariesRebuilt?: () => void;
 }
 
 export function TeacherResultsSidebar({
@@ -22,7 +25,10 @@ export function TeacherResultsSidebar({
   focusedSync,
   sheetTabs,
   failedSyncCount,
-  summariesNote
+  summariesNote,
+  rebuildNeeded = false,
+  onSyncStatusChange,
+  onSummariesRebuilt
 }: TeacherResultsSidebarProps) {
   return (
     <div className="space-y-6">
@@ -39,7 +45,9 @@ export function TeacherResultsSidebar({
           message={focusedSync.message}
           rebuildSessionId={focusedRow.sessionId}
           duplicateAttemptCount={focusedRow.duplicateAttemptCount}
-          initialRebuildNeeded={focusedRow.duplicateAttemptCount > 0}
+          initialRebuildNeeded={rebuildNeeded}
+          onSyncStatusChange={onSyncStatusChange}
+          onSummariesRebuilt={onSummariesRebuilt}
         />
       ) : null}
       {sheetTabs.length > 0 ? (

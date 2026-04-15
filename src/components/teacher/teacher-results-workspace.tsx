@@ -54,10 +54,10 @@ export function TeacherResultsWorkspace({
   rows: initialRows,
   filterOptions,
   initialFocusRecordId,
-  syncStateByRecordId,
+  syncStateByRecordId: initialSyncStateByRecordId,
   sheetTabs,
-  failedSyncCount,
-  summariesNote
+  failedSyncCount: initialFailedSyncCount,
+  summariesNote: initialSummariesNote
 }: Pick<
   TeacherResultsViewModel,
   "rows" | "filterOptions" | "initialFocusRecordId" | "syncStateByRecordId" | "summariesNote"
@@ -66,13 +66,35 @@ export function TeacherResultsWorkspace({
   failedSyncCount: number;
 }) {
   const [rows, setRows] = useState(initialRows);
+  const [syncStateByRecordId, setSyncStateByRecordId] =
+    useState<Record<string, TeacherResultSyncView>>(initialSyncStateByRecordId);
+  const [summariesNote, setSummariesNote] = useState(initialSummariesNote);
   const [filterState, setFilterState] = useState<TeacherResultsFilterState>(createDefaultFilterState);
   const [focusedRecordId, setFocusedRecordId] = useState<string | null>(initialFocusRecordId);
+
+  useEffect(() => {
+    setRows(initialRows);
+  }, [initialRows]);
+
+  useEffect(() => {
+    setSyncStateByRecordId(initialSyncStateByRecordId);
+  }, [initialSyncStateByRecordId]);
+
+  useEffect(() => {
+    setSummariesNote(initialSummariesNote);
+  }, [initialSummariesNote]);
 
   const filteredRows = useMemo(
     () => filterTeacherResultRows(rows, filterState),
     [rows, filterState]
   );
+  const failedSyncCount = useMemo(() => {
+    const derivedCount = Object.values(syncStateByRecordId).filter(
+      (entry) => entry.status === "failed"
+    ).length;
+
+    return derivedCount || (Object.keys(syncStateByRecordId).length === 0 ? initialFailedSyncCount : 0);
+  }, [initialFailedSyncCount, syncStateByRecordId]);
 
   useEffect(() => {
     if (filteredRows.length === 0) {
@@ -137,6 +159,34 @@ export function TeacherResultsWorkspace({
         sheetTabs={sheetTabs}
         failedSyncCount={failedSyncCount}
         summariesNote={summariesNote}
+        rebuildNeeded={Boolean(focusedRow?.duplicateAttemptCount)}
+        onSyncStatusChange={(nextSync) => {
+          if (!focusedRow) {
+            return;
+          }
+
+          setSyncStateByRecordId((currentState) => ({
+            ...currentState,
+            [focusedRow.recordId]: nextSync
+          }));
+        }}
+        onSummariesRebuilt={() => {
+          if (!focusedRow) {
+            return;
+          }
+
+          setRows((currentRows) =>
+            currentRows.map((row) =>
+              row.sessionId === focusedRow.sessionId
+                ? {
+                    ...row,
+                    duplicateAttemptCount: 0
+                  }
+                : row
+            )
+          );
+          setSummariesNote("방금 학생요약과 공식평가요약을 다시 정리했습니다.");
+        }}
       />
     </div>
   );

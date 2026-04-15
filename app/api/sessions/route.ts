@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { createTeacherRuntimeStoreForRequest, type TeacherCrudStore } from "../../../src/lib/google/sheets-store";
 import { PAPS_SPREADSHEET_ID_COOKIE } from "../../../src/lib/google/sheets-store";
+import { TEACHER_LIVE_UPDATE_CLIENT_HEADER } from "../../../src/lib/teacher-live-update-protocol";
 import { publishTeacherLiveUpdate } from "../../../src/lib/teacher-live-updates";
 import { requireTeacherRouteSession } from "../../../src/lib/teacher-auth";
 import type { AuthorizedTeacherRouteContext } from "../../../src/lib/teacher-route-context";
@@ -11,6 +12,7 @@ import {
   forbiddenTeacherRouteResponse,
   getAuthorizedTeacherRouteContext
 } from "../../../src/lib/teacher-route-context";
+import { buildTeacherStateVersion } from "../../../src/lib/google/sheet-state-version";
 import type { EventId, GradeLevel, PAPSSession, PAPSTeacher, SessionType } from "../../../src/lib/paps/types";
 import { createStudentSessionUrl } from "../../../src/lib/student-session-access";
 
@@ -179,6 +181,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
 
   try {
+    const originClientId = request.headers.get(TEACHER_LIVE_UPDATE_CLIENT_HEADER);
     const context = await getAuthorizedTeacherRouteContext({
       request,
       teacherEmail: teacherSession.session.email,
@@ -188,11 +191,16 @@ export async function POST(request: NextRequest) {
     const session = await store.saveSession(
       await toSessionInput((body ?? {}) as Record<string, unknown>, context)
     );
+    const teacherStateVersion = buildTeacherStateVersion({
+      ...context.bootstrap,
+      sessions: [...context.bootstrap.sessions.filter((entry) => entry.id !== session.id), session]
+    });
     const spreadsheetId = request.cookies.get(PAPS_SPREADSHEET_ID_COOKIE)?.value ?? null;
 
     const response = NextResponse.json(
       {
         session,
+        teacherStateVersion,
         studentSessionUrl:
           spreadsheetId && process.env.NODE_ENV === "production"
             ? createStudentSessionUrl({
@@ -208,7 +216,8 @@ export async function POST(request: NextRequest) {
 
     publishTeacherLiveUpdate({
       teacherEmail: teacherSession.session.email,
-      source: "session"
+      source: "session",
+      originClientId
     });
 
     return response;

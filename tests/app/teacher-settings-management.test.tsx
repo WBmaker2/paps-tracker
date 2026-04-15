@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PAPSDemoStoreData } from "../../src/lib/paps/types";
 import { GoogleSheetsAccessError } from "../../src/lib/google/sheets-client";
 
+const notifyTeacherDataRefresh = vi.fn();
+
 vi.mock("next/link", () => ({
   default: ({
     children,
@@ -123,6 +125,11 @@ vi.mock("../../src/lib/google/sheets-client", async (importOriginal) => {
   };
 });
 
+vi.mock("../../src/components/teacher/teacher-data-refresh", () => ({
+  buildTeacherMutationHeaders: (headers?: HeadersInit) => new Headers(headers),
+  notifyTeacherDataRefresh
+}));
+
 const buildSeed = (): PAPSDemoStoreData => ({
   version: 1,
   schools: [
@@ -178,6 +185,7 @@ const importRequestStore = () => import("../../src/lib/store/paps-memory-store")
 describe("teacher settings management", () => {
   beforeEach(async () => {
     vi.resetModules();
+    notifyTeacherDataRefresh.mockReset();
     process.env.GOOGLE_SHEETS_TEMPLATE_ID = "template-sheet-id";
     process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL = "service-account@example.com";
     process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY =
@@ -277,6 +285,7 @@ describe("teacher settings management", () => {
     fireEvent.click(screen.getByRole("button", { name: "학교 정보 저장" }));
 
     await screen.findByText("학교 정보를 저장했습니다.");
+    expect(notifyTeacherDataRefresh).not.toHaveBeenCalled();
 
     fireEvent.change(screen.getByLabelText("새 학급 학년"), {
       target: { value: "6" }
@@ -287,6 +296,10 @@ describe("teacher settings management", () => {
     fireEvent.click(screen.getByRole("button", { name: "학급 추가" }));
 
     await screen.findByText("학급을 추가했습니다.");
+    expect(notifyTeacherDataRefresh).toHaveBeenCalledWith({
+      refresh: false,
+      nextVersion: expect.any(String)
+    });
 
     await waitFor(() => {
       const reloadedStore = store;

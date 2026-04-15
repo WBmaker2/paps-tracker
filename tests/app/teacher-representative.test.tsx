@@ -241,7 +241,8 @@ vi.mock("../../src/lib/teacher-auth", () => ({
 
 vi.mock("../../src/components/teacher/teacher-data-refresh", () => ({
   TeacherDataRefresh: () => null,
-  notifyTeacherDataRefresh: vi.fn()
+  notifyTeacherDataRefresh: vi.fn(),
+  buildTeacherMutationHeaders: (headers?: HeadersInit) => new Headers(headers)
 }));
 
 const buildTeacherSeed = (): PAPSDemoStoreData => ({

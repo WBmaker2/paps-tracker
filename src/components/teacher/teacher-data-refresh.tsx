@@ -3,10 +3,14 @@
 import React, { useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 
+import { TEACHER_LIVE_UPDATE_CLIENT_HEADER } from "../../lib/teacher-live-update-protocol";
+import type { TeacherLiveUpdateEvent } from "../../lib/teacher-live-updates";
+
 export const TEACHER_DATA_REFRESH_EVENT = "paps:teacher-data-refresh";
 const DEFAULT_VERSION_ENDPOINT = "/api/teacher/state-version";
 const DEFAULT_EVENT_STREAM_ENDPOINT = "/api/teacher/events";
 const REFRESH_THROTTLE_MS = 750;
+const TEACHER_CLIENT_ID_STORAGE_KEY = "paps:teacher-live-update-client-id";
 
 type TeacherDataRefreshPayload = {
   connected: boolean;
@@ -15,12 +19,60 @@ type TeacherDataRefreshPayload = {
   reason?: string | null;
 };
 
-export const notifyTeacherDataRefresh = () => {
+type TeacherDataRefreshEventDetail = {
+  refresh?: boolean;
+  nextVersion?: string | null;
+};
+
+export const notifyTeacherDataRefresh = (detail: TeacherDataRefreshEventDetail = {}) => {
   if (typeof window === "undefined") {
     return;
   }
 
-  window.dispatchEvent(new Event(TEACHER_DATA_REFRESH_EVENT));
+  window.dispatchEvent(
+    new CustomEvent<TeacherDataRefreshEventDetail>(TEACHER_DATA_REFRESH_EVENT, {
+      detail
+    })
+  );
+};
+
+const generateTeacherLiveUpdateClientId = () => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  return `teacher-client-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
+
+export const getTeacherLiveUpdateClientId = (): string | null => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const existingClientId = window.sessionStorage.getItem(TEACHER_CLIENT_ID_STORAGE_KEY);
+
+    if (existingClientId) {
+      return existingClientId;
+    }
+
+    const nextClientId = generateTeacherLiveUpdateClientId();
+    window.sessionStorage.setItem(TEACHER_CLIENT_ID_STORAGE_KEY, nextClientId);
+    return nextClientId;
+  } catch {
+    return generateTeacherLiveUpdateClientId();
+  }
+};
+
+export const buildTeacherMutationHeaders = (headers?: HeadersInit): Headers => {
+  const nextHeaders = new Headers(headers);
+  const clientId = getTeacherLiveUpdateClientId();
+
+  if (clientId) {
+    nextHeaders.set(TEACHER_LIVE_UPDATE_CLIENT_HEADER, clientId);
+  }
+
+  return nextHeaders;
 };
 
 export function TeacherDataRefresh({
@@ -39,6 +91,11 @@ export function TeacherDataRefresh({
   const latestVersionRef = useRef<string | null>(initialVersion);
   const inFlightRef = useRef<AbortController | null>(null);
   const pendingServerRefreshRef = useRef(false);
+  const clientIdRef = useRef<string | null>(null);
+
+  if (clientIdRef.current === null) {
+    clientIdRef.current = getTeacherLiveUpdateClientId();
+  }
 
   const refreshRoute = useCallback(() => {
     const now = Date.now();
@@ -112,17 +169,30 @@ export function TeacherDataRefresh({
     }
 
     const eventSource = new EventSource(eventStreamEndpoint);
-    const handleServerRefresh = () => {
+    const handleServerRefresh = (event: Event) => {
+      const messageEvent = event as MessageEvent<string>;
+      const payload = (() => {
+        if (!messageEvent.data) {
+          return null;
+        }
+
+        try {
+          return JSON.parse(messageEvent.data) as TeacherLiveUpdateEvent;
+        } catch {
+          return null;
+        }
+      })();
+
+      if (payload?.originClientId && payload.originClientId === clientIdRef.current) {
+        return;
+      }
+
       if (document.visibilityState !== "visible") {
         pendingServerRefreshRef.current = true;
         return;
       }
 
       refreshRoute();
-      void syncTeacherData({
-        allowHidden: true,
-        refreshOnVersionChange: false
-      });
     };
 
     eventSource.addEventListener("teacher-data-changed", handleServerRefresh);
@@ -131,7 +201,7 @@ export function TeacherDataRefresh({
       eventSource.removeEventListener("teacher-data-changed", handleServerRefresh);
       eventSource.close();
     };
-  }, [eventStreamEndpoint, refreshRoute, syncTeacherData]);
+  }, [eventStreamEndpoint, refreshRoute]);
 
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -139,10 +209,6 @@ export function TeacherDataRefresh({
         if (pendingServerRefreshRef.current) {
           pendingServerRefreshRef.current = false;
           refreshRoute();
-          void syncTeacherData({
-            allowHidden: true,
-            refreshOnVersionChange: false
-          });
           return;
         }
 
@@ -152,15 +218,20 @@ export function TeacherDataRefresh({
     const handleFocus = () => {
       void syncTeacherData();
     };
-    const handleDataRefresh = () => {
-        refreshRoute();
-        void syncTeacherData({
-          allowHidden: true,
-          refreshOnVersionChange: false
-        });
+    const handleDataRefresh = (event: Event) => {
+      const detail = (event as CustomEvent<TeacherDataRefreshEventDetail>).detail;
+
+      if (detail && Object.prototype.hasOwnProperty.call(detail, "nextVersion")) {
+        latestVersionRef.current = detail.nextVersion ?? null;
+      }
+
+      if (detail?.refresh === false) {
+        return;
+      }
+
+      refreshRoute();
     };
 
-    void syncTeacherData();
     window.addEventListener("focus", handleFocus);
     window.addEventListener(TEACHER_DATA_REFRESH_EVENT, handleDataRefresh);
     document.addEventListener("visibilitychange", handleVisibilityChange);

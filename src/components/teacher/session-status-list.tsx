@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useTransition } from "react";
 
 import type { PAPSSession } from "../../lib/paps/types";
-import { notifyTeacherDataRefresh } from "./teacher-data-refresh";
+import { buildTeacherMutationHeaders, notifyTeacherDataRefresh } from "./teacher-data-refresh";
 
 export interface SessionStatusListProps {
   sessions: PAPSSession[];
@@ -31,9 +31,9 @@ export function SessionStatusList({
       try {
         const response = await fetch(`/api/sessions/${session.id}`, {
           method: "PATCH",
-          headers: {
+          headers: buildTeacherMutationHeaders({
             "content-type": "application/json"
-          },
+          }),
           body: JSON.stringify({
             isOpen: !session.isOpen
           })
@@ -41,6 +41,7 @@ export function SessionStatusList({
         const payload = (await response.json()) as {
           error?: string;
           session?: PAPSSession;
+          teacherStateVersion?: string;
         };
 
         if (!response.ok || !payload.session) {
@@ -52,7 +53,10 @@ export function SessionStatusList({
         );
         setMessage("세션 상태를 업데이트했습니다.");
         onUpdated?.(payload.session);
-        notifyTeacherDataRefresh();
+        notifyTeacherDataRefresh({
+          refresh: false,
+          nextVersion: payload.teacherStateVersion ?? null
+        });
       } catch (error) {
         setMessage(error instanceof Error ? error.message : "세션 상태를 변경하지 못했습니다.");
       }

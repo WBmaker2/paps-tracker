@@ -5,7 +5,7 @@ import React, { useEffect, useState, useTransition } from "react";
 import type { GoogleSheetsSetupStatus } from "../../lib/env";
 import type { TeacherSheetStatus } from "../../lib/google/sheet-connection-status";
 import type { PAPSClassroom, PAPSSchool } from "../../lib/paps/types";
-import { notifyTeacherDataRefresh } from "./teacher-data-refresh";
+import { buildTeacherMutationHeaders, notifyTeacherDataRefresh } from "./teacher-data-refresh";
 
 const SCHOOL_SETTINGS_STORAGE_KEY = "paps:teacher-settings:saved-school";
 
@@ -13,6 +13,10 @@ type SavedSchoolSettings = {
   schoolId: string | null;
   schoolName: string;
   sheetUrl: string;
+};
+
+type ManagedClassroomItem = PAPSClassroom & {
+  optimistic?: boolean;
 };
 
 const areSavedSchoolSettingsEqual = (
@@ -90,6 +94,9 @@ const createSavedSchoolSettings = (
   };
 };
 
+const sortClassItems = <T extends { label: string }>(items: T[]): T[] =>
+  items.slice().sort((left, right) => left.label.localeCompare(right.label));
+
 export function TeacherSettingsManager({
   school,
   classes,
@@ -105,7 +112,7 @@ export function TeacherSettingsManager({
 }) {
   const initialSavedSchoolSettings = createSavedSchoolSettings(school) ?? readSavedSchoolSettings();
   const [schoolState, setSchoolState] = useState(school);
-  const [classItems, setClassItems] = useState(classes);
+  const [classItems, setClassItems] = useState<ManagedClassroomItem[]>(() => sortClassItems(classes));
   const [savedSchoolSettings, setSavedSchoolSettings] = useState<SavedSchoolSettings | null>(
     initialSavedSchoolSettings
   );
@@ -125,7 +132,7 @@ export function TeacherSettingsManager({
     sheetUrl !== (savedSchoolSettings?.sheetUrl ?? "");
 
   useEffect(() => {
-    setClassItems(classes);
+    setClassItems(sortClassItems(classes));
   }, [classes]);
 
   useEffect(() => {
@@ -158,9 +165,9 @@ export function TeacherSettingsManager({
       try {
         const response = await fetch("/api/google-sheet/connect", {
           method: "POST",
-          headers: {
+          headers: buildTeacherMutationHeaders({
             "content-type": "application/json"
-          },
+          }),
           body: JSON.stringify({
             url: sheetUrl,
             schoolName
@@ -186,7 +193,6 @@ export function TeacherSettingsManager({
         setSchoolName(nextSavedSchoolSettings?.schoolName ?? "");
         setSheetUrl(nextSavedSchoolSettings?.sheetUrl ?? "");
         setSchoolMessage("학교 정보를 저장했습니다.");
-        notifyTeacherDataRefresh();
       } catch (error) {
         setSchoolMessage(error instanceof Error ? error.message : "학교 정보를 저장하지 못했습니다.");
       }
@@ -238,16 +244,40 @@ export function TeacherSettingsManager({
     }
 
     setClassMessage(null);
+    const gradeLevel = Number(newGradeLevel);
+    const classNumber = Number(newClassNumber);
+
+    if (!Number.isFinite(gradeLevel) || !Number.isFinite(classNumber) || classNumber < 1) {
+      setClassMessage("학년과 반 번호를 올바르게 입력해주세요.");
+      return;
+    }
+
+    const optimisticClassId = `optimistic-${gradeLevel}-${classNumber}-${Date.now()}`;
+    const optimisticClassroom: ManagedClassroomItem = {
+      id: optimisticClassId,
+      schoolId: schoolState.id,
+      academicYear: new Date().getUTCFullYear(),
+      gradeLevel: gradeLevel as PAPSClassroom["gradeLevel"],
+      classNumber,
+      label: `${gradeLevel}-${classNumber}`,
+      active: true,
+      optimistic: true
+    };
+
+    setClassItems((currentItems) =>
+      sortClassItems([
+        ...currentItems.filter((entry) => entry.id !== optimisticClassId),
+        optimisticClassroom
+      ])
+    );
 
     startClassTransition(async () => {
       try {
-        const gradeLevel = Number(newGradeLevel);
-        const classNumber = Number(newClassNumber);
         const response = await fetch("/api/classes", {
           method: "POST",
-          headers: {
+          headers: buildTeacherMutationHeaders({
             "content-type": "application/json"
-          },
+          }),
           body: JSON.stringify({
             schoolId: schoolState.id,
             academicYear: new Date().getUTCFullYear(),
@@ -260,6 +290,7 @@ export function TeacherSettingsManager({
         const payload = (await response.json()) as {
           error?: string;
           classroom?: PAPSClassroom;
+          teacherStateVersion?: string;
         };
 
         if (!response.ok || !payload.classroom) {
@@ -267,12 +298,22 @@ export function TeacherSettingsManager({
         }
 
         setClassItems((currentItems) =>
-          [...currentItems, payload.classroom!].sort((left, right) => left.label.localeCompare(right.label))
+          sortClassItems(
+            currentItems
+              .filter((entry) => entry.id !== optimisticClassId)
+              .concat(payload.classroom!)
+          )
         );
         setClassMessage("학급을 추가했습니다.");
         setNewClassNumber("1");
-        notifyTeacherDataRefresh();
+        notifyTeacherDataRefresh({
+          refresh: false,
+          nextVersion: payload.teacherStateVersion ?? null
+        });
       } catch (error) {
+        setClassItems((currentItems) =>
+          currentItems.filter((entry) => entry.id !== optimisticClassId)
+        );
         setClassMessage(error instanceof Error ? error.message : "학급을 추가하지 못했습니다.");
       }
     });
@@ -478,7 +519,14 @@ export function TeacherSettingsManager({
         <div className="mt-6 grid gap-3 md:grid-cols-2">
           {classItems.map((classroom) => (
             <article key={classroom.id} className="rounded-2xl border border-ink/10 px-4 py-3">
-              <p className="font-medium">{classroom.label}</p>
+              <div className="flex items-start justify-between gap-3">
+                <p className="font-medium">{classroom.label}</p>
+                {classroom.optimistic ? (
+                  <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs text-ink/60">
+                    저장 중
+                  </span>
+                ) : null}
+              </div>
               <p className="mt-1 text-sm text-ink/65">
                 {classroom.gradeLevel}학년 · {classroom.academicYear}학년도
               </p>

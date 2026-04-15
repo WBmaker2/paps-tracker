@@ -22,7 +22,8 @@ describe("teacher live updates", () => {
 
     publishTeacherLiveUpdate({
       teacherEmail: "teacher@example.com",
-      source: "session"
+      source: "session",
+      originClientId: "client-1"
     });
 
     const updateChunk = await reader.read();
@@ -30,6 +31,7 @@ describe("teacher live updates", () => {
 
     expect(payloadText).toContain("event: teacher-data-changed");
     expect(payloadText).toContain('"source":"session"');
+    expect(payloadText).toContain('"originClientId":"client-1"');
 
     await reader.cancel();
   });

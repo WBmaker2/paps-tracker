@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 import { createTeacherRuntimeStoreForRequest, type TeacherCrudStore } from "../../../src/lib/google/sheets-store";
+import { TEACHER_LIVE_UPDATE_CLIENT_HEADER } from "../../../src/lib/teacher-live-update-protocol";
 import { publishTeacherLiveUpdate } from "../../../src/lib/teacher-live-updates";
 import { requireTeacherRouteSession } from "../../../src/lib/teacher-auth";
 import {
@@ -10,6 +11,7 @@ import {
   getAuthorizedTeacherRouteContext,
   notFoundTeacherRouteResponse
 } from "../../../src/lib/teacher-route-context";
+import { buildTeacherStateVersion } from "../../../src/lib/google/sheet-state-version";
 import type { GradeLevel, StudentSex } from "../../../src/lib/paps/types";
 
 const parseGradeLevel = (value: unknown): GradeLevel => {
@@ -83,6 +85,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
 
   try {
+    const originClientId = request.headers.get(TEACHER_LIVE_UPDATE_CLIENT_HEADER);
     const { store, teacher, bootstrap } = await getAuthorizedTeacherRouteContext({
       request,
       teacherEmail: teacherSession.session.email,
@@ -117,10 +120,18 @@ export async function POST(request: NextRequest) {
       gradeLevel: parseGradeLevel(body?.gradeLevel),
       active: body?.active !== false
     });
+    const nextStudents = existingStudent
+      ? bootstrap.students.map((entry) => (entry.id === student.id ? student : entry))
+      : [...bootstrap.students, student];
+    const teacherStateVersion = buildTeacherStateVersion({
+      ...bootstrap,
+      students: nextStudents
+    });
 
     const response = NextResponse.json(
       {
-        student
+        student,
+        teacherStateVersion
       },
       {
         status: 201
@@ -129,7 +140,8 @@ export async function POST(request: NextRequest) {
 
     publishTeacherLiveUpdate({
       teacherEmail: teacherSession.session.email,
-      source: "student"
+      source: "student",
+      originClientId
     });
 
     return response;
@@ -192,7 +204,8 @@ export async function DELETE(request: NextRequest) {
 
   publishTeacherLiveUpdate({
     teacherEmail: teacherSession.session.email,
-    source: "student"
+    source: "student",
+    originClientId: request.headers.get(TEACHER_LIVE_UPDATE_CLIENT_HEADER)
   });
 
   return NextResponse.json({

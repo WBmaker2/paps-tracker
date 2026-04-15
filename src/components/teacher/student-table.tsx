@@ -4,7 +4,7 @@ import React, { useState, useTransition } from "react";
 
 import type { TeacherSheetStatus } from "../../lib/google/sheet-connection-status";
 import type { PAPSClassroom, PAPSStudent } from "../../lib/paps/types";
-import { notifyTeacherDataRefresh } from "./teacher-data-refresh";
+import { buildTeacherMutationHeaders, notifyTeacherDataRefresh } from "./teacher-data-refresh";
 
 export function StudentTable({
   students,
@@ -44,9 +44,9 @@ export function StudentTable({
       try {
         const response = await fetch("/api/students", {
           method: "POST",
-          headers: {
+          headers: buildTeacherMutationHeaders({
             "content-type": "application/json"
-          },
+          }),
           body: JSON.stringify({
             schoolId,
             classId,
@@ -59,6 +59,7 @@ export function StudentTable({
         const payload = (await response.json()) as {
           error?: string;
           student?: PAPSStudent;
+          teacherStateVersion?: string;
         };
 
         if (!response.ok || !payload.student) {
@@ -68,7 +69,10 @@ export function StudentTable({
         setItems((currentItems) => [...currentItems, payload.student!]);
         setMessage("학생 명단을 저장했습니다.");
         setName("");
-        notifyTeacherDataRefresh();
+        notifyTeacherDataRefresh({
+          refresh: false,
+          nextVersion: payload.teacherStateVersion ?? null
+        });
       } catch (error) {
         setMessage(error instanceof Error ? error.message : "학생을 저장하지 못했습니다.");
       }

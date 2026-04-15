@@ -1,6 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { buildTeacherStateVersion } from "../../src/lib/google/sheet-state-version";
+import {
+  buildTeacherSheetRowsVersion,
+  buildTeacherStateVersion,
+  readTeacherSheetVersion
+} from "../../src/lib/google/sheet-state-version";
 import type { TeacherBootstrap } from "../../src/lib/store/paps-store-types";
 
 const createBootstrap = (): TeacherBootstrap => ({
@@ -162,5 +166,55 @@ describe("teacher state version", () => {
     };
 
     expect(buildTeacherStateVersion(updatedBootstrap)).not.toBe(buildTeacherStateVersion(bootstrap));
+  });
+
+  it("builds the same sheet-row version for identical rows", () => {
+    const rowsVersion = buildTeacherSheetRowsVersion({
+      settingsRows: [["학교명", "테스트 초등학교"]],
+      studentRows: [["student-1", "2026", "5", "1", "1", "김철수", "남", "Y", ""]],
+      recordRows: [["attempt-1", "session-1", "student-1"]],
+      errorRows: [],
+      auditRows: []
+    });
+
+    expect(
+      buildTeacherSheetRowsVersion({
+        settingsRows: [["학교명", "테스트 초등학교"]],
+        studentRows: [["student-1", "2026", "5", "1", "1", "김철수", "남", "Y", ""]],
+        recordRows: [["attempt-1", "session-1", "student-1"]],
+        errorRows: [],
+        auditRows: []
+      })
+    ).toBe(rowsVersion);
+  });
+
+  it("marks the sheet disconnected when the teacher email is not authorized in persisted settings", async () => {
+    const client = {
+      readRanges: vi.fn(async () => [
+        [
+          ["학교명", "테스트 초등학교", "", "", "", ""],
+          ["담당교사 이메일", "teacher@example.com", "", "", "", ""],
+          ["__PAPS_SCHOOL", "school-1", "테스트 초등학교", "", "2026-04-01T09:00:00.000Z", "2026-04-01T09:00:00.000Z"],
+          ["__PAPS_TEACHER", "teacher-1", "school-1", "홍교사", "teacher@example.com", ""],
+          ["__PAPS_TEACHER_META", "teacher-1", "2026-04-01T09:00:00.000Z", "2026-04-01T09:00:00.000Z", "", ""]
+        ],
+        [],
+        [],
+        [],
+        []
+      ])
+    };
+
+    await expect(
+      readTeacherSheetVersion({
+        client: client as never,
+        spreadsheetId: "sheet-123",
+        teacherEmail: "outsider@example.com"
+      })
+    ).resolves.toEqual({
+      connected: false,
+      version: null,
+      reason: "teacher_not_authorized"
+    });
   });
 });

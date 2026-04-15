@@ -8,6 +8,7 @@ import {
   createPapsGoogleSheetTabPayloads,
   parseGoogleSheetTabPayloads
 } from "../../../../src/lib/google/sheets";
+import { TEACHER_LIVE_UPDATE_CLIENT_HEADER } from "../../../../src/lib/teacher-live-update-protocol";
 import { publishTeacherLiveUpdate } from "../../../../src/lib/teacher-live-updates";
 import type { PAPSStoredAttempt } from "../../../../src/lib/paps/types";
 import { requireTeacherRouteSession } from "../../../../src/lib/teacher-auth";
@@ -110,7 +111,8 @@ export async function POST(request: NextRequest) {
     if (result.ok && result.dryRun !== true) {
       publishTeacherLiveUpdate({
         teacherEmail: teacherSession.session.email,
-        source: "resync"
+        source: "resync",
+        originClientId: request.headers.get(TEACHER_LIVE_UPDATE_CLIENT_HEADER)
       });
     }
 

@@ -4,7 +4,7 @@ const {
   getGoogleSheetsEnv,
   createGoogleSheetsClient,
   buildStructuredStateFromSheet,
-  buildTeacherBootstrapFromSheet,
+  toTeacherBootstrapFromStructuredState,
   getGoogleSheetClass,
   saveGoogleSheetSchool
 } = vi.hoisted(() => ({
@@ -13,7 +13,7 @@ const {
   buildStructuredStateFromSheet: vi.fn(async () => {
     throw new Error("state mock not configured");
   }),
-  buildTeacherBootstrapFromSheet: vi.fn(async () => {
+  toTeacherBootstrapFromStructuredState: vi.fn(() => {
     throw new Error("bootstrap mock not configured");
   }),
   getGoogleSheetClass: vi.fn(() => {
@@ -34,7 +34,7 @@ vi.mock("../../src/lib/google/sheets-client", () => ({
 
 vi.mock("../../src/lib/google/sheets-bootstrap", () => ({
   buildStructuredStateFromSheet,
-  buildTeacherBootstrapFromSheet
+  toTeacherBootstrapFromStructuredState
 }));
 
 vi.mock("../../src/lib/google/sheet-store-queries", () => ({
@@ -62,7 +62,7 @@ describe("Google Sheet store factory", () => {
     getGoogleSheetsEnv.mockReset();
     createGoogleSheetsClient.mockReset();
     buildStructuredStateFromSheet.mockReset();
-    buildTeacherBootstrapFromSheet.mockReset();
+    toTeacherBootstrapFromStructuredState.mockReset();
     getGoogleSheetClass.mockReset();
     saveGoogleSheetSchool.mockReset();
   });
@@ -101,8 +101,8 @@ describe("Google Sheet store factory", () => {
     const classroom = { id: "class-1" };
     const school = { id: "school-1" };
 
-    buildTeacherBootstrapFromSheet.mockResolvedValue(bootstrap);
     buildStructuredStateFromSheet.mockResolvedValue(state);
+    toTeacherBootstrapFromStructuredState.mockReturnValue(bootstrap);
     getGoogleSheetClass.mockReturnValue(classroom);
     saveGoogleSheetSchool.mockResolvedValue(school);
 
@@ -118,16 +118,12 @@ describe("Google Sheet store factory", () => {
     await expect(store.getClass("class-1")).resolves.toBe(classroom);
     await expect(store.saveSchool(school as never)).resolves.toBe(school);
 
-    expect(buildTeacherBootstrapFromSheet).toHaveBeenCalledWith({
-      client,
-      spreadsheetId: "sheet-123",
-      teacherEmail: "other@example.com"
-    });
     expect(buildStructuredStateFromSheet).toHaveBeenCalledWith({
       client,
       spreadsheetId: "sheet-123",
       teacherEmail: "teacher@example.com"
     });
+    expect(toTeacherBootstrapFromStructuredState).toHaveBeenCalledWith(state, "other@example.com");
     expect(getGoogleSheetClass).toHaveBeenCalledWith(state, "class-1");
     expect(saveGoogleSheetSchool).toHaveBeenCalledWith({
       client,
@@ -135,5 +131,6 @@ describe("Google Sheet store factory", () => {
       state,
       school
     });
+    expect(buildStructuredStateFromSheet).toHaveBeenCalledTimes(1);
   });
 });
