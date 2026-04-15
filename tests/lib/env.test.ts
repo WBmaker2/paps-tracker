@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   getGoogleSheetsSetupStatus,
   getNextAuthSecret,
+  hasStudentTeacherPin,
   hasTeacherAccessConfig,
   isTeacherEmailAllowed
 } from "../../src/lib/env";
@@ -15,6 +16,7 @@ const ORIGINAL_GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY =
   process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
 const ORIGINAL_GOOGLE_HOSTED_DOMAIN = process.env.GOOGLE_HOSTED_DOMAIN;
 const ORIGINAL_TEACHER_EMAIL_ALLOWLIST = process.env.TEACHER_EMAIL_ALLOWLIST;
+const ORIGINAL_STUDENT_TEACHER_PIN = process.env.STUDENT_TEACHER_PIN;
 
 describe("env helpers", () => {
   afterEach(() => {
@@ -55,6 +57,12 @@ describe("env helpers", () => {
       delete process.env.TEACHER_EMAIL_ALLOWLIST;
     } else {
       process.env.TEACHER_EMAIL_ALLOWLIST = ORIGINAL_TEACHER_EMAIL_ALLOWLIST;
+    }
+
+    if (ORIGINAL_STUDENT_TEACHER_PIN === undefined) {
+      delete process.env.STUDENT_TEACHER_PIN;
+    } else {
+      process.env.STUDENT_TEACHER_PIN = ORIGINAL_STUDENT_TEACHER_PIN;
     }
   });
 
@@ -105,6 +113,14 @@ describe("env helpers", () => {
     expect(hasTeacherAccessConfig()).toBe(true);
     expect(isTeacherEmailAllowed("teacher@example.com")).toBe(true);
     expect(isTeacherEmailAllowed("other@example.com")).toBe(false);
+  });
+
+  it("reports whether the student screen teacher return pin is configured", () => {
+    delete process.env.STUDENT_TEACHER_PIN;
+    expect(hasStudentTeacherPin()).toBe(false);
+
+    process.env.STUDENT_TEACHER_PIN = "2468";
+    expect(hasStudentTeacherPin()).toBe(true);
   });
 
   it("reports missing Google Sheets setup keys explicitly", () => {

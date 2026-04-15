@@ -123,6 +123,10 @@ export const getGoogleHostedDomain = (): string | null => getOptionalEnv("GOOGLE
 
 export const getTeacherEmailAllowlist = (): string[] => parseCsvEnv("TEACHER_EMAIL_ALLOWLIST");
 
+export const getStudentTeacherPin = (): string | null => getOptionalEnv("STUDENT_TEACHER_PIN");
+
+export const hasStudentTeacherPin = (): boolean => Boolean(getStudentTeacherPin());
+
 export const hasTeacherAccessConfig = (): boolean =>
   Boolean(getGoogleHostedDomain() || getTeacherEmailAllowlist().length > 0);
 
