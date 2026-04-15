@@ -452,9 +452,6 @@ describe("teacher representative and session flows", () => {
     fireEvent.change(screen.getByLabelText("세션 이름"), {
       target: { value: "5-1 Shuttle Run Practice" }
     });
-    fireEvent.change(screen.getByLabelText("학년"), {
-      target: { value: "5" }
-    });
     fireEvent.change(screen.getByLabelText("세션 유형"), {
       target: { value: "practice" }
     });
@@ -486,9 +483,6 @@ describe("teacher representative and session flows", () => {
     fireEvent.change(screen.getByLabelText("주 종목"), {
       target: { value: "sit-and-reach" }
     });
-    fireEvent.change(screen.getByLabelText("보조 종목"), {
-      target: { value: "sit-and-reach" }
-    });
     fireEvent.click(screen.getByRole("button", { name: "세션 저장" }));
 
     await waitFor(() => {
@@ -502,42 +496,24 @@ describe("teacher representative and session flows", () => {
     ]);
   });
 
-  it("blocks a two-class session when the selected classes do not share the same event", async () => {
+  it("uses one shared event selector for split sessions", async () => {
     await installTeacherApiFetch();
     const { SessionForm } = await import("../../src/components/teacher/session-form");
-    const { getRequestStore } = await importRequestStore();
 
     render(
       <SessionForm
-        classes={getRequestStore().listClasses()}
+        classes={(await importRequestStore()).getRequestStore().listClasses()}
         defaultTeacherId="demo-teacher"
         defaultSchoolId="demo-school"
       />
     );
 
-    fireEvent.change(screen.getByLabelText("세션 이름"), {
-      target: { value: "잘못된 분할 세션" }
-    });
     fireEvent.change(screen.getByLabelText("운영 방식"), {
       target: { value: "split" }
     });
-    fireEvent.change(screen.getByLabelText("주 반"), {
-      target: { value: "demo-class-5-1" }
-    });
-    fireEvent.change(screen.getByLabelText("보조 반"), {
-      target: { value: "demo-class-5-2" }
-    });
-    fireEvent.change(screen.getByLabelText("주 종목"), {
-      target: { value: "sit-and-reach" }
-    });
-    fireEvent.change(screen.getByLabelText("보조 종목"), {
-      target: { value: "shuttle-run" }
-    });
-    fireEvent.click(screen.getByRole("button", { name: "세션 저장" }));
 
-    await screen.findByText("Split sessions must use the same event for both classes.");
-
-    expect(getRequestStore().listSessions()).toHaveLength(1);
+    expect(screen.getByLabelText("주 종목")).toBeInTheDocument();
+    expect(screen.queryByLabelText("보조 종목")).not.toBeInTheDocument();
   });
 
   it("lets a teacher choose the representative attempt", async () => {

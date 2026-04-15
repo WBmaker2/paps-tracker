@@ -3,8 +3,8 @@
 import React, { useEffect, useMemo, useState, useTransition } from "react";
 
 import type { TeacherSheetStatus } from "../../lib/google/sheet-connection-status";
-import { getEligibleEventDefinitions } from "../../lib/paps/catalog";
-import type { EventId, GradeLevel, PAPSClassroom, PAPSSession } from "../../lib/paps/types";
+import { getEligibleEventDefinitions, getSessionTypeEventDefinitions } from "../../lib/paps/catalog";
+import type { EventId, PAPSClassroom, PAPSSession } from "../../lib/paps/types";
 import { buildTeacherMutationHeaders, notifyTeacherDataRefresh } from "./teacher-data-refresh";
 
 export interface SessionFormProps {
@@ -26,22 +26,26 @@ export function SessionForm({
 }: SessionFormProps) {
   const [isPending, startTransition] = useTransition();
   const [name, setName] = useState("");
-  const [gradeLevel, setGradeLevel] = useState<GradeLevel>(5);
   const [sessionType, setSessionType] = useState<"official" | "practice">("practice");
   const [classScope, setClassScope] = useState<"single" | "split">("single");
   const [primaryClassId, setPrimaryClassId] = useState(classes[0]?.id ?? "");
   const [secondaryClassId, setSecondaryClassId] = useState(classes[1]?.id ?? classes[0]?.id ?? "");
-  const eligibleEvents = useMemo(
-    () => getEligibleEventDefinitions({ gradeLevel, sessionType }),
-    [gradeLevel, sessionType]
+  const primaryClass = useMemo(
+    () => classes.find((classroom) => classroom.id === primaryClassId) ?? null,
+    [classes, primaryClassId]
   );
-  const filteredClasses = useMemo(
-    () => classes.filter((classroom) => classroom.gradeLevel === gradeLevel),
-    [classes, gradeLevel]
+  const eligibleEvents = useMemo(
+    () =>
+      classScope === "split"
+        ? getSessionTypeEventDefinitions({ sessionType })
+        : getEligibleEventDefinitions({
+            gradeLevel: primaryClass?.gradeLevel ?? 5,
+            sessionType
+          }),
+    [classScope, primaryClass?.gradeLevel, sessionType]
   );
   const fallbackEventId = eligibleEvents[0]?.id ?? "shuttle-run";
   const [primaryEventId, setPrimaryEventId] = useState<EventId>(fallbackEventId);
-  const [secondaryEventId, setSecondaryEventId] = useState<EventId>(fallbackEventId);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -49,25 +53,30 @@ export function SessionForm({
     if (!eligibleEvents.some((eventDefinition) => eventDefinition.id === primaryEventId)) {
       setPrimaryEventId(fallbackEventId);
     }
-
-    if (!eligibleEvents.some((eventDefinition) => eventDefinition.id === secondaryEventId)) {
-      setSecondaryEventId(fallbackEventId);
-    }
-  }, [eligibleEvents, fallbackEventId, primaryEventId, secondaryEventId]);
+  }, [eligibleEvents, fallbackEventId, primaryEventId]);
 
   useEffect(() => {
-    if (filteredClasses.length === 0) {
+    if (classes.length === 0) {
       return;
     }
 
-    if (!filteredClasses.some((classroom) => classroom.id === primaryClassId)) {
-      setPrimaryClassId(filteredClasses[0]!.id);
+    if (!classes.some((classroom) => classroom.id === primaryClassId)) {
+      setPrimaryClassId(classes[0]!.id);
     }
 
-    if (!filteredClasses.some((classroom) => classroom.id === secondaryClassId)) {
-      setSecondaryClassId(filteredClasses[1]?.id ?? filteredClasses[0]!.id);
+    if (!classes.some((classroom) => classroom.id === secondaryClassId)) {
+      setSecondaryClassId(classes[1]?.id ?? classes[0]!.id);
+      return;
     }
-  }, [filteredClasses, primaryClassId, secondaryClassId]);
+
+    if (classScope === "split" && secondaryClassId === primaryClassId) {
+      const alternateClass = classes.find((classroom) => classroom.id !== primaryClassId) ?? null;
+
+      if (alternateClass) {
+        setSecondaryClassId(alternateClass.id);
+      }
+    }
+  }, [classScope, classes, primaryClassId, secondaryClassId]);
 
   const handleSubmit = () => {
     if (!sheetConnected) {
@@ -88,13 +97,11 @@ export function SessionForm({
           }),
           body: JSON.stringify({
             name,
-            gradeLevel,
             sessionType,
             classScope,
             primaryClassId,
             secondaryClassId: classScope === "split" ? secondaryClassId : undefined,
             primaryEventId,
-            secondaryEventId: classScope === "split" ? secondaryEventId : undefined,
             teacherId: defaultTeacherId,
             schoolId: defaultSchoolId,
             isOpen: true
@@ -147,20 +154,6 @@ export function SessionForm({
           />
         </label>
         <label className="flex flex-col gap-2 text-sm">
-          학년
-          <select
-            className="rounded-2xl border border-ink/15 px-4 py-3"
-            value={gradeLevel}
-            onChange={(event) => setGradeLevel(Number(event.target.value) as GradeLevel)}
-          >
-            {[3, 4, 5, 6].map((value) => (
-              <option key={value} value={value}>
-                {value}학년
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-2 text-sm">
           세션 유형
           <select
             className="rounded-2xl border border-ink/15 px-4 py-3"
@@ -189,9 +182,9 @@ export function SessionForm({
             value={primaryClassId}
             onChange={(event) => setPrimaryClassId(event.target.value)}
           >
-            {filteredClasses.map((classroom) => (
+            {classes.map((classroom) => (
               <option key={classroom.id} value={classroom.id}>
-                {classroom.label}
+                {classroom.label} ({classroom.gradeLevel}학년)
               </option>
             ))}
           </select>
@@ -219,23 +212,9 @@ export function SessionForm({
                 value={secondaryClassId}
                 onChange={(event) => setSecondaryClassId(event.target.value)}
               >
-                {filteredClasses.map((classroom) => (
+                {classes.map((classroom) => (
                   <option key={classroom.id} value={classroom.id}>
-                    {classroom.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-2 text-sm">
-              보조 종목
-              <select
-                className="rounded-2xl border border-ink/15 px-4 py-3"
-                value={secondaryEventId}
-                onChange={(event) => setSecondaryEventId(event.target.value as EventId)}
-              >
-                {eligibleEvents.map((eventDefinition) => (
-                  <option key={eventDefinition.id} value={eventDefinition.id}>
-                    {eventDefinition.label}
+                    {classroom.label} ({classroom.gradeLevel}학년)
                   </option>
                 ))}
               </select>
@@ -243,6 +222,11 @@ export function SessionForm({
           </>
         ) : null}
       </div>
+      {classScope === "split" ? (
+        <p className="mt-3 text-sm text-ink/65">
+          2반 분할은 학년과 무관하게 두 반을 선택하고, 두 반이 같은 종목으로 함께 기록합니다.
+        </p>
+      ) : null}
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <button
           type="button"

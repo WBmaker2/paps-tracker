@@ -188,4 +188,33 @@ describe("PAPS validation", () => {
       })
     ).toThrow("Event long-run-walk is not eligible for grade 4.");
   });
+
+  it("allows split sessions to accept a targeted student even when the student grade differs from the session representative grade", () => {
+    const splitSession: PAPSSession = {
+      id: "session-10",
+      gradeLevel: 3,
+      sessionType: "practice",
+      classScope: "split",
+      eventId: "shuttle-run",
+      classTargets: [
+        { classId: "3-1", eventId: "shuttle-run" },
+        { classId: "4-1", eventId: "shuttle-run" }
+      ]
+    };
+    const grade4Student: PAPSStudent = {
+      ...student,
+      gradeLevel: 4,
+      classId: "4-1"
+    };
+
+    expect(() =>
+      assertAttemptInputAllowed({
+        session: splitSession,
+        student: grade4Student,
+        input: {
+          measurement: 42
+        }
+      })
+    ).not.toThrow();
+  });
 });

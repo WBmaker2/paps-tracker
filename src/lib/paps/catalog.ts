@@ -18,6 +18,9 @@ export const getEventDefinition = (eventId: EventId): PAPSEventDefinition => {
   return eventDefinition;
 };
 
+export const isKnownEventId = (value: unknown): value is EventId =>
+  typeof value === "string" && value in PAPS_EVENT_DEFINITIONS;
+
 export const isEventEligibleForGrade = (eventId: EventId, gradeLevel: GradeLevel): boolean =>
   getEventDefinition(eventId).supportedGrades.includes(gradeLevel);
 
@@ -35,6 +38,16 @@ export const getEligibleEventDefinitions = ({
     (eventDefinition) =>
       eventDefinition.supportedGrades.includes(gradeLevel) &&
       (!sessionType || eventDefinition.supportedSessionTypes.includes(sessionType))
+  );
+
+export const getSessionTypeEventDefinitions = ({
+  sessionType
+}: {
+  sessionType?: SessionType;
+}): PAPSEventDefinition[] =>
+  Object.values(PAPS_EVENT_DEFINITIONS).filter(
+    (eventDefinition) =>
+      !sessionType || eventDefinition.supportedSessionTypes.includes(sessionType)
   );
 
 export const hasOfficialGradeRule = (

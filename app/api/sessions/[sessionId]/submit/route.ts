@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { NextRequest, NextResponse } from "next/server";
 
+import { hasOfficialGradeRule } from "../../../../../src/lib/paps/catalog";
 import { calculateOfficialGrade } from "../../../../../src/lib/paps/grade";
 import { appendStudentSubmissionToSheet } from "../../../../../src/lib/google/sheets-submit";
 import { resolveSubmissionMeasurement } from "../../../../../src/lib/paps/composite-measurements";
@@ -144,9 +145,12 @@ export async function POST(request: NextRequest, context: SubmitRouteContext) {
 
     let latestOfficialGrade: OfficialGrade | null = null;
 
-    if (session.sessionType === "official") {
+    if (
+      session.sessionType === "official" &&
+      hasOfficialGradeRule(session.eventId, student.gradeLevel, student.sex)
+    ) {
       latestOfficialGrade = calculateOfficialGrade({
-        gradeLevel: session.gradeLevel,
+        gradeLevel: student.gradeLevel,
         sex: student.sex,
         eventId: session.eventId,
         measurement: resolvedSubmission.measurement

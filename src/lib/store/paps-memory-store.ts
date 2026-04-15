@@ -462,16 +462,15 @@ export const createPapsMemoryStore = (seedData: PAPSDemoStoreData = createDefaul
 
   const saveSession = (session: PAPSSession): PAPSSession => {
     validateSession(session);
+    const primaryClassroom = getClass(session.classTargets[0]!.classId);
     const normalizedSession: PAPSSession = {
       ...session,
       classTargets: session.classTargets.map((entry) => {
-        const classroom = getClass(entry.classId);
-        if (classroom.gradeLevel !== session.gradeLevel) {
-          throw new Error("Session grade must match the selected class grades.");
-        }
+        getClass(entry.classId);
         return entry;
       }),
-      schoolId: session.schoolId ?? getClass(session.classTargets[0]!.classId).schoolId,
+      gradeLevel: primaryClassroom.gradeLevel,
+      schoolId: session.schoolId ?? primaryClassroom.schoolId,
       isOpen: session.isOpen ?? true
     };
     if (normalizedSession.teacherId) getTeacher(normalizedSession.teacherId);

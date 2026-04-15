@@ -10,6 +10,8 @@ import {
   getAuthorizedTeacherRouteContext
 } from "../../../../src/lib/teacher-route-context";
 import { buildTeacherStateVersion } from "../../../../src/lib/google/sheet-state-version";
+import { isKnownEventId } from "../../../../src/lib/paps/catalog";
+import { validateSession } from "../../../../src/lib/paps/validation";
 import type { EventId, GradeLevel, PAPSSession, SessionType } from "../../../../src/lib/paps/types";
 
 const parseOptionalGradeLevel = (value: unknown, fallback: GradeLevel): GradeLevel => {
@@ -47,7 +49,7 @@ const parseOptionalEventId = (
     return fallback;
   }
 
-  if (value === "sit-and-reach" || value === "shuttle-run" || value === "long-run-walk") {
+  if (isKnownEventId(value)) {
     return value;
   }
 
@@ -85,12 +87,17 @@ const getOwnedSession = (
   });
 };
 
-const mergeSession = (currentSession: PAPSSession, body: Record<string, unknown>): PAPSSession => {
+const mergeSession = async (
+  store: TeacherCrudStore,
+  currentSession: PAPSSession,
+  body: Record<string, unknown>
+): Promise<PAPSSession> => {
   const classScope = body.classScope === "split" ? "split" : body.classScope === "single" ? "single" : currentSession.classScope;
   const primaryClassId =
     typeof body.primaryClassId === "string" && body.primaryClassId.trim()
       ? body.primaryClassId.trim()
       : currentSession.classTargets[0]?.classId ?? "";
+  const primaryClass = await store.getClass(primaryClassId);
   const primaryEventId = parseOptionalEventId(
     body.primaryEventId ?? body.eventId,
     currentSession.classTargets[0]?.eventId ?? currentSession.eventId,
@@ -100,17 +107,15 @@ const mergeSession = (currentSession: PAPSSession, body: Record<string, unknown>
     typeof body.secondaryClassId === "string" && body.secondaryClassId.trim()
       ? body.secondaryClassId.trim()
       : currentSession.classTargets[1]?.classId ?? currentSession.classTargets[0]?.classId ?? "";
-  const secondaryEventId = parseOptionalEventId(
-    body.secondaryEventId,
-    currentSession.classTargets[1]?.eventId ?? primaryEventId,
-    "Secondary event"
-  );
 
-  return {
+  return validateSession({
     ...currentSession,
     name:
       typeof body.name === "string" && body.name.trim() ? body.name.trim() : currentSession.name,
-    gradeLevel: parseOptionalGradeLevel(body.gradeLevel, currentSession.gradeLevel),
+    gradeLevel:
+      classScope === "single"
+        ? parseOptionalGradeLevel(body.gradeLevel, primaryClass.gradeLevel as GradeLevel)
+        : (primaryClass.gradeLevel as GradeLevel),
     sessionType: parseOptionalSessionType(body.sessionType, currentSession.sessionType),
     classScope,
     eventId: primaryEventId,
@@ -119,10 +124,10 @@ const mergeSession = (currentSession: PAPSSession, body: Record<string, unknown>
       classScope === "split"
         ? [
             { classId: primaryClassId, eventId: primaryEventId },
-            { classId: secondaryClassId, eventId: secondaryEventId }
+            { classId: secondaryClassId, eventId: primaryEventId }
           ]
         : [{ classId: primaryClassId, eventId: primaryEventId }]
-  };
+  });
 };
 
 type SessionRouteContext = {
@@ -196,7 +201,7 @@ export async function PATCH(request: NextRequest, context: SessionRouteContext) 
     }
 
     const updatedSession = await store.saveSession(
-      mergeSession(session, bodyRecord)
+      await mergeSession(store, session, bodyRecord)
     );
     const teacherStateVersion = buildTeacherStateVersion({
       ...bootstrap,

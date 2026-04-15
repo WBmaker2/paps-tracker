@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { getEventDefinition } from "../paps/catalog";
+import { getEventDefinition, hasOfficialGradeRule } from "../paps/catalog";
 import {
   formatAttemptDetailSummary,
   resolveSubmissionMeasurement
@@ -278,9 +278,10 @@ export const appendStudentSubmissionToSheet = async (input: {
     );
     const createdAt = new Date().toISOString();
     const latestOfficialGrade =
-      session.sessionType === "official"
+      session.sessionType === "official" &&
+      hasOfficialGradeRule(session.eventId, student.gradeLevel, student.sex)
         ? calculateOfficialGrade({
-            gradeLevel: session.gradeLevel,
+            gradeLevel: student.gradeLevel,
             sex: student.sex,
             eventId: session.eventId,
             measurement: resolvedSubmission.measurement

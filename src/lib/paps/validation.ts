@@ -43,7 +43,7 @@ export const validateSession = (session: PAPSSession): PAPSSession => {
     throw new Error(`Event ${session.eventId} does not support ${session.sessionType} sessions.`);
   }
 
-  if (!isEventEligibleForGrade(session.eventId, session.gradeLevel)) {
+  if (session.classScope === "single" && !isEventEligibleForGrade(session.eventId, session.gradeLevel)) {
     throw new Error(`Event ${session.eventId} is not eligible for grade ${session.gradeLevel}.`);
   }
 
@@ -60,10 +60,6 @@ export const assertAttemptInputAllowed = ({
   input: PAPSSubmissionInput;
 }): void => {
   validateSession(session);
-
-  if (student.gradeLevel !== session.gradeLevel) {
-    throw new Error("Student grade must match the session grade.");
-  }
 
   if (!session.classTargets.some((classTarget) => classTarget.classId === student.classId)) {
     throw new Error("Student class is not assigned to this session.");

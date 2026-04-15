@@ -52,6 +52,24 @@ const buildSeed = (): PAPSDemoStoreData => ({
   ],
   classes: [
     {
+      id: "demo-class-3-1",
+      schoolId: "demo-school",
+      academicYear: 2026,
+      gradeLevel: 3,
+      classNumber: 1,
+      label: "3-1",
+      active: true
+    },
+    {
+      id: "demo-class-4-1",
+      schoolId: "demo-school",
+      academicYear: 2026,
+      gradeLevel: 4,
+      classNumber: 1,
+      label: "4-1",
+      active: true
+    },
+    {
       id: "demo-class-5-1",
       schoolId: "demo-school",
       academicYear: 2026,
@@ -202,7 +220,7 @@ describe("teacher session smoke flow", () => {
     });
   });
 
-  it("filters event choices by grade so grade 4 and grade 5+ follow the manual", async () => {
+  it("filters event choices by the selected class in single-class sessions", async () => {
     const { AppShell } = await import("../../src/components/layout/app-shell");
     const { TeacherSessionWorkspace } = await import("../../src/components/teacher/session-form");
 
@@ -221,8 +239,8 @@ describe("teacher session smoke flow", () => {
       </AppShell>
     );
 
-    fireEvent.change(screen.getByLabelText("학년"), {
-      target: { value: "4" }
+    fireEvent.change(screen.getByLabelText("주 반"), {
+      target: { value: "demo-class-4-1" }
     });
 
     const eventSelect = screen.getByLabelText("주 종목");
@@ -238,8 +256,8 @@ describe("teacher session smoke flow", () => {
     expect(grade4Options).not.toContain("앉아윗몸앞으로굽히기");
     expect(grade4Options).not.toContain("오래달리기-걷기");
 
-    fireEvent.change(screen.getByLabelText("학년"), {
-      target: { value: "5" }
+    fireEvent.change(screen.getByLabelText("주 반"), {
+      target: { value: "demo-class-5-1" }
     });
 
     const grade5Options = Array.from(eventSelect.querySelectorAll("option")).map(
@@ -249,5 +267,44 @@ describe("teacher session smoke flow", () => {
     expect(grade5Options).toContain("앉아윗몸앞으로굽히기");
     expect(grade5Options).toContain("오래달리기-걷기");
     expect(grade5Options).toContain("윗몸말아올리기");
+  });
+
+  it("allows a split session to combine classes from different grades with one shared event", async () => {
+    const { AppShell } = await import("../../src/components/layout/app-shell");
+    const { TeacherSessionWorkspace } = await import("../../src/components/teacher/session-form");
+
+    render(
+      <AppShell
+        title="교사 대시보드"
+        eyebrow="Teacher"
+        description="혼합 학년 2반 분할 세션을 점검합니다."
+      >
+        <TeacherSessionWorkspace
+          classes={getRequestStore().listClasses()}
+          sessions={[]}
+          defaultTeacherId="demo-teacher"
+          defaultSchoolId="demo-school"
+        />
+      </AppShell>
+    );
+
+    expect(screen.queryByLabelText("학년")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("운영 방식"), {
+      target: { value: "split" }
+    });
+    fireEvent.change(screen.getByLabelText("주 반"), {
+      target: { value: "demo-class-3-1" }
+    });
+    fireEvent.change(screen.getByLabelText("보조 반"), {
+      target: { value: "demo-class-4-1" }
+    });
+
+    const splitEventOptions = Array.from(
+      screen.getByLabelText("주 종목").querySelectorAll("option")
+    ).map((option) => option.textContent);
+
+    expect(splitEventOptions).toContain("왕복오래달리기");
+    expect(screen.queryByLabelText("보조 종목")).not.toBeInTheDocument();
   });
 });

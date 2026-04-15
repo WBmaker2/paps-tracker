@@ -1,4 +1,4 @@
-import { getEventDefinition } from "./catalog";
+import { getEventDefinition, hasOfficialGradeRule } from "./catalog";
 import { calculateOfficialGrade } from "./grade";
 import type { PAPSAttempt, PAPSAttemptRecord, PAPSRecordSummary, PAPSSession, PAPSStudent } from "./types";
 
@@ -378,9 +378,13 @@ export const summarizeStudentRecord = ({
     })
   };
 
-  if (session.sessionType === "official" && representativeMeasurement !== null) {
+  if (
+    session.sessionType === "official" &&
+    representativeMeasurement !== null &&
+    hasOfficialGradeRule(record.eventId, student.gradeLevel, student.sex)
+  ) {
     summary.officialGrade = calculateOfficialGrade({
-      gradeLevel: session.gradeLevel,
+      gradeLevel: student.gradeLevel,
       sex: student.sex,
       eventId: record.eventId,
       measurement: representativeMeasurement

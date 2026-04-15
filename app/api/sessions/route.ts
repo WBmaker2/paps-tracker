@@ -13,18 +13,10 @@ import {
   getAuthorizedTeacherRouteContext
 } from "../../../src/lib/teacher-route-context";
 import { buildTeacherStateVersion } from "../../../src/lib/google/sheet-state-version";
+import { isKnownEventId } from "../../../src/lib/paps/catalog";
+import { validateSession } from "../../../src/lib/paps/validation";
 import type { EventId, GradeLevel, PAPSSession, PAPSTeacher, SessionType } from "../../../src/lib/paps/types";
 import { createStudentSessionUrl } from "../../../src/lib/student-session-access";
-
-const parseGradeLevel = (value: unknown): GradeLevel => {
-  const numericValue = Number(value);
-
-  if (numericValue === 3 || numericValue === 4 || numericValue === 5 || numericValue === 6) {
-    return numericValue;
-  }
-
-  throw new Error("A valid grade level is required.");
-};
 
 const parseSessionType = (value: unknown): SessionType => {
   if (value === "official" || value === "practice") {
@@ -35,7 +27,7 @@ const parseSessionType = (value: unknown): SessionType => {
 };
 
 const parseEventId = (value: unknown, fieldName: string): EventId => {
-  if (value === "sit-and-reach" || value === "shuttle-run" || value === "long-run-walk") {
+  if (isKnownEventId(value)) {
     return value;
   }
 
@@ -47,7 +39,6 @@ const toSessionInput = async (
   context: AuthorizedTeacherRouteContext<TeacherCrudStore>
 ): Promise<PAPSSession> => {
   const { store, teacher, bootstrap } = context;
-  const gradeLevel = parseGradeLevel(body.gradeLevel);
   const sessionType = parseSessionType(body.sessionType);
   const classScope = body.classScope === "split" ? "split" : "single";
   const primaryClassId =
@@ -60,14 +51,11 @@ const toSessionInput = async (
   }
 
   const primaryEventId = parseEventId(body.primaryEventId ?? body.eventId, "Primary event");
+  const primaryClass = await store.getClass(primaryClassId);
   const secondaryClassId =
     typeof body.secondaryClassId === "string" && body.secondaryClassId.trim()
       ? body.secondaryClassId.trim()
       : "";
-  const secondaryEventId =
-    classScope === "split"
-      ? parseEventId(body.secondaryEventId ?? body.eventId, "Secondary event")
-      : primaryEventId;
   const timestamp = typeof body.createdAt === "string" ? body.createdAt : new Date().toISOString();
   const academicYear = Number(body.academicYear) || new Date(timestamp).getUTCFullYear();
   const schoolId =
@@ -101,7 +89,7 @@ const toSessionInput = async (
     classScope === "split"
       ? [
           { classId: primaryClassId, eventId: primaryEventId },
-          { classId: secondaryClassId, eventId: secondaryEventId }
+          { classId: secondaryClassId, eventId: primaryEventId }
         ]
       : [{ classId: primaryClassId, eventId: primaryEventId }];
 
@@ -115,7 +103,7 @@ const toSessionInput = async (
     }
   }
 
-  return {
+  return validateSession({
     id: existingSessionId ?? randomUUID(),
     schoolId,
     teacherId: teacher.id,
@@ -123,15 +111,15 @@ const toSessionInput = async (
     name:
       typeof body.name === "string" && body.name.trim()
         ? body.name.trim()
-        : `${gradeLevel}학년 ${primaryEventId}`,
-    gradeLevel,
+        : `${primaryClass.label} ${primaryEventId}`,
+    gradeLevel: primaryClass.gradeLevel as GradeLevel,
     sessionType,
     classScope,
     eventId: primaryEventId,
     classTargets,
     isOpen: body.isOpen !== false,
     createdAt: timestamp
-  };
+  });
 };
 
 export async function GET(request: NextRequest) {
