@@ -1,10 +1,23 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useEffect, useMemo, useState, useTransition } from "react";
 
 import type { TeacherSheetStatus } from "../../lib/google/sheet-connection-status";
 import type { PAPSClassroom, PAPSStudent } from "../../lib/paps/types";
 import { buildTeacherMutationHeaders, notifyTeacherDataRefresh } from "./teacher-data-refresh";
+
+const sortStudents = (students: PAPSStudent[]): PAPSStudent[] =>
+  students.slice().sort((left, right) => {
+    if (left.classId !== right.classId) {
+      return left.classId.localeCompare(right.classId);
+    }
+
+    if ((left.studentNumber ?? Number.MAX_SAFE_INTEGER) !== (right.studentNumber ?? Number.MAX_SAFE_INTEGER)) {
+      return (left.studentNumber ?? Number.MAX_SAFE_INTEGER) - (right.studentNumber ?? Number.MAX_SAFE_INTEGER);
+    }
+
+    return left.name.localeCompare(right.name, "ko");
+  });
 
 export function StudentTable({
   students,
@@ -19,13 +32,44 @@ export function StudentTable({
   sheetConnected?: boolean;
   sheetStatus?: TeacherSheetStatus;
 }) {
-  const [items, setItems] = useState(students);
+  const [items, setItems] = useState(() => sortStudents(students));
   const [name, setName] = useState("");
   const [classId, setClassId] = useState(classes[0]?.id ?? "");
   const [sex, setSex] = useState<"male" | "female">("female");
   const [studentNumber, setStudentNumber] = useState("1");
+  const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const visibleItems = useMemo(
+    () => items.filter((student) => student.classId === classId),
+    [classId, items]
+  );
+
+  useEffect(() => {
+    setItems(sortStudents(students));
+  }, [students]);
+
+  useEffect(() => {
+    if (!classes.some((entry) => entry.id === classId)) {
+      setClassId(classes[0]?.id ?? "");
+    }
+  }, [classId, classes]);
+
+  const resetForm = () => {
+    setEditingStudentId(null);
+    setName("");
+    setSex("female");
+    setStudentNumber("1");
+  };
+
+  const startEditingStudent = (student: PAPSStudent) => {
+    setEditingStudentId(student.id);
+    setName(student.name);
+    setClassId(student.classId);
+    setSex(student.sex);
+    setStudentNumber(student.studentNumber ? String(student.studentNumber) : "1");
+    setMessage(null);
+  };
 
   const submitStudent = () => {
     if (!sheetConnected) {
@@ -48,6 +92,7 @@ export function StudentTable({
             "content-type": "application/json"
           }),
           body: JSON.stringify({
+            id: editingStudentId,
             schoolId,
             classId,
             name,
@@ -66,9 +111,15 @@ export function StudentTable({
           throw new Error(payload.error ?? "학생을 저장하지 못했습니다.");
         }
 
-        setItems((currentItems) => [...currentItems, payload.student!]);
-        setMessage("학생 명단을 저장했습니다.");
-        setName("");
+        setItems((currentItems) =>
+          sortStudents(
+            editingStudentId
+              ? currentItems.map((entry) => (entry.id === payload.student!.id ? payload.student! : entry))
+              : [...currentItems, payload.student!]
+          )
+        );
+        setMessage(editingStudentId ? "학생 정보를 수정했습니다." : "학생 명단을 저장했습니다.");
+        resetForm();
         notifyTeacherDataRefresh({
           refresh: false,
           nextVersion: payload.teacherStateVersion ?? null
@@ -140,8 +191,18 @@ export function StudentTable({
           disabled={isPending}
           onClick={submitStudent}
         >
-          학생 추가
+          {editingStudentId ? "학생 수정" : "학생 추가"}
         </button>
+        {editingStudentId ? (
+          <button
+            type="button"
+            className="rounded-full border border-ink/15 px-5 py-2.5 text-sm font-medium"
+            disabled={isPending}
+            onClick={resetForm}
+          >
+            수정 취소
+          </button>
+        ) : null}
         {message ? <p className="text-sm text-ink/70">{message}</p> : null}
       </div>
       <div className="mt-6 overflow-hidden rounded-2xl border border-ink/10">
@@ -152,19 +213,37 @@ export function StudentTable({
               <th className="px-4 py-3 font-medium">이름</th>
               <th className="px-4 py-3 font-medium">반</th>
               <th className="px-4 py-3 font-medium">성별</th>
+              <th className="px-4 py-3 font-medium">관리</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-ink/10">
-            {items.map((student) => (
-              <tr key={student.id}>
-                <td className="px-4 py-3">{student.studentNumber ?? "-"}</td>
-                <td className="px-4 py-3 font-medium">{student.name}</td>
-                <td className="px-4 py-3">
-                  {classes.find((entry) => entry.id === student.classId)?.label ?? student.classId}
+            {visibleItems.length > 0 ? (
+              visibleItems.map((student) => (
+                <tr key={student.id}>
+                  <td className="px-4 py-3">{student.studentNumber ?? "-"}</td>
+                  <td className="px-4 py-3 font-medium">{student.name}</td>
+                  <td className="px-4 py-3">
+                    {classes.find((entry) => entry.id === student.classId)?.label ?? student.classId}
+                  </td>
+                  <td className="px-4 py-3">{student.sex === "female" ? "여학생" : "남학생"}</td>
+                  <td className="px-4 py-3">
+                    <button
+                      type="button"
+                      className="rounded-full border border-ink/15 px-3 py-1.5 text-xs font-medium"
+                      onClick={() => startEditingStudent(student)}
+                    >
+                      {student.name} 수정
+                    </button>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={5} className="px-4 py-6 text-center text-sm text-ink/60">
+                  선택한 반에 등록된 학생이 아직 없습니다.
                 </td>
-                <td className="px-4 py-3">{student.sex === "female" ? "여학생" : "남학생"}</td>
               </tr>
-            ))}
+            )}
           </tbody>
         </table>
       </div>

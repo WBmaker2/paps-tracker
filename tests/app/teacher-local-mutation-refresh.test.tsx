@@ -112,6 +112,106 @@ describe("teacher local mutation refresh behavior", () => {
     });
   });
 
+  it("filters the visible student roster by the selected class and allows editing an existing student", async () => {
+    const { StudentTable } = await import("../../src/components/teacher/student-table");
+    const fetchMock = vi.fn(async (_input, init) => {
+      const body =
+        init?.body && typeof init.body === "string"
+          ? (JSON.parse(init.body) as {
+              id?: string;
+              classId: string;
+              name: string;
+              sex: "male" | "female";
+              studentNumber: number;
+            })
+          : null;
+
+      return Response.json({
+        student: {
+          id: body?.id ?? "student-2",
+          schoolId: "school-1",
+          classId: body?.classId ?? "class-5-1",
+          studentNumber: body?.studentNumber ?? 1,
+          name: body?.name ?? "김학생",
+          sex: body?.sex ?? "female",
+          gradeLevel: body?.classId === "class-5-2" ? 5 : 5,
+          active: true
+        } satisfies PAPSStudent,
+        teacherStateVersion: "version-students-3"
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <StudentTable
+        students={[
+          {
+            id: "student-1",
+            schoolId: "school-1",
+            classId: "class-5-1",
+            studentNumber: 1,
+            name: "이학생",
+            sex: "male",
+            gradeLevel: 5,
+            active: true
+          },
+          {
+            id: "student-2",
+            schoolId: "school-1",
+            classId: "class-5-2",
+            studentNumber: 2,
+            name: "박학생",
+            sex: "female",
+            gradeLevel: 5,
+            active: true
+          }
+        ]}
+        classes={classes}
+        schoolId="school-1"
+      />
+    );
+
+    expect(screen.getByText("이학생")).toBeInTheDocument();
+    expect(screen.queryByText("박학생")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("반"), {
+      target: { value: "class-5-2" }
+    });
+
+    expect(screen.queryByText("이학생")).not.toBeInTheDocument();
+    expect(screen.getByText("박학생")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "박학생 수정" }));
+
+    expect((screen.getByLabelText("학생 이름") as HTMLInputElement).value).toBe("박학생");
+    expect((screen.getByLabelText("번호") as HTMLInputElement).value).toBe("2");
+    expect(screen.getByRole("button", { name: "학생 수정" })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("학생 이름"), {
+      target: { value: "박수정" }
+    });
+    fireEvent.change(screen.getByLabelText("번호"), {
+      target: { value: "7" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "학생 수정" }));
+
+    await screen.findByText("학생 정보를 수정했습니다.");
+
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/students",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining("\"id\":\"student-2\"")
+      })
+    );
+    expect(screen.getByText("박수정")).toBeInTheDocument();
+    expect(screen.queryByText("박학생")).not.toBeInTheDocument();
+    expect(notifyTeacherDataRefresh).toHaveBeenCalledWith({
+      refresh: false,
+      nextVersion: "version-students-3"
+    });
+  });
+
   it("creates a session locally and only syncs the next version baseline", async () => {
     const { SessionForm } = await import("../../src/components/teacher/session-form");
     const fetchMock = vi.fn(async () =>
