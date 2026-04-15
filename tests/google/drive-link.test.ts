@@ -47,9 +47,9 @@ const withEnv = (
 };
 
 describe("Google Sheets URL utilities", () => {
-  it("denies teacher access when no scope is configured", () => {
+  it("allows teacher access when no scope is configured", () => {
     withEnv({}, () => {
-      expect(isTeacherEmailAllowed("teacher@example.com")).toBe(false);
+      expect(isTeacherEmailAllowed("teacher@example.com")).toBe(true);
     });
   });
 

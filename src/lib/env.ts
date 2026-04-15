@@ -158,7 +158,7 @@ export const isTeacherEmailAllowed = (email: string): boolean => {
   const allowlist = getTeacherEmailAllowlist();
 
   if (!hostedDomain && allowlist.length === 0) {
-    return false;
+    return true;
   }
 
   const matchesHostedDomain = hostedDomain

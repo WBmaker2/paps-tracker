@@ -67,4 +67,23 @@ describe("teacher auth helpers", () => {
     await expect(teacherAuthModule.requireTeacherSession()).rejects.toThrow("REDIRECT");
     expect(redirectMock).toHaveBeenCalledWith("/auth/signin");
   });
+
+  it("accepts any signed-in Google user when no access scope is configured", async () => {
+    delete process.env.GOOGLE_HOSTED_DOMAIN;
+    delete process.env.TEACHER_EMAIL_ALLOWLIST;
+    authMock.mockResolvedValue({
+      user: {
+        email: "teacher@school.example.com",
+        name: "Teacher",
+        image: null
+      }
+    });
+
+    const teacherAuthModule = await import("../../src/lib/teacher-auth");
+
+    await expect(teacherAuthModule.requireTeacherSession()).resolves.toMatchObject({
+      email: "teacher@school.example.com",
+      name: "Teacher"
+    });
+  });
 });
