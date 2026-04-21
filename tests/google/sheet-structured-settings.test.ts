@@ -98,6 +98,40 @@ describe("Google Sheet structured settings parser", () => {
     expect(structuredSettings.sessions).toEqual([]);
   });
 
+  it("parses teacher return PIN metadata from the settings tab", () => {
+    const pinConfig = {
+      algorithm: "hmac-sha256-v1",
+      salt: "salt-value",
+      hash: "hash-value",
+      updatedAt: "2026-04-21T09:00:00.000Z",
+      updatedByTeacherEmail: "teacher@example.com"
+    };
+    const structuredSettings = parseGoogleSheetStructuredSettings({
+      settingsRows: [
+        [
+          "__PAPS_SCHOOL",
+          "demo-school",
+          "Demo Elementary",
+          "",
+          "2026-03-24T09:00:00.000Z",
+          "2026-03-24T09:00:00.000Z"
+        ],
+        [
+          "__PAPS_TEACHER_RETURN_PIN",
+          JSON.stringify(pinConfig),
+          "교사 화면 접근 PIN 해시",
+          "",
+          "설정",
+          "보안"
+        ]
+      ],
+      spreadsheetId: "sheet-123",
+      teacherEmail: "teacher@example.com"
+    });
+
+    expect(structuredSettings.school.teacherReturnPin).toEqual(pinConfig);
+  });
+
   it("parses session group rows and attaches group metadata to child sessions", () => {
     const structuredSettings = parseGoogleSheetStructuredSettings({
       settingsRows: [

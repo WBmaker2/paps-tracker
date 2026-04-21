@@ -58,6 +58,7 @@ describe("Google Sheet source tab values", () => {
 
     expect(values[0]?.slice(0, 3)).toEqual(["항목", "값", "설명"]);
     expect(values[5]?.[1]).toBe("1반형 / 2반 분할형");
+    expect(values.find((row) => row[0] === "교사 화면 접근 PIN")?.[1]).toBe("미설정");
     expect(values.find((row) => row[0] === "__PAPS_SCHOOL")).toEqual([
       "__PAPS_SCHOOL",
       "school-1",
@@ -66,6 +67,36 @@ describe("Google Sheet source tab values", () => {
       "2026-03-23T09:00:00.000Z",
       "2026-03-23T09:00:00.000Z"
     ]);
+  });
+
+  it("writes teacher return PIN metadata as a machine-only hash row", () => {
+    const values = buildSettingsTabValues({
+      spreadsheetId: "sheet-123",
+      school: {
+        id: "school-1",
+        name: "Alpha Elementary",
+        teacherIds: ["teacher-1"],
+        sheetUrl: "https://docs.google.com/spreadsheets/d/sheet-123/edit",
+        teacherReturnPin: {
+          algorithm: "hmac-sha256-v1",
+          salt: "salt-value",
+          hash: "hash-value",
+          updatedAt: "2026-04-21T09:00:00.000Z",
+          updatedByTeacherEmail: "teacher@example.com"
+        },
+        createdAt: "2026-03-23T09:00:00.000Z",
+        updatedAt: "2026-03-23T09:00:00.000Z"
+      },
+      classes: [],
+      teachers: [],
+      sessions: []
+    });
+
+    expect(values.find((row) => row[0] === "교사 화면 접근 PIN")?.[1]).toBe("설정됨");
+    const pinRow = values.find((row) => row[0] === "__PAPS_TEACHER_RETURN_PIN");
+
+    expect(pinRow?.[1]).toContain("hash-value");
+    expect(pinRow?.[1]).not.toContain("2468");
   });
 
   it("builds student values in grade/class/number/name order", () => {

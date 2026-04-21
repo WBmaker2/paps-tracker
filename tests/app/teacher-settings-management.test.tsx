@@ -399,6 +399,74 @@ describe("teacher settings management", () => {
     expect(screen.queryByLabelText("새 학급 이름")).not.toBeInTheDocument();
   });
 
+  it("sets and clears the teacher return PIN from the settings screen", async () => {
+    const pinRoute = await import("../../app/api/teacher/student-return-pin/route");
+    const { TeacherSettingsManager } = await import(
+      "../../src/components/teacher/settings-management"
+    );
+    const { getRequestStore } = await importRequestStore();
+    const store = getRequestStore();
+    const school = store.getSchool("demo-school");
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === "string" ? input : input.toString();
+        const pathname = new URL(url, "http://localhost").pathname;
+        const method = (init?.method ?? "GET").toUpperCase();
+        const body = init?.body && typeof init.body === "string" ? JSON.parse(init.body) : undefined;
+
+        if (pathname === "/api/teacher/student-return-pin" && method === "POST") {
+          return pinRoute.POST(jsonRequest(pathname, method, body));
+        }
+
+        if (pathname === "/api/teacher/student-return-pin" && method === "DELETE") {
+          return pinRoute.DELETE(jsonRequest(pathname, method));
+        }
+
+        throw new Error(`Unhandled fetch request: ${method} ${pathname}`);
+      })
+    );
+
+    render(
+      <TeacherSettingsManager
+        school={school}
+        classes={[]}
+        sheetSetupStatus={{
+          templateConfigured: true,
+          serviceAccountConfigured: true,
+          serviceAccountEmail: "service-account@example.com",
+          missingKeys: []
+        }}
+      />
+    );
+
+    expect(screen.getByText("PIN 미설정")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("새 PIN"), {
+      target: { value: "2468" }
+    });
+    fireEvent.change(screen.getByLabelText("새 PIN 확인"), {
+      target: { value: "2468" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "PIN 저장" }));
+
+    await screen.findByText("교사 화면 접근 PIN을 저장했습니다.");
+
+    expect(screen.getByText("PIN 설정됨")).toBeInTheDocument();
+    expect(store.getSchool("demo-school").teacherReturnPin?.hash).not.toContain("2468");
+    expect(notifyTeacherDataRefresh).toHaveBeenCalledWith({
+      refresh: false,
+      nextVersion: expect.any(String)
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "PIN 해제" }));
+
+    await screen.findByText("교사 화면 접근 PIN을 해제했습니다.");
+    expect(screen.getByText("PIN 미설정")).toBeInTheDocument();
+    expect(store.getSchool("demo-school").teacherReturnPin).toBeNull();
+  });
+
   it("restores the last saved school info after the settings form remounts", async () => {
     const { TeacherSettingsManager } = await import(
       "../../src/components/teacher/settings-management"

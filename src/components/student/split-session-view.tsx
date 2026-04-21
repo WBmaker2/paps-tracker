@@ -199,7 +199,10 @@ export function SplitSessionView({
             latestOfficialGrade={submitResult.latestOfficialGrade}
           />
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <StudentSessionNavigation teacherReturnEnabled={teacherReturnEnabled} />
+            <StudentSessionNavigation
+              teacherReturnEnabled={teacherReturnEnabled}
+              studentAccessToken={studentAccessToken}
+            />
             <button
               type="button"
               className="rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-white transition hover:bg-accent"

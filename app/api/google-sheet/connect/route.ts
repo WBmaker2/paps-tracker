@@ -80,6 +80,7 @@ export async function POST(request: NextRequest) {
           new Set([...(existingSchool?.teacherIds ?? []), ...(teacher ? [teacher.id] : [])])
         ),
         sheetUrl: connection.normalizedUrl,
+        teacherReturnPin: existingSchool?.teacherReturnPin ?? connection.school.teacherReturnPin ?? null,
         createdAt: existingSchool?.createdAt ?? connection.school.createdAt,
         updatedAt: connection.school.updatedAt
       });

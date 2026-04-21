@@ -98,6 +98,14 @@ const buildSettingsRows = (input: {
     ["2반 분할 규칙", "같은 종목만 동시 기록", "사용자 승인 반영", "", "설정", "운영 규칙"],
     ["학생 조회 정책", "제출 직후에만 자기 기록 확인", "공용 기기 보호 정책", "", "설정", "운영 규칙"],
     [
+      "교사 화면 접근 PIN",
+      input.school.teacherReturnPin ? "설정됨" : "미설정",
+      "학생 화면에서 교사 관리 화면으로 돌아갈 때 사용",
+      "",
+      "설정",
+      "보안"
+    ],
+    [
       PAPS_GOOGLE_SHEET_TEMPLATE_VERSION_ROW_LABEL,
       PAPS_GOOGLE_SHEET_TEMPLATE_VERSION,
       "프로토타입 예시",
@@ -122,6 +130,18 @@ const buildSettingsRows = (input: {
       input.school.createdAt,
       input.school.updatedAt
     ],
+    ...(input.school.teacherReturnPin
+      ? [
+          [
+            SETTINGS_MACHINE_ROW_LABELS.teacherReturnPin,
+            JSON.stringify(input.school.teacherReturnPin),
+            "교사 화면 접근 PIN 해시",
+            "",
+            "설정",
+            "보안"
+          ]
+        ]
+      : []),
     [
       SETTINGS_MACHINE_ROW_LABELS.connection,
       input.spreadsheetId,

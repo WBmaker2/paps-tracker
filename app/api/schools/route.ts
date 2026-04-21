@@ -88,6 +88,7 @@ export async function POST(request: NextRequest) {
       ),
       sheetUrl:
         typeof body?.sheetUrl === "string" && body.sheetUrl.trim() ? body.sheetUrl.trim() : null,
+      teacherReturnPin: existingSchool?.teacherReturnPin ?? null,
       createdAt:
         typeof body?.createdAt === "string"
           ? body.createdAt

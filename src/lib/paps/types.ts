@@ -156,8 +156,17 @@ export interface PAPSSchool {
   name: string;
   teacherIds: string[];
   sheetUrl: string | null;
+  teacherReturnPin?: PAPSTeacherReturnPin | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface PAPSTeacherReturnPin {
+  algorithm: "hmac-sha256-v1";
+  salt: string;
+  hash: string;
+  updatedAt: string;
+  updatedByTeacherEmail: string;
 }
 
 export interface PAPSClassroom {

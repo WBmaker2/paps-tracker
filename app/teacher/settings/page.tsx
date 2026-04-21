@@ -48,6 +48,13 @@ export default async function TeacherSettingsPage() {
   );
   const sheetSetupStatus = getGoogleSheetsSetupStatus();
   const operationalReadiness = getAppOperationalReadiness();
+  const settingsSchool = school
+    ? {
+        ...school,
+        teacherReturnPin: null,
+        teacherReturnPinConfigured: Boolean(school.teacherReturnPin)
+      }
+    : null;
   const sheetTabs = school
     ? createPapsGoogleSheetTabPayloads({
         school,
@@ -119,7 +126,7 @@ export default async function TeacherSettingsPage() {
           </div>
         </section>
         <TeacherSettingsManager
-          school={school}
+          school={settingsSchool}
           classes={classes}
           sheetConnected={sheetConnected}
           sheetStatus={sheetStatus}

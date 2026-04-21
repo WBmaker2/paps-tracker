@@ -19,12 +19,16 @@ type ManagedClassroomItem = PAPSClassroom & {
   optimistic?: boolean;
 };
 
+type TeacherSettingsSchool = PAPSSchool & {
+  teacherReturnPinConfigured?: boolean;
+};
+
 type GoogleSheetConnectionPayload = {
   ok?: boolean;
   code?: string;
   action?: string;
   error?: string;
-  school?: PAPSSchool;
+  school?: TeacherSettingsSchool;
   normalizedUrl?: string;
 };
 
@@ -106,6 +110,9 @@ const createSavedSchoolSettings = (
 const sortClassItems = <T extends { label: string }>(items: T[]): T[] =>
   items.slice().sort((left, right) => left.label.localeCompare(right.label));
 
+const hasTeacherReturnPin = (school: TeacherSettingsSchool | null): boolean =>
+  Boolean(school?.teacherReturnPinConfigured ?? school?.teacherReturnPin);
+
 export function TeacherSettingsManager({
   school,
   classes,
@@ -113,7 +120,7 @@ export function TeacherSettingsManager({
   sheetStatus,
   sheetSetupStatus
 }: {
-  school: PAPSSchool | null;
+  school: TeacherSettingsSchool | null;
   classes: PAPSClassroom[];
   sheetConnected?: boolean;
   sheetStatus?: TeacherSheetStatus;
@@ -135,9 +142,16 @@ export function TeacherSettingsManager({
   const [newClassNumber, setNewClassNumber] = useState("1");
   const [schoolMessage, setSchoolMessage] = useState<string | null>(null);
   const [classMessage, setClassMessage] = useState<string | null>(null);
+  const [pin, setPin] = useState("");
+  const [pinConfirmation, setPinConfirmation] = useState("");
+  const [pinMessage, setPinMessage] = useState<string | null>(null);
+  const [teacherReturnPinConfigured, setTeacherReturnPinConfigured] = useState(() =>
+    hasTeacherReturnPin(school)
+  );
   const [isSchoolPending, startSchoolTransition] = useTransition();
   const [isTemplatePending, startTemplateTransition] = useTransition();
   const [isClassPending, startClassTransition] = useTransition();
+  const [isPinPending, startPinTransition] = useTransition();
   const serviceAccountMissing = !sheetSetupStatus.serviceAccountConfigured;
   const templateMissing = !sheetSetupStatus.templateConfigured;
   const isSchoolDirty =
@@ -160,6 +174,7 @@ export function TeacherSettingsManager({
     persistSavedSchoolSettings(nextSavedSchoolSettings);
     setSchoolName(nextSavedSchoolSettings?.schoolName ?? "");
     setSheetUrl(nextSavedSchoolSettings?.sheetUrl ?? "");
+    setTeacherReturnPinConfigured(hasTeacherReturnPin(payload.school));
     setPendingSheetClaim(null);
     setSchoolMessage(message);
   };
@@ -207,6 +222,7 @@ export function TeacherSettingsManager({
     const nextSavedSchoolSettings = createSavedSchoolSettings(school) ?? readSavedSchoolSettings();
 
     setSchoolState(school);
+    setTeacherReturnPinConfigured(hasTeacherReturnPin(school));
 
     if (areSavedSchoolSettingsEqual(savedSchoolSettings, nextSavedSchoolSettings)) {
       return;
@@ -373,6 +389,97 @@ export function TeacherSettingsManager({
           currentItems.filter((entry) => entry.id !== optimisticClassId)
         );
         setClassMessage(error instanceof Error ? error.message : "학급을 추가하지 못했습니다.");
+      }
+    });
+  };
+
+  const saveTeacherReturnPin = () => {
+    if (!schoolState) {
+      setPinMessage("학교 정보를 먼저 저장해주세요.");
+      return;
+    }
+
+    if (!/^\d{4,6}$/.test(pin.trim())) {
+      setPinMessage("PIN은 4~6자리 숫자로 입력해주세요.");
+      return;
+    }
+
+    if (pin.trim() !== pinConfirmation.trim()) {
+      setPinMessage("PIN 확인 값이 일치하지 않습니다.");
+      return;
+    }
+
+    setPinMessage(null);
+
+    startPinTransition(async () => {
+      try {
+        const response = await fetch("/api/teacher/student-return-pin", {
+          method: "POST",
+          headers: buildTeacherMutationHeaders({
+            "content-type": "application/json"
+          }),
+          body: JSON.stringify({
+            pin
+          })
+        });
+        const payload = (await response.json()) as {
+          error?: string;
+          teacherReturnPinConfigured?: boolean;
+          teacherStateVersion?: string;
+        };
+
+        if (!response.ok || !payload.teacherReturnPinConfigured) {
+          throw new Error(payload.error ?? "교사용 PIN을 저장하지 못했습니다.");
+        }
+
+        setTeacherReturnPinConfigured(true);
+        setPin("");
+        setPinConfirmation("");
+        setPinMessage("교사 화면 접근 PIN을 저장했습니다.");
+        notifyTeacherDataRefresh({
+          refresh: false,
+          nextVersion: payload.teacherStateVersion ?? null
+        });
+      } catch (error) {
+        setPinMessage(error instanceof Error ? error.message : "교사용 PIN을 저장하지 못했습니다.");
+      }
+    });
+  };
+
+  const clearTeacherReturnPin = () => {
+    if (!schoolState) {
+      setPinMessage("학교 정보를 먼저 저장해주세요.");
+      return;
+    }
+
+    setPinMessage(null);
+
+    startPinTransition(async () => {
+      try {
+        const response = await fetch("/api/teacher/student-return-pin", {
+          method: "DELETE",
+          headers: buildTeacherMutationHeaders()
+        });
+        const payload = (await response.json()) as {
+          error?: string;
+          teacherReturnPinConfigured?: boolean;
+          teacherStateVersion?: string;
+        };
+
+        if (!response.ok) {
+          throw new Error(payload.error ?? "교사용 PIN을 해제하지 못했습니다.");
+        }
+
+        setTeacherReturnPinConfigured(false);
+        setPin("");
+        setPinConfirmation("");
+        setPinMessage("교사 화면 접근 PIN을 해제했습니다.");
+        notifyTeacherDataRefresh({
+          refresh: false,
+          nextVersion: payload.teacherStateVersion ?? null
+        });
+      } catch (error) {
+        setPinMessage(error instanceof Error ? error.message : "교사용 PIN을 해제하지 못했습니다.");
       }
     });
   };
@@ -556,6 +663,82 @@ export function TeacherSettingsManager({
               학교 정보 저장
             </button>
           </div>
+        </div>
+      </section>
+      <section className="rounded-[1.75rem] border border-ink/10 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold">교사 화면 접근 PIN</h2>
+            <p className="mt-1 text-sm text-ink/70">
+              학생 세션 화면에서 교사 관리 화면으로 돌아갈 때 사용할 PIN을 설정합니다.
+            </p>
+          </div>
+          <span
+            className={`w-fit rounded-full px-3 py-1 text-xs font-medium ${
+              teacherReturnPinConfigured
+                ? "bg-emerald-100 text-emerald-800"
+                : "bg-amber-100 text-amber-800"
+            }`}
+          >
+            {teacherReturnPinConfigured ? "PIN 설정됨" : "PIN 미설정"}
+          </span>
+        </div>
+        <div className="mt-4 rounded-3xl border border-ink/10 bg-ink/[0.03] px-4 py-4">
+          <p className="text-sm leading-6 text-ink/70">
+            PIN은 구글 시트에 원문으로 저장하지 않고 해시 형태로 저장합니다. 학생용 공용
+            기기에서 선생님만 교사 관리 화면으로 돌아갈 수 있게 하는 간단한 안전장치입니다.
+          </p>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <label className="flex flex-col gap-2 text-sm">
+            새 PIN
+            <input
+              type="password"
+              inputMode="numeric"
+              autoComplete="new-password"
+              maxLength={6}
+              className="rounded-2xl border border-ink/15 px-4 py-3"
+              value={pin}
+              onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder="4~6자리 숫자"
+            />
+          </label>
+          <label className="flex flex-col gap-2 text-sm">
+            새 PIN 확인
+            <input
+              type="password"
+              inputMode="numeric"
+              autoComplete="new-password"
+              maxLength={6}
+              className="rounded-2xl border border-ink/15 px-4 py-3"
+              value={pinConfirmation}
+              onChange={(event) =>
+                setPinConfirmation(event.target.value.replace(/\D/g, "").slice(0, 6))
+              }
+              placeholder="한 번 더 입력"
+            />
+          </label>
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            className="rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={saveTeacherReturnPin}
+            disabled={isPinPending}
+          >
+            {teacherReturnPinConfigured ? "PIN 변경" : "PIN 저장"}
+          </button>
+          {teacherReturnPinConfigured ? (
+            <button
+              type="button"
+              className="rounded-full border border-ink/15 px-5 py-2.5 text-sm font-medium text-ink disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={clearTeacherReturnPin}
+              disabled={isPinPending}
+            >
+              PIN 해제
+            </button>
+          ) : null}
+          {pinMessage ? <p className="text-sm text-ink/70">{pinMessage}</p> : null}
         </div>
       </section>
       <section className="rounded-[1.75rem] border border-ink/10 bg-white p-5 shadow-sm">

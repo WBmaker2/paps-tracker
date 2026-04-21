@@ -23,10 +23,10 @@ export default async function StudentSessionPage({
 }: StudentSessionPageProps) {
   const { sessionId } = await params;
   const { access } = await searchParams;
-  const teacherReturnEnabled = hasStudentTeacherPin();
+  let teacherReturnEnabled = hasStudentTeacherPin();
 
   try {
-    const { session, classSections } =
+    const { session, classSections, teacherReturnPinConfigured } =
       process.env.NODE_ENV === "production"
         ? await loadStudentSessionViewFromSheet({
             spreadsheetId:
@@ -41,6 +41,7 @@ export default async function StudentSessionPage({
             sessionId
           })
         : await (await createStoreForRequest()).getStudentSessionView(sessionId);
+    teacherReturnEnabled = teacherReturnPinConfigured ?? teacherReturnEnabled;
     const eventDefinition = getEventDefinition(session.eventId);
 
     if (session.isOpen === false) {
@@ -57,6 +58,7 @@ export default async function StudentSessionPage({
               </div>
               <StudentSessionNavigation
                 teacherReturnEnabled={teacherReturnEnabled}
+                studentAccessToken={typeof access === "string" ? access : null}
                 className="shrink-0 justify-end"
               />
             </div>
@@ -84,6 +86,7 @@ export default async function StudentSessionPage({
               </div>
               <StudentSessionNavigation
                 teacherReturnEnabled={teacherReturnEnabled}
+                studentAccessToken={typeof access === "string" ? access : null}
                 className="shrink-0 justify-end"
               />
             </div>
@@ -120,6 +123,7 @@ export default async function StudentSessionPage({
             </div>
             <StudentSessionNavigation
               teacherReturnEnabled={teacherReturnEnabled}
+              studentAccessToken={typeof access === "string" ? access : null}
               className="shrink-0 justify-end"
             />
           </div>

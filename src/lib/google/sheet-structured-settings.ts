@@ -1,9 +1,16 @@
-import type { PAPSClassroom, PAPSSchool, PAPSSession, PAPSTeacher } from "../paps/types";
+import type {
+  PAPSClassroom,
+  PAPSSchool,
+  PAPSSession,
+  PAPSTeacher,
+  PAPSTeacherReturnPin
+} from "../paps/types";
 import { createGoogleSheetsEditLink } from "./drive-link";
 
 export const SETTINGS_MACHINE_ROW_LABELS = {
   school: "__PAPS_SCHOOL",
   connection: "__PAPS_CONNECTION",
+  teacherReturnPin: "__PAPS_TEACHER_RETURN_PIN",
   teacher: "__PAPS_TEACHER",
   teacherMeta: "__PAPS_TEACHER_META",
   class: "__PAPS_CLASS",
@@ -100,6 +107,40 @@ export const normalizeIsoValue = (value?: string | null): string => {
 const getHumanSettingValue = (rowsByLabel: Map<string, string[][]>, label: string): string | null =>
   rowsByLabel.get(label)?.[0]?.[1] ?? null;
 
+const parseTeacherReturnPin = (
+  rowsByLabel: Map<string, string[][]>
+): PAPSTeacherReturnPin | null => {
+  const rawValue = rowsByLabel.get(SETTINGS_MACHINE_ROW_LABELS.teacherReturnPin)?.[0]?.[1];
+
+  if (!rawValue) {
+    return null;
+  }
+
+  try {
+    const parsedValue = JSON.parse(rawValue) as Partial<PAPSTeacherReturnPin>;
+
+    if (
+      parsedValue.algorithm !== "hmac-sha256-v1" ||
+      typeof parsedValue.salt !== "string" ||
+      typeof parsedValue.hash !== "string" ||
+      typeof parsedValue.updatedAt !== "string" ||
+      typeof parsedValue.updatedByTeacherEmail !== "string"
+    ) {
+      return null;
+    }
+
+    return {
+      algorithm: parsedValue.algorithm,
+      salt: parsedValue.salt,
+      hash: parsedValue.hash,
+      updatedAt: parsedValue.updatedAt,
+      updatedByTeacherEmail: parsedValue.updatedByTeacherEmail
+    };
+  } catch {
+    return null;
+  }
+};
+
 const createDefaultSchool = (input: {
   spreadsheetId: string;
   schoolName?: string | null;
@@ -113,6 +154,7 @@ const createDefaultSchool = (input: {
     name: input.schoolName?.trim() || "PAPS School",
     teacherIds: [input.teacherId],
     sheetUrl: input.sheetUrl?.trim() || createGoogleSheetsEditLink(input.spreadsheetId),
+    teacherReturnPin: null,
     createdAt: timestamp,
     updatedAt: timestamp
   };
@@ -158,12 +200,13 @@ const buildStructuredSchool = (
         parseJsonCell<string | null>(rowsByLabel, SETTINGS_MACHINE_ROW_LABELS.legacySpreadsheetUrl, null) ||
         getHumanSettingValue(rowsByLabel, "템플릿 안내 링크") ||
         createGoogleSheetsEditLink(spreadsheetId),
+      teacherReturnPin: parseTeacherReturnPin(rowsByLabel),
       createdAt: normalizeIsoValue(schoolRow[4]),
       updatedAt: normalizeIsoValue(schoolRow[5])
     };
   }
 
-  return (
+  const fallbackSchool =
     legacySchool ??
     createDefaultSchool({
       spreadsheetId,
@@ -175,8 +218,12 @@ const buildStructuredSchool = (
           null
         ) ?? getHumanSettingValue(rowsByLabel, "템플릿 안내 링크"),
       teacherId
-    })
-  );
+    });
+
+  return {
+    ...fallbackSchool,
+    teacherReturnPin: fallbackSchool.teacherReturnPin ?? parseTeacherReturnPin(rowsByLabel)
+  };
 };
 
 const buildStructuredTeachers = (

@@ -60,12 +60,14 @@ export interface StudentSessionClassSection {
 export interface StudentSessionView {
   session: PAPSSession;
   classSections: StudentSessionClassSection[];
+  teacherReturnPinConfigured?: boolean;
 }
 
 export interface StudentSessionGroupView {
   groupId: string;
   groupName: string;
   sessions: StudentSessionView[];
+  teacherReturnPinConfigured?: boolean;
 }
 
 export interface SetSyncStatusInput extends RecordSelector {

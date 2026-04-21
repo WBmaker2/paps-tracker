@@ -23,6 +23,7 @@ import { createGoogleSheetClientFromEnv } from "./sheets-store";
 import { GoogleSheetsAccessError, type GoogleSheetsClient } from "./sheets-client";
 import { buildRecordNote } from "./sheets-record-note";
 import { rebuildGoogleSheetSummaries } from "./sheets-rebuild";
+import { isTeacherReturnPinEnabled } from "../teacher-return";
 
 const STUDENT_RUNTIME_EMAIL = "student-session@paps.local";
 const RECORD_APPEND_RANGE = "'세션기록'!A:U";
@@ -94,7 +95,8 @@ const buildStudentSessionViewFromState = (
 
   return {
     session,
-    classSections
+    classSections,
+    teacherReturnPinConfigured: isTeacherReturnPinEnabled(state.school)
   };
 };
 
@@ -118,7 +120,8 @@ const buildStudentSessionGroupViewFromState = (
   return {
     groupId: sessionGroupId,
     groupName: sessions[0]?.sessionGroupName ?? sessions[0]?.name ?? sessionGroupId,
-    sessions: sessions.map((session) => buildStudentSessionViewFromState(state, session.id))
+    sessions: sessions.map((session) => buildStudentSessionViewFromState(state, session.id)),
+    teacherReturnPinConfigured: isTeacherReturnPinEnabled(state.school)
   };
 };
 

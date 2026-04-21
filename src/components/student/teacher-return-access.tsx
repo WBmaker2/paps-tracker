@@ -7,10 +7,12 @@ const LOCK_DURATION_MS = 30_000;
 
 export function TeacherReturnAccess({
   enabled,
-  buttonLabel = "교사용 돌아가기"
+  buttonLabel = "교사용 돌아가기",
+  studentAccessToken = null
 }: {
   enabled: boolean;
   buttonLabel?: string;
+  studentAccessToken?: string | null;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [pin, setPin] = useState("");
@@ -87,7 +89,8 @@ export function TeacherReturnAccess({
           "content-type": "application/json"
         },
         body: JSON.stringify({
-          pin
+          pin,
+          accessToken: studentAccessToken ?? undefined
         })
       });
       const payload = (await response.json().catch(() => null)) as

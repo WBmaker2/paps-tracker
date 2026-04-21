@@ -58,7 +58,7 @@ describe("teacher student return route", () => {
 
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toEqual({
-      error: "교사용 PIN이 올바르지 않습니다."
+      error: "교사용 PIN이 올바르지 않습니다. (4회 남음)"
     });
   });
 

@@ -23,7 +23,7 @@ export default async function StudentSessionGroupPage({
 }: StudentSessionGroupPageProps) {
   const { sessionGroupId } = await params;
   const { access } = await searchParams;
-  const teacherReturnEnabled = hasStudentTeacherPin();
+  let teacherReturnEnabled = hasStudentTeacherPin();
 
   try {
     const accessPayload =
@@ -49,6 +49,7 @@ export default async function StudentSessionGroupPage({
             sessionGroupId
           })
         : await (await createStoreForRequest()).getStudentSessionGroupView(sessionGroupId);
+    teacherReturnEnabled = groupView.teacherReturnPinConfigured ?? teacherReturnEnabled;
     const sessions = groupView.sessions.map(({ session, classSections }) => {
       const eventDefinition = getEventDefinition(session.eventId);
 
@@ -84,6 +85,7 @@ export default async function StudentSessionGroupPage({
               </div>
               <StudentSessionNavigation
                 teacherReturnEnabled={teacherReturnEnabled}
+                studentAccessToken={typeof access === "string" ? access : null}
                 className="shrink-0 justify-end"
               />
             </div>
@@ -114,6 +116,7 @@ export default async function StudentSessionGroupPage({
             </div>
             <StudentSessionNavigation
               teacherReturnEnabled={teacherReturnEnabled}
+              studentAccessToken={typeof access === "string" ? access : null}
               className="shrink-0 justify-end"
             />
           </div>

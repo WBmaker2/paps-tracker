@@ -31,7 +31,7 @@ describe("student teacher return access", () => {
       }
     });
 
-    render(<TeacherReturnAccess enabled />);
+    render(<TeacherReturnAccess enabled studentAccessToken="student-access-token" />);
 
     fireEvent.click(screen.getByRole("button", { name: "교사용 돌아가기" }));
     fireEvent.change(screen.getByLabelText("교사용 PIN"), {
@@ -42,6 +42,16 @@ describe("student teacher return access", () => {
     await waitFor(() => {
       expect(assignMock).toHaveBeenCalledWith("/teacher");
     });
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/teacher/student-return",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          pin: "2468",
+          accessToken: "student-access-token"
+        })
+      })
+    );
   });
 
   it("shows an inline error after an invalid pin", async () => {

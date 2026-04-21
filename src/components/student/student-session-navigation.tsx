@@ -7,9 +7,11 @@ import { TeacherReturnAccess } from "./teacher-return-access";
 
 export function StudentSessionNavigation({
   teacherReturnEnabled,
+  studentAccessToken,
   className = ""
 }: {
   teacherReturnEnabled: boolean;
+  studentAccessToken?: string | null;
   className?: string;
 }) {
   return (
@@ -26,6 +28,7 @@ export function StudentSessionNavigation({
       <TeacherReturnAccess
         enabled={teacherReturnEnabled}
         buttonLabel="교사 관리 화면"
+        studentAccessToken={studentAccessToken}
       />
     </nav>
   );
