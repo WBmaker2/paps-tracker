@@ -1,8 +1,7 @@
 import React from "react";
-import Link from "next/link";
 
+import { StudentSessionNavigation } from "../../../src/components/student/student-session-navigation";
 import { SessionGroupView } from "../../../src/components/student/session-group-view";
-import { TeacherReturnAccess } from "../../../src/components/student/teacher-return-access";
 import { hasStudentTeacherPin } from "../../../src/lib/env";
 import { loadStudentSessionGroupViewFromSheet } from "../../../src/lib/google/sheets-submit";
 import { getEventDefinition } from "../../../src/lib/paps/catalog";
@@ -72,7 +71,7 @@ export default async function StudentSessionGroupPage({
       <main className="min-h-screen bg-canvas px-6 py-12 text-ink sm:px-10">
         <div className="mx-auto flex max-w-5xl flex-col gap-6">
           <section className="rounded-[2rem] border border-ink/10 bg-white/85 p-8 shadow-panel backdrop-blur">
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.24em] text-accent">
                   Student Session
@@ -83,12 +82,16 @@ export default async function StudentSessionGroupPage({
                   결과를 확인할 수 있습니다.
                 </p>
               </div>
-              <TeacherReturnAccess enabled={teacherReturnEnabled} />
+              <StudentSessionNavigation
+                teacherReturnEnabled={teacherReturnEnabled}
+                className="shrink-0 justify-end"
+              />
             </div>
           </section>
           <SessionGroupView
             studentAccessToken={typeof access === "string" ? access : null}
             sessions={sessions}
+            teacherReturnEnabled={teacherReturnEnabled}
           />
         </div>
       </main>
@@ -97,7 +100,7 @@ export default async function StudentSessionGroupPage({
     return (
       <main className="min-h-screen bg-canvas px-6 py-12 text-ink sm:px-10">
         <div className="mx-auto flex max-w-3xl flex-col gap-6 rounded-[2rem] border border-ink/10 bg-white/85 p-8 shadow-panel backdrop-blur">
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-3">
               <p className="text-sm font-semibold uppercase tracking-[0.24em] text-accent">
                 Student Session
@@ -109,15 +112,10 @@ export default async function StudentSessionGroupPage({
                   : "요청한 세션 묶음 정보를 불러오지 못했습니다."}
               </p>
             </div>
-            <TeacherReturnAccess enabled={teacherReturnEnabled} />
-          </div>
-          <div>
-            <Link
-              href="/"
-              className="inline-flex rounded-full border border-ink/10 px-4 py-2 text-sm font-medium transition hover:border-accent/40 hover:text-accent"
-            >
-              홈으로 돌아가기
-            </Link>
+            <StudentSessionNavigation
+              teacherReturnEnabled={teacherReturnEnabled}
+              className="shrink-0 justify-end"
+            />
           </div>
         </div>
       </main>

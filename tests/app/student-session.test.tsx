@@ -288,6 +288,8 @@ describe("student session flow", () => {
   it("shows only a name picker before input", async () => {
     await renderStudentSessionPage("session-open-single");
 
+    expect(screen.getByRole("link", { name: "홈으로 돌아가기" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("button", { name: "교사 관리 화면" })).toBeInTheDocument();
     expect(screen.getByText("이름을 선택하세요")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Kim" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Park" })).toBeInTheDocument();
@@ -579,6 +581,8 @@ describe("student session flow", () => {
 
     await screen.findByText("즉시 결과");
     expect(screen.getByText("Kim 학생 결과")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "홈으로 돌아가기" })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: "교사 관리 화면" })).toHaveLength(2);
 
     fireEvent.click(screen.getByRole("button", { name: "다음 학생" }));
 

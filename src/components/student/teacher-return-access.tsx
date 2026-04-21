@@ -6,9 +6,11 @@ const MAX_FAILED_ATTEMPTS = 5;
 const LOCK_DURATION_MS = 30_000;
 
 export function TeacherReturnAccess({
-  enabled
+  enabled,
+  buttonLabel = "교사용 돌아가기"
 }: {
   enabled: boolean;
+  buttonLabel?: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [pin, setPin] = useState("");
@@ -49,14 +51,10 @@ export function TeacherReturnAccess({
   }, [lockUntil, now]);
   const isLocked = remainingLockSeconds > 0;
 
-  if (!enabled) {
-    return null;
-  }
-
   const openModal = () => {
     setIsOpen(true);
     setPin("");
-    setErrorMessage(null);
+    setErrorMessage(enabled ? null : "교사용 돌아가기 PIN이 아직 설정되지 않았습니다.");
   };
 
   const closeModal = () => {
@@ -133,10 +131,10 @@ export function TeacherReturnAccess({
     <>
       <button
         type="button"
-        className="inline-flex rounded-full border border-ink/10 px-4 py-2 text-sm font-medium text-ink transition hover:border-accent/40 hover:text-accent"
+        className="inline-flex rounded-full border border-ink/10 bg-white/70 px-4 py-2 text-sm font-medium text-ink transition hover:border-accent/40 hover:text-accent"
         onClick={openModal}
       >
-        교사용 돌아가기
+        {buttonLabel}
       </button>
 
       {isOpen ? (
@@ -148,26 +146,30 @@ export function TeacherReturnAccess({
               </p>
               <h2 className="text-2xl font-semibold">교사 확인</h2>
               <p className="text-sm leading-6 text-ink/70">
-                학생 화면에서 교사 대시보드로 돌아가려면 교사용 PIN을 입력해 주세요.
+                {enabled
+                  ? "학생 화면에서 교사 대시보드로 돌아가려면 교사용 PIN을 입력해 주세요."
+                  : "교사 대시보드 이동은 교사용 PIN이 설정된 경우에만 사용할 수 있습니다."}
               </p>
             </div>
 
             <div className="mt-5 space-y-3">
-              <label className="flex flex-col gap-2 text-sm font-medium text-ink">
-                교사용 PIN
-                <input
-                  type="password"
-                  inputMode="numeric"
-                  autoComplete="off"
-                  className="rounded-2xl border border-ink/15 px-4 py-3"
-                  value={pin}
-                  disabled={isSubmitting || isLocked}
-                  onChange={(event) => {
-                    setPin(event.target.value);
-                    setErrorMessage(null);
-                  }}
-                />
-              </label>
+              {enabled ? (
+                <label className="flex flex-col gap-2 text-sm font-medium text-ink">
+                  교사용 PIN
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    className="rounded-2xl border border-ink/15 px-4 py-3"
+                    value={pin}
+                    disabled={isSubmitting || isLocked}
+                    onChange={(event) => {
+                      setPin(event.target.value);
+                      setErrorMessage(null);
+                    }}
+                  />
+                </label>
+              ) : null}
 
               {isLocked ? (
                 <p className="text-sm text-red-600">
@@ -190,7 +192,7 @@ export function TeacherReturnAccess({
               <button
                 type="button"
                 className="rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-white transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={isSubmitting || isLocked}
+                disabled={isSubmitting || isLocked || !enabled}
                 onClick={handleVerify}
               >
                 {isSubmitting ? "확인 중..." : "교사 확인"}

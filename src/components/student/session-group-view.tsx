@@ -37,10 +37,12 @@ type SessionGroupEntry = {
 
 export function SessionGroupView({
   studentAccessToken,
-  sessions
+  sessions,
+  teacherReturnEnabled = false
 }: {
   studentAccessToken?: string | null;
   sessions: SessionGroupEntry[];
+  teacherReturnEnabled?: boolean;
 }) {
   const firstOpenSession = sessions.find((session) => session.isOpen) ?? sessions[0] ?? null;
   const [selectedSessionId, setSelectedSessionId] = useState(firstOpenSession?.sessionId ?? "");
@@ -95,6 +97,7 @@ export function SessionGroupView({
           betterDirection={selectedSession.betterDirection}
           measurementConstraints={selectedSession.measurementConstraints}
           classSections={selectedSession.classSections}
+          teacherReturnEnabled={teacherReturnEnabled}
         />
       ) : (
         <section className="rounded-[1.75rem] border border-ink/10 bg-white p-5 text-sm text-ink/70 shadow-sm">

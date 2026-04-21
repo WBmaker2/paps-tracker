@@ -5,6 +5,7 @@ import React, { useMemo, useState, useTransition } from "react";
 import { InstantResultCard } from "./instant-result-card";
 import { NamePicker } from "./name-picker";
 import { RecordForm, type RecordFormSubmission } from "./record-form";
+import { StudentSessionNavigation } from "./student-session-navigation";
 import type {
   BetterDirection,
   ClassScope,
@@ -50,7 +51,8 @@ export function SplitSessionView({
   unit,
   betterDirection,
   measurementConstraints,
-  classSections
+  classSections,
+  teacherReturnEnabled = false
 }: {
   sessionId: string;
   studentAccessToken?: string | null;
@@ -66,6 +68,7 @@ export function SplitSessionView({
     precision: number;
   };
   classSections: ClassSection[];
+  teacherReturnEnabled?: boolean;
 }) {
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [submitResult, setSubmitResult] = useState<SubmissionResult | null>(null);
@@ -195,7 +198,8 @@ export function SplitSessionView({
             betterDirection={betterDirection}
             latestOfficialGrade={submitResult.latestOfficialGrade}
           />
-          <div className="flex justify-end">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <StudentSessionNavigation teacherReturnEnabled={teacherReturnEnabled} />
             <button
               type="button"
               className="rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-white transition hover:bg-accent"

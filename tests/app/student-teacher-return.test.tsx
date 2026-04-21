@@ -67,4 +67,16 @@ describe("student teacher return access", () => {
 
     await screen.findByText(/교사용 PIN이 올바르지 않습니다\./);
   });
+
+  it("keeps the teacher button visible but locked when the return PIN is not configured", () => {
+    render(<TeacherReturnAccess enabled={false} buttonLabel="교사 관리 화면" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "교사 관리 화면" }));
+
+    expect(
+      screen.getByText("교사용 돌아가기 PIN이 아직 설정되지 않았습니다.")
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("교사용 PIN")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "교사 확인" })).toBeDisabled();
+  });
 });
