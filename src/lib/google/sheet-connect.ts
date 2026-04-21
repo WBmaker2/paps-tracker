@@ -13,6 +13,7 @@ export interface ConnectTeacherGoogleSheetInput {
   teacherEmail: string;
   teacherName?: string | null;
   schoolName?: string | null;
+  claimExistingSheet?: boolean;
   client: GoogleSheetsClient;
 }
 
@@ -21,10 +22,20 @@ const createTimestamp = (): string => new Date().toISOString();
 const createTeacherId = (email: string): string =>
   `teacher-${email.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
 
+export class CurrentTeacherNotAuthorizedForSpreadsheetError extends Error {
+  readonly code = "teacher_not_authorized";
+
+  constructor() {
+    super("The current teacher is not authorized for this spreadsheet.");
+    this.name = "CurrentTeacherNotAuthorizedForSpreadsheetError";
+  }
+}
+
 const ensureTeacher = (
   teachers: PAPSTeacher[],
   schoolId: string,
-  teacherEmail: string
+  teacherEmail: string,
+  teacherName?: string | null
 ): PAPSTeacher[] => {
   const normalizedEmail = teacherEmail.trim().toLowerCase();
 
@@ -39,7 +50,7 @@ const ensureTeacher = (
     {
       id: createTeacherId(teacherEmail),
       schoolId,
-      name: teacherEmail.split("@")[0] ?? teacherEmail,
+      name: teacherName?.trim() || teacherEmail.split("@")[0] || teacherEmail,
       email: teacherEmail,
       createdAt: timestamp,
       updatedAt: timestamp
@@ -58,15 +69,17 @@ const buildConnectedTeachers = (
     currentState.hasPersistedTeachers &&
     !currentState.teachers.some(
       (teacher) => teacher.email.trim().toLowerCase() === normalizedTeacherEmail
-    )
+    ) &&
+    !input.claimExistingSheet
   ) {
-    throw new Error("The current teacher is not authorized for this spreadsheet.");
+    throw new CurrentTeacherNotAuthorizedForSpreadsheetError();
   }
 
-  return (
-    currentState.hasPersistedTeachers
-      ? currentState.teachers
-      : ensureTeacher(currentState.teachers, currentState.school.id, input.teacherEmail)
+  return ensureTeacher(
+    currentState.teachers,
+    currentState.school.id,
+    input.teacherEmail,
+    input.teacherName
   ).map((teacher) =>
     teacher.email.trim().toLowerCase() === normalizedTeacherEmail
       ? {

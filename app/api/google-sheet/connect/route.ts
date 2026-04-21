@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { parseGoogleSheetsUrl } from "../../../../src/lib/google/drive-link";
+import { CurrentTeacherNotAuthorizedForSpreadsheetError } from "../../../../src/lib/google/sheet-connect";
 import {
   connectTeacherGoogleSheet,
   createGoogleSheetClientFromEnv,
@@ -22,6 +23,19 @@ const badRequest = (error: string) =>
     }
   );
 
+const teacherNotAuthorized = (error: CurrentTeacherNotAuthorizedForSpreadsheetError) =>
+  NextResponse.json(
+    {
+      ok: false,
+      code: error.code,
+      action: "claim_existing_sheet",
+      error: error.message
+    },
+    {
+      status: 409
+    }
+  );
+
 export async function POST(request: NextRequest) {
   const teacherSession = await requireTeacherRouteSession();
 
@@ -38,12 +52,14 @@ export async function POST(request: NextRequest) {
       typeof body?.schoolName === "string" && body.schoolName.trim()
         ? body.schoolName.trim()
         : null;
+    const claimExistingSheet = body?.mode === "claim_existing_sheet";
     const connection = await connectTeacherGoogleSheet({
       spreadsheetId: parsed.spreadsheetId,
       normalizedUrl: parsed.normalizedUrl,
       teacherEmail: teacherSession.session.email,
       teacherName: teacherSession.session.name,
       schoolName: normalizedSchoolName,
+      claimExistingSheet,
       client
     });
     let school = connection.school;
@@ -88,6 +104,10 @@ export async function POST(request: NextRequest) {
 
     return response;
   } catch (error) {
+    if (error instanceof CurrentTeacherNotAuthorizedForSpreadsheetError) {
+      return teacherNotAuthorized(error);
+    }
+
     return badRequest(
       error instanceof Error ? error.message : "Could not connect the Google Sheet."
     );

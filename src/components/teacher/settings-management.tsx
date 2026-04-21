@@ -19,6 +19,15 @@ type ManagedClassroomItem = PAPSClassroom & {
   optimistic?: boolean;
 };
 
+type GoogleSheetConnectionPayload = {
+  ok?: boolean;
+  code?: string;
+  action?: string;
+  error?: string;
+  school?: PAPSSchool;
+  normalizedUrl?: string;
+};
+
 const areSavedSchoolSettingsEqual = (
   left: SavedSchoolSettings | null,
   right: SavedSchoolSettings | null
@@ -118,6 +127,10 @@ export function TeacherSettingsManager({
   );
   const [schoolName, setSchoolName] = useState(initialSavedSchoolSettings?.schoolName ?? "");
   const [sheetUrl, setSheetUrl] = useState(initialSavedSchoolSettings?.sheetUrl ?? "");
+  const [pendingSheetClaim, setPendingSheetClaim] = useState<{
+    schoolName: string;
+    sheetUrl: string;
+  } | null>(null);
   const [newGradeLevel, setNewGradeLevel] = useState("5");
   const [newClassNumber, setNewClassNumber] = useState("1");
   const [schoolMessage, setSchoolMessage] = useState<string | null>(null);
@@ -130,6 +143,61 @@ export function TeacherSettingsManager({
   const isSchoolDirty =
     schoolName !== (savedSchoolSettings?.schoolName ?? "") ||
     sheetUrl !== (savedSchoolSettings?.sheetUrl ?? "");
+  const canClaimExistingSheet =
+    Boolean(pendingSheetClaim) || sheetStatus?.code === "teacher_not_authorized";
+
+  const applyConnectedSchool = (payload: GoogleSheetConnectionPayload, message: string) => {
+    if (!payload.school) {
+      throw new Error(payload.error ?? "구글 시트를 연결하지 못했습니다.");
+    }
+
+    const nextSavedSchoolSettings = createSavedSchoolSettings(payload.school, {
+      sheetUrl: payload.normalizedUrl ?? payload.school.sheetUrl ?? ""
+    });
+
+    setSchoolState(payload.school);
+    setSavedSchoolSettings(nextSavedSchoolSettings);
+    persistSavedSchoolSettings(nextSavedSchoolSettings);
+    setSchoolName(nextSavedSchoolSettings?.schoolName ?? "");
+    setSheetUrl(nextSavedSchoolSettings?.sheetUrl ?? "");
+    setPendingSheetClaim(null);
+    setSchoolMessage(message);
+  };
+
+  const connectSchool = async (mode?: "claim_existing_sheet") => {
+    const response = await fetch("/api/google-sheet/connect", {
+      method: "POST",
+      headers: buildTeacherMutationHeaders({
+        "content-type": "application/json"
+      }),
+      body: JSON.stringify({
+        url: sheetUrl,
+        schoolName,
+        ...(mode ? { mode } : {})
+      })
+    });
+    const payload = (await response.json()) as GoogleSheetConnectionPayload;
+
+    if (!response.ok || !payload.school) {
+      if (payload.code === "teacher_not_authorized" && payload.action === "claim_existing_sheet") {
+        setPendingSheetClaim({
+          schoolName,
+          sheetUrl
+        });
+        setSchoolMessage(payload.error ?? "현재 교사가 이 시트에 등록되어 있지 않습니다.");
+        return;
+      }
+
+      throw new Error(payload.error ?? "구글 시트를 연결하지 못했습니다.");
+    }
+
+    applyConnectedSchool(
+      payload,
+      mode === "claim_existing_sheet"
+        ? "기존 시트를 가져오고 현재 교사를 담당교사로 추가했습니다."
+        : "학교 정보를 저장했습니다."
+    );
+  };
 
   useEffect(() => {
     setClassItems(sortClassItems(classes));
@@ -163,38 +231,28 @@ export function TeacherSettingsManager({
 
     startSchoolTransition(async () => {
       try {
-        const response = await fetch("/api/google-sheet/connect", {
-          method: "POST",
-          headers: buildTeacherMutationHeaders({
-            "content-type": "application/json"
-          }),
-          body: JSON.stringify({
-            url: sheetUrl,
-            schoolName
-          })
-        });
-        const payload = (await response.json()) as {
-          error?: string;
-          school?: PAPSSchool;
-          normalizedUrl?: string;
-        };
-
-        if (!response.ok || !payload.school) {
-          throw new Error(payload.error ?? "구글 시트를 연결하지 못했습니다.");
-        }
-
-        const nextSavedSchoolSettings = createSavedSchoolSettings(payload.school, {
-          sheetUrl: payload.normalizedUrl ?? payload.school.sheetUrl ?? ""
-        });
-
-        setSchoolState(payload.school);
-        setSavedSchoolSettings(nextSavedSchoolSettings);
-        persistSavedSchoolSettings(nextSavedSchoolSettings);
-        setSchoolName(nextSavedSchoolSettings?.schoolName ?? "");
-        setSheetUrl(nextSavedSchoolSettings?.sheetUrl ?? "");
-        setSchoolMessage("학교 정보를 저장했습니다.");
+        await connectSchool();
       } catch (error) {
         setSchoolMessage(error instanceof Error ? error.message : "학교 정보를 저장하지 못했습니다.");
+      }
+    });
+  };
+
+  const claimExistingSheet = () => {
+    if (!sheetUrl.trim()) {
+      setSchoolMessage("구글 시트 URL을 먼저 입력해주세요.");
+      return;
+    }
+
+    setSchoolMessage(null);
+
+    startSchoolTransition(async () => {
+      try {
+        await connectSchool("claim_existing_sheet");
+      } catch (error) {
+        setSchoolMessage(
+          error instanceof Error ? error.message : "기존 시트를 가져오지 못했습니다."
+        );
       }
     });
   };
@@ -435,6 +493,32 @@ export function TeacherSettingsManager({
               {sheetStatus.detail ? (
                 <p className="mt-2 text-sm text-ink/70">{sheetStatus.detail}</p>
               ) : null}
+            </div>
+          ) : null}
+          {canClaimExistingSheet ? (
+            <div className="rounded-2xl border border-accent/25 bg-accent/10 px-4 py-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-ink">기존 PAPS 시트 가져오기</p>
+                  <p className="mt-1 text-sm leading-6 text-ink/75">
+                    이 시트에는 이미 다른 담당교사 정보가 저장되어 있습니다. 선생님이
+                    관리하던 기존 시트가 맞다면 현재 로그인한 교사를 담당교사로 추가해
+                    계속 사용할 수 있습니다.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="rounded-full border border-accent/30 bg-white px-5 py-2.5 text-sm font-medium text-accent disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={claimExistingSheet}
+                  disabled={isSchoolPending}
+                >
+                  기존 시트 가져오기
+                </button>
+              </div>
+              <p className="mt-3 text-xs leading-5 text-ink/60">
+                Google Drive의 파일 소유권을 바꾸는 기능은 아니며, PAPS 앱 안의
+                담당교사 목록에 현재 계정을 추가합니다.
+              </p>
             </div>
           ) : null}
           <label className="flex flex-col gap-2 text-sm">

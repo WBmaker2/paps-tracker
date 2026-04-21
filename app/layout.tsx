@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "PAPS 학생 기록 시스템",
-  description: "교사 세션 운영과 학생 기록 입력을 위한 PAPS MVP",
+  description: "교사 세션 운영, 학생 기록 입력, 대표값 검토, Google Sheets 동기화를 위한 PAPS 기록 시스템",
 };
 
 type RootLayoutProps = Readonly<{

@@ -182,6 +182,90 @@ const jsonRequest = (pathname: string, method: string, body?: unknown): NextRequ
 
 const importRequestStore = () => import("../../src/lib/store/paps-memory-store");
 
+const prototypeHeaders: Record<string, string[]> = {
+  설정: ["항목", "값", "설명", "", "사용 탭", "역할"],
+  학생명단: ["학생ID", "학년도", "학년", "반", "번호", "이름", "성별", "활성", "비고"],
+  세션기록: [
+    "기록ID",
+    "세션ID",
+    "세션명",
+    "학년도",
+    "측정일",
+    "세션유형",
+    "입력화면유형",
+    "대상반표시",
+    "실제반",
+    "종목",
+    "단위",
+    "학생ID",
+    "학생이름",
+    "시도순번",
+    "원측정값",
+    "대표값선택",
+    "대표값선정교사",
+    "공식등급",
+    "제출시각",
+    "동기화상태",
+    "비고"
+  ],
+  학생요약: [
+    "학생ID",
+    "이름",
+    "학년",
+    "반",
+    "종목",
+    "최신대표값",
+    "단위",
+    "직전대표값",
+    "변화량",
+    "최고대표값",
+    "최근측정일",
+    "학생표시문구"
+  ],
+  공식평가요약: ["학생ID", "이름", "학년", "반", "종목", "대표값", "단위", "공식등급", "측정일", "세션명", "비고"],
+  오류로그: ["시간", "수준", "구분", "메시지", "관련ID", "재시도상태", "해결시각"],
+  수정로그: ["시간", "교사계정", "세션ID", "학생ID", "종목", "작업", "이전기록ID", "선택기록ID", "사유"]
+};
+
+const createLockedSheetClient = (updateRange = vi.fn(async () => ({}))) => ({
+  getSpreadsheet: vi.fn(async () => ({
+    spreadsheetId: "sheet-owned",
+    sheets: Object.keys(prototypeHeaders).map((title, index) => ({
+      properties: {
+        sheetId: index + 1,
+        title
+      }
+    }))
+  })),
+  readRange: vi.fn(async (_spreadsheetId: string, range: string) => {
+    if (range === "'설정'!A1:C20") {
+      return [
+        ["항목", "값", "설명"],
+        ["시트 템플릿 버전", "v0.1-prototype", "프로토타입 예시"]
+      ];
+    }
+
+    if (range.endsWith("!A1:Z1")) {
+      const tabName = range.split("!")[0]?.replace(/^'/, "").replace(/'$/, "") ?? "";
+
+      return [prototypeHeaders[tabName] ?? []];
+    }
+
+    if (range === "'설정'!A2:F200") {
+      return [
+        ["학교명", "Locked School", "교사가 관리 페이지에서 설정", "", "", ""],
+        ["__PAPS_SCHOOL", "locked-school", "Locked School", "https://docs.google.com/spreadsheets/d/sheet-owned/edit", "2026-03-24T09:00:00.000Z", "2026-03-24T09:00:00.000Z"],
+        ["__PAPS_TEACHER", "teacher-other", "locked-school", "Other Teacher", "other-teacher@example.com", ""],
+        ["__PAPS_TEACHER_META", "teacher-other", "2026-03-24T09:00:00.000Z", "2026-03-24T09:00:00.000Z", "", ""]
+      ];
+    }
+
+    return [];
+  }),
+  appendRows: vi.fn(async () => ({})),
+  updateRange
+});
+
 describe("teacher settings management", () => {
   beforeEach(async () => {
     vi.resetModules();
@@ -470,6 +554,92 @@ describe("teacher settings management", () => {
     ).toHaveLength(2);
   });
 
+  it("offers an explicit existing-sheet import flow when the current teacher is missing from the sheet", async () => {
+    const { TeacherSettingsManager } = await import(
+      "../../src/components/teacher/settings-management"
+    );
+    const requestBodies: unknown[] = [];
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = init?.body && typeof init.body === "string" ? JSON.parse(init.body) : {};
+
+      requestBodies.push(body);
+
+      if (body.mode === "claim_existing_sheet") {
+        return Response.json({
+          ok: true,
+          school: {
+            id: "locked-school",
+            name: "도촌초등학교",
+            teacherIds: ["teacher-other", "teacher-demo-teacher-example-com"],
+            sheetUrl: "https://docs.google.com/spreadsheets/d/sheet-owned/edit",
+            createdAt: "2026-03-24T09:00:00.000Z",
+            updatedAt: "2026-04-21T09:00:00.000Z"
+          },
+          normalizedUrl: "https://docs.google.com/spreadsheets/d/sheet-owned/edit"
+        });
+      }
+
+      return Response.json(
+        {
+          ok: false,
+          code: "teacher_not_authorized",
+          action: "claim_existing_sheet",
+          error: "The current teacher is not authorized for this spreadsheet."
+        },
+        { status: 409 }
+      );
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <TeacherSettingsManager
+        school={null}
+        classes={[]}
+        sheetConnected={false}
+        sheetStatus={{
+          code: "teacher_not_authorized",
+          isConnected: false,
+          canReconnect: true,
+          summary: "현재 로그인한 교사가 이 시트의 담당교사 목록에 없습니다.",
+          detail: "기존 시트를 가져오면 현재 교사를 담당교사로 추가할 수 있습니다."
+        }}
+        sheetSetupStatus={{
+          templateConfigured: true,
+          serviceAccountConfigured: true,
+          serviceAccountEmail: "service-account@example.com",
+          missingKeys: []
+        }}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText("학교명"), {
+      target: { value: "도촌초등학교" }
+    });
+    fireEvent.change(screen.getByLabelText("구글 시트 URL"), {
+      target: { value: "https://docs.google.com/spreadsheets/d/sheet-owned/edit" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "학교 정보 저장" }));
+
+    await screen.findByText("기존 PAPS 시트 가져오기");
+    await waitFor(() => expect(requestBodies).toHaveLength(1));
+
+    fireEvent.click(screen.getByRole("button", { name: "기존 시트 가져오기" }));
+
+    await screen.findByText("기존 시트를 가져오고 현재 교사를 담당교사로 추가했습니다.");
+    expect(requestBodies).toEqual([
+      {
+        url: "https://docs.google.com/spreadsheets/d/sheet-owned/edit",
+        schoolName: "도촌초등학교"
+      },
+      {
+        url: "https://docs.google.com/spreadsheets/d/sheet-owned/edit",
+        schoolName: "도촌초등학교",
+        mode: "claim_existing_sheet"
+      }
+    ]);
+  });
+
   it("rejects connect requests when the service account is not shared on the sheet", async () => {
     const connectRoute = await import("../../app/api/google-sheet/connect/route");
     const sheetsClient = await import("../../src/lib/google/sheets-client");
@@ -598,8 +768,56 @@ describe("teacher settings management", () => {
     );
     const payload = await response.json();
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(409);
+    expect(payload.code).toBe("teacher_not_authorized");
+    expect(payload.action).toBe("claim_existing_sheet");
     expect(payload.error).toBe("The current teacher is not authorized for this spreadsheet.");
+  });
+
+  it("claims an existing sheet by adding the current teacher when explicitly requested", async () => {
+    const connectRoute = await import("../../app/api/google-sheet/connect/route");
+    const sheetsClient = await import("../../src/lib/google/sheets-client");
+    const updateRange = vi.fn(async () => ({}));
+
+    vi.mocked(sheetsClient.createGoogleSheetsClient).mockReturnValueOnce(
+      createLockedSheetClient(updateRange)
+    );
+
+    const response = await connectRoute.POST(
+      jsonRequest("/api/google-sheet/connect", "POST", {
+        url: "https://docs.google.com/spreadsheets/d/sheet-owned/edit",
+        schoolName: "Locked School",
+        mode: "claim_existing_sheet"
+      })
+    );
+    const payload = await response.json();
+    const settingsUpdate = updateRange.mock.calls.find(
+      ([, range]) => range === "'설정'!A1:F200"
+    );
+    const settingsRows = settingsUpdate?.[2] as string[][] | undefined;
+
+    expect(response.status).toBe(200);
+    expect(payload.ok).toBe(true);
+    expect(settingsRows).toEqual(
+      expect.arrayContaining([
+        [
+          "__PAPS_TEACHER",
+          "teacher-other",
+          "locked-school",
+          "Other Teacher",
+          "other-teacher@example.com",
+          ""
+        ],
+        [
+          "__PAPS_TEACHER",
+          "teacher-demo-teacher-example-com",
+          "locked-school",
+          "Demo Teacher",
+          "demo-teacher@example.com",
+          ""
+        ]
+      ])
+    );
   });
 
   it("fails clearly when connect is attempted without service-account env", async () => {
