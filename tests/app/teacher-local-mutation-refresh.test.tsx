@@ -212,6 +212,67 @@ describe("teacher local mutation refresh behavior", () => {
     });
   });
 
+  it("deletes an existing student locally and only syncs the next version baseline", async () => {
+    const { StudentTable } = await import("../../src/components/teacher/student-table");
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const fetchMock = vi.fn(async () =>
+      Response.json({
+        ok: true,
+        teacherStateVersion: "version-students-deleted"
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <StudentTable
+        students={[
+          {
+            id: "student-1",
+            schoolId: "school-1",
+            classId: "class-5-1",
+            studentNumber: 1,
+            name: "이학생",
+            sex: "male",
+            gradeLevel: 5,
+            active: true
+          },
+          {
+            id: "student-2",
+            schoolId: "school-1",
+            classId: "class-5-1",
+            studentNumber: 2,
+            name: "김학생",
+            sex: "female",
+            gradeLevel: 5,
+            active: true
+          }
+        ]}
+        classes={classes}
+        schoolId="school-1"
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "김학생 삭제" }));
+
+    await screen.findByText("학생 명단에서 삭제했습니다.");
+
+    expect(confirmSpy).toHaveBeenCalledWith(
+      "학생 명단에서 김학생을(를) 삭제할까요? 삭제하면 학생 입력 화면에도 더 이상 보이지 않습니다."
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/students?studentId=student-2",
+      expect.objectContaining({
+        method: "DELETE"
+      })
+    );
+    expect(screen.queryByText("김학생")).not.toBeInTheDocument();
+    expect(screen.getByText("이학생")).toBeInTheDocument();
+    expect(notifyTeacherDataRefresh).toHaveBeenCalledWith({
+      refresh: false,
+      nextVersion: "version-students-deleted"
+    });
+  });
+
   it("creates a session locally and only syncs the next version baseline", async () => {
     const { SessionForm } = await import("../../src/components/teacher/session-form");
     const fetchMock = vi.fn(async () =>

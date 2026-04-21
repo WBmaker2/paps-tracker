@@ -130,6 +130,55 @@ export function StudentTable({
     });
   };
 
+  const deleteStudent = (student: PAPSStudent) => {
+    if (!sheetConnected) {
+      setMessage(sheetStatus?.summary ?? "구글 시트를 먼저 연결해주세요.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `학생 명단에서 ${student.name}을(를) 삭제할까요? 삭제하면 학생 입력 화면에도 더 이상 보이지 않습니다.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        const response = await fetch(
+          `/api/students?studentId=${encodeURIComponent(student.id)}`,
+          {
+            method: "DELETE",
+            headers: buildTeacherMutationHeaders()
+          }
+        );
+        const payload = (await response.json()) as {
+          error?: string;
+          teacherStateVersion?: string;
+        };
+
+        if (!response.ok) {
+          throw new Error(payload.error ?? "학생을 삭제하지 못했습니다.");
+        }
+
+        setItems((currentItems) =>
+          sortStudents(currentItems.filter((entry) => entry.id !== student.id))
+        );
+        if (editingStudentId === student.id) {
+          resetForm();
+        }
+        setMessage("학생 명단에서 삭제했습니다.");
+        notifyTeacherDataRefresh({
+          refresh: false,
+          nextVersion: payload.teacherStateVersion ?? null
+        });
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "학생을 삭제하지 못했습니다.");
+      }
+    });
+  };
+
   return (
     <section className="rounded-[1.75rem] border border-ink/10 bg-white p-5 shadow-sm">
       <div className="mb-4 flex flex-col gap-1">
@@ -227,13 +276,24 @@ export function StudentTable({
                   </td>
                   <td className="px-4 py-3">{student.sex === "female" ? "여학생" : "남학생"}</td>
                   <td className="px-4 py-3">
-                    <button
-                      type="button"
-                      className="rounded-full border border-ink/15 px-3 py-1.5 text-xs font-medium"
-                      onClick={() => startEditingStudent(student)}
-                    >
-                      {student.name} 수정
-                    </button>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="rounded-full border border-ink/15 px-3 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
+                        onClick={() => startEditingStudent(student)}
+                        disabled={isPending}
+                      >
+                        {student.name} 수정
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-full border border-red-200 px-3 py-1.5 text-xs font-medium text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        onClick={() => deleteStudent(student)}
+                        disabled={isPending}
+                      >
+                        {student.name} 삭제
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))

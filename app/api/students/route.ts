@@ -179,17 +179,40 @@ export async function DELETE(request: NextRequest) {
   }
 
   try {
-    const { store, teacher } = await getAuthorizedTeacherRouteContext({
+    const originClientId = request.headers.get(TEACHER_LIVE_UPDATE_CLIENT_HEADER);
+    const { store, teacher, bootstrap } = await getAuthorizedTeacherRouteContext({
       request,
       teacherEmail: teacherSession.session.email,
       createStore: createTeacherRuntimeStoreForRequest
     });
+    const student = await store.getStudent(studentId);
 
-    if ((await store.getStudent(studentId)).schoolId !== teacher.schoolId) {
+    if (student.schoolId !== teacher.schoolId) {
       return forbiddenTeacherRouteResponse();
     }
 
     await store.deleteStudent(studentId);
+    const teacherStateVersion = buildTeacherStateVersion({
+      ...bootstrap,
+      students: bootstrap.students.filter((entry) => entry.id !== studentId),
+      attempts: bootstrap.attempts.filter((entry) => entry.studentId !== studentId),
+      syncStatuses: bootstrap.syncStatuses.filter((entry) => entry.studentId !== studentId),
+      syncErrorLogs: bootstrap.syncErrorLogs.filter((entry) => entry.studentId !== studentId),
+      representativeSelectionAuditLogs: bootstrap.representativeSelectionAuditLogs.filter(
+        (entry) => entry.studentId !== studentId
+      )
+    });
+
+    publishTeacherLiveUpdate({
+      teacherEmail: teacherSession.session.email,
+      source: "student",
+      originClientId
+    });
+
+    return NextResponse.json({
+      ok: true,
+      teacherStateVersion
+    });
   } catch (error) {
     if (error instanceof Error && error.message === "Forbidden") {
       return forbiddenTeacherRouteResponse();
@@ -201,14 +224,4 @@ export async function DELETE(request: NextRequest) {
 
     throw error;
   }
-
-  publishTeacherLiveUpdate({
-    teacherEmail: teacherSession.session.email,
-    source: "student",
-    originClientId: request.headers.get(TEACHER_LIVE_UPDATE_CLIENT_HEADER)
-  });
-
-  return NextResponse.json({
-    ok: true
-  });
 }

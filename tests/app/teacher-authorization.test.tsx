@@ -267,6 +267,23 @@ describe("teacher route authorization scoping", () => {
     expect(createdStudent?.schoolId).toBe("demo-school");
   });
 
+  it("deletes an in-scope student and returns the next teacher state version", async () => {
+    const studentsRoute = await import("../../app/api/students/route");
+
+    const response = await studentsRoute.DELETE(
+      new NextRequest("http://localhost/api/students?studentId=demo-student")
+    );
+    const payload = await response.json();
+    const { getRequestStore } = await importRequestStore();
+
+    expect(response.status).toBe(200);
+    expect(payload.ok).toBe(true);
+    expect(typeof payload.teacherStateVersion).toBe("string");
+    expect(getRequestStore().listStudents().some((student) => student.id === "demo-student")).toBe(
+      false
+    );
+  });
+
   it("returns 404 for missing scoped resources instead of surfacing a 500", async () => {
     const classesRoute = await import("../../app/api/classes/route");
     const studentsRoute = await import("../../app/api/students/route");

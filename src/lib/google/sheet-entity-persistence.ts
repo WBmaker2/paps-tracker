@@ -7,6 +7,9 @@ import type {
 import type { GoogleSheetStructuredState } from "./sheets-bootstrap";
 import type { GoogleSheetsClient } from "./sheets-client";
 import {
+  writeGoogleSheetAuditLogSourceTab,
+  writeGoogleSheetErrorLogSourceTab,
+  writeGoogleSheetRecordSourceTab,
   writeGoogleSheetSettingsSourceTab,
   writeGoogleSheetStudentsSourceTab
 } from "./sheet-source-write";
@@ -158,13 +161,39 @@ export const deleteGoogleSheetStudent = async ({
   state: GoogleSheetStructuredState;
   studentId: string;
 }): Promise<void> => {
+  const nextState: GoogleSheetStructuredState = {
+    ...state,
+    allStudents: state.allStudents.filter((entry) => entry.id !== studentId),
+    attempts: state.attempts.filter((entry) => entry.studentId !== studentId),
+    syncStatuses: state.syncStatuses.filter((entry) => entry.studentId !== studentId),
+    syncErrorLogs: state.syncErrorLogs.filter((entry) => entry.studentId !== studentId),
+    representativeSelectionAuditLogs: state.representativeSelectionAuditLogs.filter(
+      (entry) => entry.studentId !== studentId
+    )
+  };
+
   await writeGoogleSheetStudentsSourceTab({
     client,
     spreadsheetId,
     state: {
-      allStudents: state.allStudents.filter((entry) => entry.id !== studentId),
-      classes: state.classes
+      allStudents: nextState.allStudents,
+      classes: nextState.classes
     }
+  });
+  await writeGoogleSheetRecordSourceTab({
+    client,
+    spreadsheetId,
+    state: nextState
+  });
+  await writeGoogleSheetErrorLogSourceTab({
+    client,
+    spreadsheetId,
+    state: nextState
+  });
+  await writeGoogleSheetAuditLogSourceTab({
+    client,
+    spreadsheetId,
+    state: nextState
   });
 };
 

@@ -3,20 +3,30 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GoogleSheetStructuredState } from "../../src/lib/google/sheets-bootstrap";
 
 const {
+  writeGoogleSheetAuditLogSourceTab,
+  writeGoogleSheetErrorLogSourceTab,
+  writeGoogleSheetRecordSourceTab,
   writeGoogleSheetSettingsSourceTab,
   writeGoogleSheetStudentsSourceTab
 } = vi.hoisted(() => ({
+  writeGoogleSheetAuditLogSourceTab: vi.fn(async () => undefined),
+  writeGoogleSheetErrorLogSourceTab: vi.fn(async () => undefined),
+  writeGoogleSheetRecordSourceTab: vi.fn(async () => undefined),
   writeGoogleSheetSettingsSourceTab: vi.fn(async () => undefined),
   writeGoogleSheetStudentsSourceTab: vi.fn(async () => undefined)
 }));
 
 vi.mock("../../src/lib/google/sheet-source-write", () => ({
+  writeGoogleSheetAuditLogSourceTab,
+  writeGoogleSheetErrorLogSourceTab,
+  writeGoogleSheetRecordSourceTab,
   writeGoogleSheetSettingsSourceTab,
   writeGoogleSheetStudentsSourceTab
 }));
 
 import {
   deleteGoogleSheetClass,
+  deleteGoogleSheetStudent,
   deleteGoogleSheetSession,
   saveGoogleSheetSchool,
   saveGoogleSheetSession,
@@ -90,6 +100,9 @@ const createState = (): GoogleSheetStructuredState => ({
 
 describe("Google Sheet entity persistence helpers", () => {
   beforeEach(() => {
+    writeGoogleSheetAuditLogSourceTab.mockClear();
+    writeGoogleSheetErrorLogSourceTab.mockClear();
+    writeGoogleSheetRecordSourceTab.mockClear();
     writeGoogleSheetSettingsSourceTab.mockClear();
     writeGoogleSheetStudentsSourceTab.mockClear();
   });
@@ -151,6 +164,73 @@ describe("Google Sheet entity persistence helpers", () => {
 
     expect(savedStudent.schoolId).toBe("school-1");
     expect(writeGoogleSheetStudentsSourceTab).toHaveBeenCalledTimes(1);
+  });
+
+  it("removes a deleted student and dependent record rows from Google Sheet source tabs", async () => {
+    const state = createState();
+
+    state.attempts = [
+      {
+        id: "attempt-1",
+        sessionId: "session-1",
+        studentId: "student-1",
+        eventId: "shuttle-run",
+        unit: "count",
+        attemptNumber: 1,
+        measurement: 30,
+        createdAt: "2026-03-23T10:00:00.000Z"
+      }
+    ];
+    state.syncStatuses = [
+      {
+        id: "sync-1",
+        sessionId: "session-1",
+        studentId: "student-1",
+        status: "failed",
+        attemptId: "attempt-1",
+        updatedAt: "2026-03-23T10:01:00.000Z"
+      }
+    ];
+    state.syncErrorLogs = [
+      {
+        id: "error-1",
+        sessionId: "session-1",
+        studentId: "student-1",
+        syncStatusId: "sync-1",
+        message: "Failed",
+        createdAt: "2026-03-23T10:02:00.000Z"
+      }
+    ];
+    state.representativeSelectionAuditLogs = [
+      {
+        id: "audit-1",
+        sessionId: "session-1",
+        studentId: "student-1",
+        eventId: "shuttle-run",
+        previousAttemptId: null,
+        selectedAttemptId: "attempt-1",
+        changedByTeacherId: "teacher-1",
+        createdAt: "2026-03-23T10:03:00.000Z"
+      }
+    ];
+
+    await deleteGoogleSheetStudent({
+      client: {} as never,
+      spreadsheetId: "sheet-123",
+      state,
+      studentId: "student-1"
+    });
+
+    const studentsState = writeGoogleSheetStudentsSourceTab.mock.calls[0]?.[0]?.state;
+    const recordsState = writeGoogleSheetRecordSourceTab.mock.calls[0]?.[0]?.state;
+    const errorsState = writeGoogleSheetErrorLogSourceTab.mock.calls[0]?.[0]?.state;
+    const auditsState = writeGoogleSheetAuditLogSourceTab.mock.calls[0]?.[0]?.state;
+
+    expect(studentsState.allStudents).toEqual([]);
+    expect(recordsState.attempts).toEqual([]);
+    expect(recordsState.syncStatuses).toEqual([]);
+    expect(errorsState.syncErrorLogs).toEqual([]);
+    expect(auditsState.representativeSelectionAuditLogs).toEqual([]);
   });
 
   it("writes the settings tab when saving or deleting a session", async () => {
