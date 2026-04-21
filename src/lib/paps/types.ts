@@ -46,6 +46,9 @@ export interface PAPSSession {
   classScope: ClassScope;
   eventId: EventId;
   classTargets: PAPSClassTarget[];
+  sessionGroupId?: string;
+  sessionGroupName?: string;
+  sessionGroupOrder?: number;
   schoolId?: string;
   teacherId?: string;
   academicYear?: number;

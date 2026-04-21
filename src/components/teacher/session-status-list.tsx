@@ -4,7 +4,11 @@ import React, { useEffect, useState, useTransition } from "react";
 
 import type { PAPSSession } from "../../lib/paps/types";
 import { buildTeacherMutationHeaders, notifyTeacherDataRefresh } from "./teacher-data-refresh";
-import { formatSessionDetail } from "./session-workspace-utils";
+import {
+  buildSessionListItems,
+  formatSessionDetail,
+  formatSessionGroupDetail
+} from "./session-workspace-utils";
 
 export interface SessionStatusListProps {
   sessions: PAPSSession[];
@@ -68,6 +72,56 @@ export function SessionStatusList({
     });
   };
 
+  const toggleGroupOpen = (sessions: PAPSSession[]) => {
+    const nextOpen = !sessions.some((session) => session.isOpen !== false);
+    setMessage(null);
+
+    startTransition(async () => {
+      try {
+        const updatedSessions: PAPSSession[] = [];
+        let nextVersion: string | null = null;
+
+        for (const session of sessions) {
+          const response = await fetch(`/api/sessions/${session.id}`, {
+            method: "PATCH",
+            headers: buildTeacherMutationHeaders({
+              "content-type": "application/json"
+            }),
+            body: JSON.stringify({
+              isOpen: nextOpen
+            })
+          });
+          const payload = (await response.json()) as {
+            error?: string;
+            session?: PAPSSession;
+            teacherStateVersion?: string;
+          };
+
+          if (!response.ok || !payload.session) {
+            throw new Error(payload.error ?? "세션 상태를 변경하지 못했습니다.");
+          }
+
+          updatedSessions.push(payload.session);
+          nextVersion = payload.teacherStateVersion ?? nextVersion;
+        }
+
+        setItems((currentItems) =>
+          currentItems.map(
+            (entry) => updatedSessions.find((session) => session.id === entry.id) ?? entry
+          )
+        );
+        setMessage("세션 묶음 상태를 업데이트했습니다.");
+        updatedSessions.forEach((session) => onUpdated?.(session));
+        notifyTeacherDataRefresh({
+          refresh: false,
+          nextVersion
+        });
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "세션 상태를 변경하지 못했습니다.");
+      }
+    });
+  };
+
   return (
     <section className="rounded-[1.75rem] border border-ink/10 bg-white p-5 shadow-sm">
       <div className="mb-4 flex items-center justify-between gap-3">
@@ -79,30 +133,67 @@ export function SessionStatusList({
       </div>
       <div className="space-y-3">
         {items.length > 0 ? (
-          items.map((session) => (
+          buildSessionListItems(items).map((item) => (
             <article
-              key={session.id}
+              key={item.id}
               className="flex flex-col gap-3 rounded-2xl border border-ink/10 px-4 py-3 md:flex-row md:items-center md:justify-between"
             >
-              <div>
-                <p className="font-medium">{session.name}</p>
-                <p className="text-sm text-ink/65">{formatSessionDetail(session)}</p>
-                {studentSessionUrls?.[session.id] ? (
-                  <a
-                    href={studentSessionUrls[session.id]}
-                    className="mt-2 inline-flex text-sm font-medium text-accent underline-offset-2 hover:underline"
+              {item.kind === "group" ? (
+                <>
+                  <div>
+                    <p className="font-medium">{item.name}</p>
+                    <p className="text-sm text-ink/65">{formatSessionGroupDetail(item.sessions)}</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {item.sessions.map((session) => (
+                        <span
+                          key={session.id}
+                          className="rounded-full bg-canvas px-3 py-1 text-xs text-ink/70"
+                        >
+                          {formatSessionDetail(session).split(" · ").at(-1)}
+                          {session.isOpen === false ? " · 닫힘" : ""}
+                        </span>
+                      ))}
+                    </div>
+                    {studentSessionUrls?.[item.id] ? (
+                      <a
+                        href={studentSessionUrls[item.id]}
+                        className="mt-2 inline-flex text-sm font-medium text-accent underline-offset-2 hover:underline"
+                      >
+                        학생 입력 열기
+                      </a>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    className="rounded-full border border-ink/15 px-4 py-2 text-sm font-medium"
+                    onClick={() => toggleGroupOpen(item.sessions)}
                   >
-                    학생 입력 열기
-                  </a>
-                ) : null}
-              </div>
-              <button
-                type="button"
-                className="rounded-full border border-ink/15 px-4 py-2 text-sm font-medium"
-                onClick={() => toggleOpen(session)}
-              >
-                {session.isOpen ? "닫기" : "열기"}
-              </button>
+                    {item.sessions.some((session) => session.isOpen !== false) ? "닫기" : "열기"}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <p className="font-medium">{item.session.name}</p>
+                    <p className="text-sm text-ink/65">{formatSessionDetail(item.session)}</p>
+                    {studentSessionUrls?.[item.session.id] ? (
+                      <a
+                        href={studentSessionUrls[item.session.id]}
+                        className="mt-2 inline-flex text-sm font-medium text-accent underline-offset-2 hover:underline"
+                      >
+                        학생 입력 열기
+                      </a>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    className="rounded-full border border-ink/15 px-4 py-2 text-sm font-medium"
+                    onClick={() => toggleOpen(item.session)}
+                  >
+                    {item.session.isOpen ? "닫기" : "열기"}
+                  </button>
+                </>
+              )}
             </article>
           ))
         ) : (

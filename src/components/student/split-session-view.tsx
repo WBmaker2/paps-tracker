@@ -86,7 +86,7 @@ export function SplitSessionView({
     null;
 
   const handleSelectStudent = (studentId: string) => {
-    if (isPending) {
+    if (isPending && !submitResult) {
       return;
     }
 
@@ -162,7 +162,7 @@ export function SplitSessionView({
               title={classScope === "split" ? `${classSection.label} 반` : "학생 목록"}
               students={classSection.students}
               selectedStudentId={selectedStudentId}
-              disabled={isPending}
+              disabled={isPending && !submitResult}
               onSelect={handleSelectStudent}
             />
           ))}

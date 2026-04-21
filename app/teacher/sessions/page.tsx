@@ -6,7 +6,10 @@ import { TeacherDataRefresh } from "../../../src/components/teacher/teacher-data
 import { TeacherSessionWorkspace } from "../../../src/components/teacher/session-form";
 import { buildTeacherStateVersion } from "../../../src/lib/google/sheet-state-version";
 import { loadTeacherPageState, PAPS_SPREADSHEET_ID_COOKIE } from "../../../src/lib/google/sheets-store";
-import { createStudentSessionUrl } from "../../../src/lib/student-session-access";
+import {
+  createStudentSessionGroupUrl,
+  createStudentSessionUrl
+} from "../../../src/lib/student-session-access";
 import { requireTeacherSession } from "../../../src/lib/teacher-auth";
 
 export default async function TeacherSessionsPage() {
@@ -22,13 +25,22 @@ export default async function TeacherSessionsPage() {
   const studentSessionUrls =
     spreadsheetId && sheetConnected
       ? Object.fromEntries(
-          bootstrap.sessions.map((session) => [
-            session.id,
-            createStudentSessionUrl({
-              sessionId: session.id,
-              spreadsheetId
-            })
-          ])
+          bootstrap.sessions.map((session) => {
+            const key = session.sessionGroupId ?? session.id;
+
+            return [
+              key,
+              session.sessionGroupId
+                ? createStudentSessionGroupUrl({
+                    sessionGroupId: session.sessionGroupId,
+                    spreadsheetId
+                  })
+                : createStudentSessionUrl({
+                    sessionId: session.id,
+                    spreadsheetId
+                  })
+            ];
+          })
         )
       : {};
 

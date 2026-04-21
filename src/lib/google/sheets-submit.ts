@@ -17,7 +17,7 @@ import {
   assertMeasurementAllowed,
   assertMeasurementDetailAllowed
 } from "../paps/validation";
-import type { StudentSessionView } from "../store/paps-store-types";
+import type { StudentSessionGroupView, StudentSessionView } from "../store/paps-store-types";
 import { buildStructuredStateFromSheet } from "./sheets-bootstrap";
 import { createGoogleSheetClientFromEnv } from "./sheets-store";
 import { GoogleSheetsAccessError, type GoogleSheetsClient } from "./sheets-client";
@@ -95,6 +95,30 @@ const buildStudentSessionViewFromState = (
   return {
     session,
     classSections
+  };
+};
+
+const buildStudentSessionGroupViewFromState = (
+  state: Awaited<ReturnType<typeof buildStructuredStateFromSheet>>,
+  sessionGroupId: string
+): StudentSessionGroupView => {
+  const sessions = state.sessions
+    .filter((session) => session.sessionGroupId === sessionGroupId)
+    .sort(
+      (left, right) =>
+        (left.sessionGroupOrder ?? 0) - (right.sessionGroupOrder ?? 0) ||
+        (left.createdAt ?? "").localeCompare(right.createdAt ?? "") ||
+        left.id.localeCompare(right.id)
+    );
+
+  if (sessions.length === 0) {
+    throw new Error(`Session group ${sessionGroupId} was not found.`);
+  }
+
+  return {
+    groupId: sessionGroupId,
+    groupName: sessions[0]?.sessionGroupName ?? sessions[0]?.name ?? sessionGroupId,
+    sessions: sessions.map((session) => buildStudentSessionViewFromState(state, session.id))
   };
 };
 
@@ -188,6 +212,20 @@ export const loadStudentSessionViewFromSheet = async (input: {
   return buildStudentSessionViewFromState(state, input.sessionId);
 };
 
+export const loadStudentSessionGroupViewFromSheet = async (input: {
+  spreadsheetId: string;
+  sessionGroupId: string;
+  client?: GoogleSheetsClient;
+}): Promise<StudentSessionGroupView> => {
+  const state = await buildStructuredStateFromSheet({
+    client: input.client ?? createGoogleSheetClientFromEnv(),
+    spreadsheetId: input.spreadsheetId,
+    teacherEmail: STUDENT_RUNTIME_EMAIL
+  });
+
+  return buildStudentSessionGroupViewFromState(state, input.sessionGroupId);
+};
+
 export const appendStudentSubmissionToSheet = async (input: {
   spreadsheetId: string;
   sessionId: string;
@@ -195,6 +233,7 @@ export const appendStudentSubmissionToSheet = async (input: {
   measurement?: number;
   detail?: PAPSMeasurementDetail | null;
   clientSubmissionKey: string;
+  authorizedSessionGroupId?: string | null;
   client?: GoogleSheetsClient;
 }): Promise<
   | {
@@ -231,6 +270,13 @@ export const appendStudentSubmissionToSheet = async (input: {
 
     if (session.isOpen === false) {
       throw new Error("Session is closed.");
+    }
+
+    if (
+      input.authorizedSessionGroupId &&
+      session.sessionGroupId !== input.authorizedSessionGroupId
+    ) {
+      throw new Error("Student session access token does not match this session.");
     }
 
     const student = state.allStudents.find((entry) => entry.id === input.studentId);
@@ -353,6 +399,7 @@ export const appendStudentSubmissionToSheet = async (input: {
 
     if (
       message === "Inactive students cannot submit attempts." ||
+      message === "Student session access token does not match this session." ||
       message.includes("must match") ||
       message.includes("Students cannot") ||
       message.includes("assigned to this session")

@@ -131,4 +131,81 @@ describe("Google Sheet source tab values", () => {
       ["student-3", "2026", "5", "2", "2", "Park", "남", "N", ""]
     ]);
   });
+
+  it("builds session group machine rows before child session rows", () => {
+    const values = buildSettingsTabValues({
+      spreadsheetId: "sheet-123",
+      school: {
+        id: "school-1",
+        name: "Alpha Elementary",
+        teacherIds: ["teacher-1"],
+        sheetUrl: "https://docs.google.com/spreadsheets/d/sheet-123/edit",
+        createdAt: "2026-03-23T09:00:00.000Z",
+        updatedAt: "2026-03-23T09:00:00.000Z"
+      },
+      classes: [],
+      teachers: [
+        {
+          id: "teacher-1",
+          schoolId: "school-1",
+          name: "Teacher Kim",
+          email: "teacher@example.com",
+          createdAt: "2026-03-23T09:00:00.000Z",
+          updatedAt: "2026-03-23T09:00:00.000Z"
+        }
+      ],
+      sessions: [
+        {
+          id: "session-grip",
+          schoolId: "school-1",
+          teacherId: "teacher-1",
+          academicYear: 2026,
+          name: "3월 - 악력",
+          gradeLevel: 3,
+          sessionType: "official",
+          classScope: "split",
+          eventId: "grip-strength",
+          classTargets: [],
+          sessionGroupId: "group-1",
+          sessionGroupName: "3월",
+          sessionGroupOrder: 0,
+          isOpen: true,
+          createdAt: "2026-03-23T09:10:00.000Z"
+        },
+        {
+          id: "session-jump",
+          schoolId: "school-1",
+          teacherId: "teacher-1",
+          academicYear: 2026,
+          name: "3월 - 제자리멀리뛰기",
+          gradeLevel: 3,
+          sessionType: "official",
+          classScope: "split",
+          eventId: "standing-long-jump",
+          classTargets: [],
+          sessionGroupId: "group-1",
+          sessionGroupName: "3월",
+          sessionGroupOrder: 1,
+          isOpen: true,
+          createdAt: "2026-03-23T09:10:00.000Z"
+        }
+      ]
+    });
+
+    expect(values.find((row) => row[0] === "__PAPS_SESSION_GROUP")).toEqual([
+      "__PAPS_SESSION_GROUP",
+      "group-1",
+      "3월",
+      "school-1",
+      "teacher-1",
+      "2026-03-23T09:10:00.000Z"
+    ]);
+    expect(values.filter((row) => row[0] === "__PAPS_SESSION_GROUP_ITEM")).toEqual([
+      ["__PAPS_SESSION_GROUP_ITEM", "group-1", "session-grip", "0", "grip-strength", ""],
+      ["__PAPS_SESSION_GROUP_ITEM", "group-1", "session-jump", "1", "standing-long-jump", ""]
+    ]);
+    expect(
+      values.findIndex((row) => row[0] === "__PAPS_SESSION_GROUP")
+    ).toBeLessThan(values.findIndex((row) => row[0] === "__PAPS_SESSION"));
+  });
 });

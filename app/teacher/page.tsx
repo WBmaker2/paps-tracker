@@ -6,13 +6,19 @@ import { TeacherDataRefresh } from "../../src/components/teacher/teacher-data-re
 import { buildTeacherStateVersion } from "../../src/lib/google/sheet-state-version";
 import { TeacherSessionWorkspace } from "../../src/components/teacher/session-form";
 import { loadTeacherPageState, PAPS_SPREADSHEET_ID_COOKIE } from "../../src/lib/google/sheets-store";
-import { createStudentSessionUrl } from "../../src/lib/student-session-access";
+import {
+  createStudentSessionGroupUrl,
+  createStudentSessionUrl
+} from "../../src/lib/student-session-access";
 import { requireTeacherSession } from "../../src/lib/teacher-auth";
 
 const formatSessionBadge = (count: number, label: string) => ({
   label,
   value: `${count}개`
 });
+
+const countSessionEntries = (sessions: { id: string; sessionGroupId?: string }[]): number =>
+  new Set(sessions.map((session) => session.sessionGroupId ?? session.id)).size;
 
 export default async function TeacherDashboardPage() {
   const teacherSession = await requireTeacherSession();
@@ -28,18 +34,27 @@ export default async function TeacherDashboardPage() {
     formatSessionBadge(bootstrap.schools.length, "학교"),
     formatSessionBadge(bootstrap.classes.length, "학급"),
     formatSessionBadge(bootstrap.students.length, "학생"),
-    formatSessionBadge(bootstrap.sessions.length, "세션")
+    formatSessionBadge(countSessionEntries(bootstrap.sessions), "세션")
   ];
   const studentSessionUrls =
     spreadsheetId && sheetConnected
       ? Object.fromEntries(
-          bootstrap.sessions.map((session) => [
-            session.id,
-            createStudentSessionUrl({
-              sessionId: session.id,
-              spreadsheetId
-            })
-          ])
+          bootstrap.sessions.map((session) => {
+            const key = session.sessionGroupId ?? session.id;
+
+            return [
+              key,
+              session.sessionGroupId
+                ? createStudentSessionGroupUrl({
+                    sessionGroupId: session.sessionGroupId,
+                    spreadsheetId
+                  })
+                : createStudentSessionUrl({
+                    sessionId: session.id,
+                    spreadsheetId
+                  })
+            ];
+          })
         )
       : {};
 

@@ -6,7 +6,8 @@ const STUDENT_SESSION_ACCESS_VERSION = 1;
 
 interface StudentSessionAccessPayload {
   v: number;
-  sessionId: string;
+  sessionId?: string;
+  sessionGroupId?: string;
   spreadsheetId: string;
 }
 
@@ -34,8 +35,10 @@ const parseStudentSessionAccessPayload = (encodedPayload: string): StudentSessio
 
     if (
       parsed.v !== STUDENT_SESSION_ACCESS_VERSION ||
-      typeof parsed.sessionId !== "string" ||
-      !parsed.sessionId.trim() ||
+      !(
+        (typeof parsed.sessionId === "string" && parsed.sessionId.trim()) ||
+        (typeof parsed.sessionGroupId === "string" && parsed.sessionGroupId.trim())
+      ) ||
       typeof parsed.spreadsheetId !== "string" ||
       !parsed.spreadsheetId.trim()
     ) {
@@ -44,7 +47,8 @@ const parseStudentSessionAccessPayload = (encodedPayload: string): StudentSessio
 
     return {
       v: parsed.v,
-      sessionId: parsed.sessionId,
+      ...(parsed.sessionId ? { sessionId: parsed.sessionId } : {}),
+      ...(parsed.sessionGroupId ? { sessionGroupId: parsed.sessionGroupId } : {}),
       spreadsheetId: parsed.spreadsheetId
     };
   } catch (error) {
@@ -72,13 +76,28 @@ export const createStudentSessionAccessToken = (input: {
   return `${encodedPayload}.${encodedSignature}`;
 };
 
-export const resolveStudentSessionAccess = (input: {
-  token: string;
-  sessionId: string;
-}): {
+export const createStudentSessionGroupAccessToken = (input: {
+  sessionGroupId: string;
   spreadsheetId: string;
+}): string => {
+  const encodedPayload = Buffer.from(
+    JSON.stringify({
+      v: STUDENT_SESSION_ACCESS_VERSION,
+      sessionGroupId: input.sessionGroupId,
+      spreadsheetId: input.spreadsheetId
+    } satisfies StudentSessionAccessPayload)
+  ).toString("base64url");
+  const encodedSignature = signStudentSessionAccessPayload(encodedPayload).toString("base64url");
+
+  return `${encodedPayload}.${encodedSignature}`;
+};
+
+export const resolveStudentSessionAccessToken = (token: string): {
+  spreadsheetId: string;
+  sessionId?: string;
+  sessionGroupId?: string;
 } => {
-  const [encodedPayload, encodedSignature] = input.token.split(".");
+  const [encodedPayload, encodedSignature] = token.split(".");
 
   if (!encodedPayload || !encodedSignature) {
     throw new Error(INVALID_TOKEN_ERROR);
@@ -96,6 +115,21 @@ export const resolveStudentSessionAccess = (input: {
 
   const payload = parseStudentSessionAccessPayload(encodedPayload);
 
+  return {
+    spreadsheetId: payload.spreadsheetId,
+    ...(payload.sessionId ? { sessionId: payload.sessionId } : {}),
+    ...(payload.sessionGroupId ? { sessionGroupId: payload.sessionGroupId } : {})
+  };
+};
+
+export const resolveStudentSessionAccess = (input: {
+  token: string;
+  sessionId: string;
+}): {
+  spreadsheetId: string;
+} => {
+  const payload = resolveStudentSessionAccessToken(input.token);
+
   if (payload.sessionId !== input.sessionId) {
     throw new Error(MISMATCHED_SESSION_ERROR);
   }
@@ -112,4 +146,13 @@ export const createStudentSessionUrl = (input: {
   const accessToken = createStudentSessionAccessToken(input);
 
   return `/session/${encodeURIComponent(input.sessionId)}?access=${encodeURIComponent(accessToken)}`;
+};
+
+export const createStudentSessionGroupUrl = (input: {
+  sessionGroupId: string;
+  spreadsheetId: string;
+}): string => {
+  const accessToken = createStudentSessionGroupAccessToken(input);
+
+  return `/session-group/${encodeURIComponent(input.sessionGroupId)}?access=${encodeURIComponent(accessToken)}`;
 };

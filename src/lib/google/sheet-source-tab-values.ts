@@ -9,6 +9,46 @@ import {
 
 const toIsoNow = (): string => new Date().toISOString();
 
+const buildSessionGroupRows = (sessions: PAPSSession[]): string[][] => {
+  const groupedSessions = sessions.filter((session) => session.sessionGroupId);
+  const groupById = new Map<string, PAPSSession>();
+
+  for (const session of groupedSessions) {
+    if (!session.sessionGroupId || groupById.has(session.sessionGroupId)) {
+      continue;
+    }
+
+    groupById.set(session.sessionGroupId, session);
+  }
+
+  return [
+    ...Array.from(groupById.entries()).map(([groupId, session]) => [
+      SETTINGS_MACHINE_ROW_LABELS.sessionGroup,
+      groupId,
+      session.sessionGroupName ?? session.name ?? groupId,
+      session.schoolId ?? "",
+      session.teacherId ?? "",
+      session.createdAt ?? toIsoNow()
+    ]),
+    ...groupedSessions
+      .slice()
+      .sort(
+        (left, right) =>
+          (left.sessionGroupId ?? "").localeCompare(right.sessionGroupId ?? "") ||
+          (left.sessionGroupOrder ?? 0) - (right.sessionGroupOrder ?? 0) ||
+          left.id.localeCompare(right.id)
+      )
+      .map((session) => [
+        SETTINGS_MACHINE_ROW_LABELS.sessionGroupItem,
+        session.sessionGroupId ?? "",
+        session.id,
+        String(session.sessionGroupOrder ?? 0),
+        session.eventId,
+        ""
+      ])
+  ];
+};
+
 const buildSettingsRows = (input: {
   spreadsheetId: string;
   school: PAPSSchool;
@@ -126,6 +166,7 @@ const buildSettingsRows = (input: {
         ""
       ]
     ]),
+    ...buildSessionGroupRows(input.sessions),
     ...input.sessions.flatMap((session) => [
       [
         SETTINGS_MACHINE_ROW_LABELS.session,

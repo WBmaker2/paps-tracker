@@ -307,10 +307,12 @@ describe("teacher local mutation refresh behavior", () => {
     await screen.findByText("세션을 저장했습니다.");
 
     expect(onCreated).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: "session-2",
-        name: "새 세션"
-      }),
+      [
+        expect.objectContaining({
+          id: "session-2",
+          name: "새 세션"
+        })
+      ],
       null
     );
     expect(notifyTeacherDataRefresh).toHaveBeenCalledWith({

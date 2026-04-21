@@ -11,6 +11,8 @@ import type {
   RecordSelector,
   SelectRepresentativeAttemptInput,
   SetSyncStatusInput,
+  StudentSessionGroupView,
+  StudentSessionView,
   TeacherBootstrap
 } from "../store/paps-store-types";
 import {
@@ -26,6 +28,7 @@ import {
   saveGoogleSheetClass,
   saveGoogleSheetSchool,
   saveGoogleSheetSession,
+  saveGoogleSheetSessions,
   saveGoogleSheetStudent
 } from "./sheet-entity-persistence";
 import {
@@ -145,12 +148,81 @@ export const createGoogleSheetsStoreForRequest = async (
     return getGoogleSheetSession(await getState(), sessionId);
   };
 
+  const buildStudentSessionView = (
+    state: GoogleSheetStructuredState,
+    sessionId: string
+  ): StudentSessionView => {
+    const session = getGoogleSheetSession(state, sessionId);
+    const activeStudents = state.allStudents.filter((student) => student.active !== false);
+
+    return {
+      session,
+      classSections: session.classTargets.map((classTarget) => {
+        const classroom = getGoogleSheetClass(state, classTarget.classId);
+
+        return {
+          classId: classroom.id,
+          label: classroom.label,
+          students: activeStudents
+            .filter((student) => student.classId === classroom.id)
+            .sort((left, right) => {
+              if (left.studentNumber !== undefined && right.studentNumber !== undefined) {
+                return left.studentNumber - right.studentNumber;
+              }
+
+              return left.name.localeCompare(right.name, "en");
+            })
+            .map((student) => ({
+              id: student.id,
+              name: student.name
+            }))
+        };
+      })
+    };
+  };
+
+  const getStudentSessionView = async (sessionId: string): Promise<StudentSessionView> =>
+    buildStudentSessionView(await getState(), sessionId);
+
+  const getStudentSessionGroupView = async (
+    sessionGroupId: string
+  ): Promise<StudentSessionGroupView> => {
+    const state = await getState();
+    const sessions = state.sessions
+      .filter((session) => session.sessionGroupId === sessionGroupId)
+      .sort(
+        (left, right) =>
+          (left.sessionGroupOrder ?? 0) - (right.sessionGroupOrder ?? 0) ||
+          (left.createdAt ?? "").localeCompare(right.createdAt ?? "") ||
+          left.id.localeCompare(right.id)
+      );
+
+    if (sessions.length === 0) {
+      throw new Error(`Session group ${sessionGroupId} was not found.`);
+    }
+
+    return {
+      groupId: sessionGroupId,
+      groupName: sessions[0]?.sessionGroupName ?? sessions[0]?.name ?? sessionGroupId,
+      sessions: sessions.map((session) => buildStudentSessionView(state, session.id))
+    };
+  };
+
   const saveSession = async (session: PAPSSession): Promise<PAPSSession> => {
     return saveGoogleSheetSession({
       client,
       spreadsheetId: input.spreadsheetId,
       state: await getState(),
       session
+    });
+  };
+
+  const saveSessions = async (sessions: PAPSSession[]): Promise<PAPSSession[]> => {
+    return saveGoogleSheetSessions({
+      client,
+      spreadsheetId: input.spreadsheetId,
+      state: await getState(),
+      sessions
     });
   };
 
@@ -198,7 +270,10 @@ export const createGoogleSheetsStoreForRequest = async (
     deleteStudent,
     getSession,
     saveSession,
+    saveSessions,
     deleteSession,
+    getStudentSessionView,
+    getStudentSessionGroupView,
     listSessionRecords,
     selectRepresentativeAttempt,
     getSyncStatus,

@@ -11,6 +11,8 @@ import type {
   RecordSelector,
   SelectRepresentativeAttemptInput,
   SetSyncStatusInput,
+  StudentSessionGroupView,
+  StudentSessionView,
   TeacherBootstrap
 } from "../store/paps-store-types";
 import type { GoogleSheetsClient } from "./sheets-client";
@@ -27,7 +29,10 @@ export interface TeacherSheetsStore {
   deleteStudent(studentId: string): Promise<void>;
   getSession(sessionId: string): MaybePromise<PAPSSession>;
   saveSession(session: PAPSSession): Promise<PAPSSession>;
+  saveSessions(sessions: PAPSSession[]): Promise<PAPSSession[]>;
   deleteSession(sessionId: string): Promise<void>;
+  getStudentSessionView(sessionId: string): Promise<StudentSessionView>;
+  getStudentSessionGroupView(sessionGroupId: string): Promise<StudentSessionGroupView>;
   listSessionRecords(sessionId: string): MaybePromise<PAPSAttemptRecord[]>;
   selectRepresentativeAttempt(
     input: SelectRepresentativeAttemptInput

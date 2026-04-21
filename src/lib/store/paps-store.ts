@@ -3,6 +3,7 @@ import { getRequestStore } from "./paps-memory-store";
 import type {
   PapsStore,
   SchoolStore,
+  StudentSessionGroupView,
   StudentSessionView,
   TeacherBootstrap,
   TeacherSummaryInput
@@ -109,12 +110,39 @@ const buildStudentSessionView = (
   };
 };
 
+const buildStudentSessionGroupView = (
+  store: ReturnType<typeof getRequestStore>,
+  sessionGroupId: string
+): StudentSessionGroupView => {
+  const sessions = store
+    .listSessions()
+    .filter((session) => session.sessionGroupId === sessionGroupId)
+    .sort(
+      (left, right) =>
+        (left.sessionGroupOrder ?? 0) - (right.sessionGroupOrder ?? 0) ||
+        (left.createdAt ?? "").localeCompare(right.createdAt ?? "") ||
+        left.id.localeCompare(right.id)
+    );
+
+  if (sessions.length === 0) {
+    throw new Error(`Session group ${sessionGroupId} was not found.`);
+  }
+
+  return {
+    groupId: sessionGroupId,
+    groupName: sessions[0]?.sessionGroupName ?? sessions[0]?.name ?? sessionGroupId,
+    sessions: sessions.map((session) => buildStudentSessionView(store, session.id))
+  };
+};
+
 export const createStoreForRequest = async (): Promise<PapsStore> => {
   const demoStore = getRequestStore();
   const getTeacherBootstrap = async ({ teacherEmail }: TeacherSummaryInput) =>
     buildTeacherBootstrap(demoStore, teacherEmail);
   const getStudentSessionView = async (sessionId: string) =>
     buildStudentSessionView(demoStore, sessionId);
+  const getStudentSessionGroupView = async (sessionGroupId: string) =>
+    buildStudentSessionGroupView(demoStore, sessionGroupId);
 
   return {
     getTeacherBootstrap,
@@ -127,10 +155,12 @@ export const createStoreForRequest = async (): Promise<PapsStore> => {
     deleteStudent: demoStore.deleteStudent,
     getSession: demoStore.getSession,
     saveSession: demoStore.saveSession,
+    saveSessions: demoStore.saveSessions,
     deleteSession: demoStore.deleteSession,
     appendAttempt: demoStore.appendAttempt,
     listSessionRecords: demoStore.listSessionRecords,
     getStudentSessionView,
+    getStudentSessionGroupView,
     selectRepresentativeAttempt: demoStore.selectRepresentativeAttempt,
     getSyncStatus: demoStore.getSyncStatus,
     setSyncStatus: demoStore.setSyncStatus

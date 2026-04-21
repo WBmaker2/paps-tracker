@@ -224,6 +224,37 @@ export const saveGoogleSheetSession = async ({
   return session;
 };
 
+export const saveGoogleSheetSessions = async ({
+  client,
+  spreadsheetId,
+  state,
+  sessions: nextSessions
+}: {
+  client: Pick<GoogleSheetsClient, "updateRange">;
+  spreadsheetId: string;
+  state: GoogleSheetStructuredState;
+  sessions: PAPSSession[];
+}): Promise<PAPSSession[]> => {
+  const nextSessionIds = new Set(nextSessions.map((session) => session.id));
+  const sessions = [
+    ...state.sessions.filter((entry) => !nextSessionIds.has(entry.id)),
+    ...nextSessions
+  ];
+
+  await writeGoogleSheetSettingsSourceTab({
+    client,
+    spreadsheetId,
+    state: {
+      school: state.school,
+      classes: state.classes,
+      teachers: state.teachers,
+      sessions
+    }
+  });
+
+  return nextSessions;
+};
+
 export const deleteGoogleSheetSession = async ({
   client,
   spreadsheetId,

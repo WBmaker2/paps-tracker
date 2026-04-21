@@ -308,6 +308,79 @@ describe("teacher session smoke flow", () => {
     expect(screen.queryByLabelText("보조 종목")).not.toBeInTheDocument();
   });
 
+  it("creates one grouped session with multiple child event sessions", async () => {
+    const sessionsRoute = await import("../../app/api/sessions/route");
+    const { createStoreForRequest } = await import("../../src/lib/store/paps-store");
+
+    const response = await sessionsRoute.POST(
+      jsonRequest("/api/sessions", "POST", {
+        name: "3월",
+        sessionType: "official",
+        classScope: "split",
+        primaryClassId: "demo-class-3-1",
+        secondaryClassId: "demo-class-4-1",
+        primaryEventId: "grip-strength",
+        eventIds: ["grip-strength", "standing-long-jump"],
+        teacherId: "demo-teacher",
+        schoolId: "demo-school",
+        isOpen: true
+      })
+    );
+    const payload = (await response.json()) as {
+      sessionGroupId?: string | null;
+      sessions?: PAPSSession[];
+    };
+
+    expect(response.status).toBe(201);
+    expect(payload.sessionGroupId).toBeTruthy();
+    expect(payload.sessions).toHaveLength(2);
+    expect(new Set(payload.sessions?.map((session) => session.sessionGroupId))).toEqual(
+      new Set([payload.sessionGroupId])
+    );
+    expect(payload.sessions?.map((session) => session.name)).toEqual([
+      "3월 - 악력",
+      "3월 - 제자리멀리뛰기"
+    ]);
+    expect(payload.sessions?.map((session) => session.eventId)).toEqual([
+      "grip-strength",
+      "standing-long-jump"
+    ]);
+
+    const groupView = await (await createStoreForRequest()).getStudentSessionGroupView(
+      payload.sessionGroupId ?? ""
+    );
+
+    expect(groupView?.groupName).toBe("3월");
+    expect(groupView?.sessions).toHaveLength(2);
+    expect(groupView?.sessions[0]?.classSections.map((section) => section.label)).toEqual([
+      "3-1",
+      "4-1"
+    ]);
+  });
+
+  it("rejects grouped session requests without any selected event", async () => {
+    const sessionsRoute = await import("../../app/api/sessions/route");
+
+    const response = await sessionsRoute.POST(
+      jsonRequest("/api/sessions", "POST", {
+        name: "3월",
+        sessionType: "official",
+        classScope: "split",
+        primaryClassId: "demo-class-3-1",
+        secondaryClassId: "demo-class-4-1",
+        primaryEventId: "grip-strength",
+        eventIds: [],
+        teacherId: "demo-teacher",
+        schoolId: "demo-school",
+        isOpen: true
+      })
+    );
+    const payload = (await response.json()) as { error?: string };
+
+    expect(response.status).toBe(400);
+    expect(payload.error).toBe("At least one event is required.");
+  });
+
   it("shows one unified session list card with consistent session detail text", async () => {
     const { AppShell } = await import("../../src/components/layout/app-shell");
     const { TeacherSessionWorkspace } = await import("../../src/components/teacher/session-form");

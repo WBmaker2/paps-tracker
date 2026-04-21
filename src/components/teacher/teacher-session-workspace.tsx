@@ -35,15 +35,22 @@ export function TeacherSessionWorkspace({
     ? "최근 생성 순으로 확인하고 열기와 닫기를 바로 전환할 수 있습니다."
     : "세션을 확인하고 열기와 닫기를 바로 전환할 수 있습니다.";
 
-  const handleCreated = (session: PAPSSession, studentSessionUrl?: string | null) => {
+  const handleCreated = (createdSessions: PAPSSession[], studentSessionUrl?: string | null) => {
     setSessionItems((currentItems) =>
-      sortSessionsByRecency([session, ...currentItems.filter((entry) => entry.id !== session.id)])
+      sortSessionsByRecency([
+        ...createdSessions,
+        ...currentItems.filter(
+          (entry) => !createdSessions.some((session) => session.id === entry.id)
+        )
+      ])
     );
 
     if (studentSessionUrl) {
+      const urlKey = createdSessions[0]?.sessionGroupId ?? createdSessions[0]?.id;
+
       setSessionUrlItems((currentItems) => ({
         ...currentItems,
-        [session.id]: studentSessionUrl
+        ...(urlKey ? { [urlKey]: studentSessionUrl } : {})
       }));
     }
   };

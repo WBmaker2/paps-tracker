@@ -13,10 +13,13 @@ import {
   getAuthorizedTeacherRouteContext
 } from "../../../src/lib/teacher-route-context";
 import { buildTeacherStateVersion } from "../../../src/lib/google/sheet-state-version";
-import { isKnownEventId } from "../../../src/lib/paps/catalog";
+import { getEventDefinition, isKnownEventId } from "../../../src/lib/paps/catalog";
 import { validateSession } from "../../../src/lib/paps/validation";
 import type { EventId, GradeLevel, PAPSSession, PAPSTeacher, SessionType } from "../../../src/lib/paps/types";
-import { createStudentSessionUrl } from "../../../src/lib/student-session-access";
+import {
+  createStudentSessionGroupUrl,
+  createStudentSessionUrl
+} from "../../../src/lib/student-session-access";
 
 const parseSessionType = (value: unknown): SessionType => {
   if (value === "official" || value === "practice") {
@@ -34,10 +37,20 @@ const parseEventId = (value: unknown, fieldName: string): EventId => {
   throw new Error(`${fieldName} is required.`);
 };
 
-const toSessionInput = async (
+const parseEventIds = (value: unknown, fallbackEventId: EventId): EventId[] => {
+  if (!Array.isArray(value)) {
+    return [fallbackEventId];
+  }
+
+  const eventIds = value.map((entry) => parseEventId(entry, "Event"));
+
+  return Array.from(new Set(eventIds));
+};
+
+const toSessionInputs = async (
   body: Record<string, unknown>,
   context: AuthorizedTeacherRouteContext<TeacherCrudStore>
-): Promise<PAPSSession> => {
+): Promise<PAPSSession[]> => {
   const { store, teacher, bootstrap } = context;
   const sessionType = parseSessionType(body.sessionType);
   const classScope = body.classScope === "split" ? "split" : "single";
@@ -51,6 +64,12 @@ const toSessionInput = async (
   }
 
   const primaryEventId = parseEventId(body.primaryEventId ?? body.eventId, "Primary event");
+  const eventIds = parseEventIds(body.eventIds, primaryEventId);
+
+  if (eventIds.length === 0) {
+    throw new Error("At least one event is required.");
+  }
+
   const primaryClass = await store.getClass(primaryClassId);
   const secondaryClassId =
     typeof body.secondaryClassId === "string" && body.secondaryClassId.trim()
@@ -85,41 +104,62 @@ const toSessionInput = async (
     throw new Error("Forbidden");
   }
 
-  const classTargets =
-    classScope === "split"
-      ? [
-          { classId: primaryClassId, eventId: primaryEventId },
-          { classId: secondaryClassId, eventId: primaryEventId }
-        ]
-      : [{ classId: primaryClassId, eventId: primaryEventId }];
-
-  for (const classTarget of classTargets) {
-    if (!classTarget.classId) {
-      throw new Error("A secondary class is required.");
-    }
-
-    if ((await store.getClass(classTarget.classId)).schoolId !== teacher.schoolId) {
-      throw new Error("Forbidden");
-    }
+  if (existingSessionId && eventIds.length > 1) {
+    throw new Error("Existing sessions can only be updated one event at a time.");
   }
 
-  return validateSession({
-    id: existingSessionId ?? randomUUID(),
-    schoolId,
-    teacherId: teacher.id,
-    academicYear,
-    name:
-      typeof body.name === "string" && body.name.trim()
-        ? body.name.trim()
-        : `${primaryClass.label} ${primaryEventId}`,
-    gradeLevel: primaryClass.gradeLevel as GradeLevel,
-    sessionType,
-    classScope,
-    eventId: primaryEventId,
-    classTargets,
-    isOpen: body.isOpen !== false,
-    createdAt: timestamp
-  });
+  const baseName =
+    typeof body.name === "string" && body.name.trim()
+      ? body.name.trim()
+      : `${primaryClass.label} ${primaryEventId}`;
+  const sessionGroupId = eventIds.length > 1 ? randomUUID() : null;
+
+  return Promise.all(
+    eventIds.map(async (eventId, index) => {
+      const classTargets =
+        classScope === "split"
+          ? [
+              { classId: primaryClassId, eventId },
+              { classId: secondaryClassId, eventId }
+            ]
+          : [{ classId: primaryClassId, eventId }];
+
+      for (const classTarget of classTargets) {
+        if (!classTarget.classId) {
+          throw new Error("A secondary class is required.");
+        }
+
+        if ((await store.getClass(classTarget.classId)).schoolId !== teacher.schoolId) {
+          throw new Error("Forbidden");
+        }
+      }
+
+      return validateSession({
+        id: existingSessionId ?? randomUUID(),
+        schoolId,
+        teacherId: teacher.id,
+        academicYear,
+        name:
+          sessionGroupId && eventIds.length > 1
+            ? `${baseName} - ${getEventDefinition(eventId).label}`
+            : baseName,
+        gradeLevel: primaryClass.gradeLevel as GradeLevel,
+        sessionType,
+        classScope,
+        eventId,
+        classTargets,
+        ...(sessionGroupId
+          ? {
+              sessionGroupId,
+              sessionGroupName: baseName,
+              sessionGroupOrder: index
+            }
+          : {}),
+        isOpen: body.isOpen !== false,
+        createdAt: timestamp
+      });
+    })
+  );
 };
 
 export async function GET(request: NextRequest) {
@@ -176,25 +216,41 @@ export async function POST(request: NextRequest) {
       createStore: createTeacherRuntimeStoreForRequest
     });
     const { store } = context;
-    const session = await store.saveSession(
-      await toSessionInput((body ?? {}) as Record<string, unknown>, context)
-    );
+    const sessionInputs = await toSessionInputs((body ?? {}) as Record<string, unknown>, context);
+    const sessions =
+      sessionInputs.length > 1
+        ? await store.saveSessions(sessionInputs)
+        : [await store.saveSession(sessionInputs[0]!)];
+    const session = sessions[0]!;
+    const sessionGroupId = session.sessionGroupId ?? null;
     const teacherStateVersion = buildTeacherStateVersion({
       ...context.bootstrap,
-      sessions: [...context.bootstrap.sessions.filter((entry) => entry.id !== session.id), session]
+      sessions: [
+        ...context.bootstrap.sessions.filter(
+          (entry) => !sessions.some((savedSession) => savedSession.id === entry.id)
+        ),
+        ...sessions
+      ]
     });
     const spreadsheetId = request.cookies.get(PAPS_SPREADSHEET_ID_COOKIE)?.value ?? null;
 
     const response = NextResponse.json(
       {
         session,
+        sessions,
+        sessionGroupId,
         teacherStateVersion,
         studentSessionUrl:
           spreadsheetId && process.env.NODE_ENV === "production"
-            ? createStudentSessionUrl({
-                sessionId: session.id,
-                spreadsheetId
-              })
+            ? sessionGroupId
+              ? createStudentSessionGroupUrl({
+                  sessionGroupId,
+                  spreadsheetId
+                })
+              : createStudentSessionUrl({
+                  sessionId: session.id,
+                  spreadsheetId
+                })
             : null
       },
       {

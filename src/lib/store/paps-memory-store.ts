@@ -460,7 +460,7 @@ export const createPapsMemoryStore = (seedData: PAPSDemoStoreData = createDefaul
     });
   };
 
-  const saveSession = (session: PAPSSession): PAPSSession => {
+  const normalizeSession = (session: PAPSSession): PAPSSession => {
     validateSession(session);
     const primaryClassroom = getClass(session.classTargets[0]!.classId);
     const normalizedSession: PAPSSession = {
@@ -474,12 +474,33 @@ export const createPapsMemoryStore = (seedData: PAPSDemoStoreData = createDefaul
       isOpen: session.isOpen ?? true
     };
     if (normalizedSession.teacherId) getTeacher(normalizedSession.teacherId);
+    return normalizedSession;
+  };
+
+  const saveSession = (session: PAPSSession): PAPSSession => {
+    const normalizedSession = normalizeSession(session);
     const currentState = ensureState();
     writeState({
       ...currentState,
       sessions: [...currentState.sessions.filter((entry) => entry.id !== normalizedSession.id), normalizedSession]
     });
     return cloneValue(normalizedSession);
+  };
+
+  const saveSessions = (sessions: PAPSSession[]): PAPSSession[] => {
+    const normalizedSessions = sessions.map(normalizeSession);
+    const savedSessionIds = new Set(normalizedSessions.map((session) => session.id));
+    const currentState = ensureState();
+
+    writeState({
+      ...currentState,
+      sessions: [
+        ...currentState.sessions.filter((entry) => !savedSessionIds.has(entry.id)),
+        ...normalizedSessions
+      ]
+    });
+
+    return cloneValue(normalizedSessions);
   };
 
   const deleteSession = (sessionId: string): void => {
@@ -649,6 +670,7 @@ export const createPapsMemoryStore = (seedData: PAPSDemoStoreData = createDefaul
     deleteStudent,
     listSessions: (): PAPSSession[] => cloneValue(ensureState().sessions),
     saveSession,
+    saveSessions,
     deleteSession,
     getSession,
     getSchool,

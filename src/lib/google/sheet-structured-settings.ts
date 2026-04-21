@@ -9,6 +9,8 @@ export const SETTINGS_MACHINE_ROW_LABELS = {
   class: "__PAPS_CLASS",
   classMeta: "__PAPS_CLASS_META",
   session: "__PAPS_SESSION",
+  sessionGroup: "__PAPS_SESSION_GROUP",
+  sessionGroupItem: "__PAPS_SESSION_GROUP_ITEM",
   sessionMeta: "__PAPS_SESSION_META",
   sessionStatus: "__PAPS_SESSION_STATUS",
   sessionTarget: "__PAPS_SESSION_TARGET",
@@ -261,6 +263,29 @@ const buildStructuredClasses = (
 
 const buildStructuredSessions = (rowsByLabel: Map<string, string[][]>): PAPSSession[] => {
   const sessionRows = rowsByLabel.get(SETTINGS_MACHINE_ROW_LABELS.session) ?? [];
+  const sessionGroupById = new Map(
+    (rowsByLabel.get(SETTINGS_MACHINE_ROW_LABELS.sessionGroup) ?? []).map((row) => [
+      row[1],
+      {
+        id: row[1],
+        name: row[2],
+        schoolId: row[3],
+        teacherId: row[4],
+        createdAt: row[5]
+      }
+    ])
+  );
+  const sessionGroupItemBySessionId = new Map(
+    (rowsByLabel.get(SETTINGS_MACHINE_ROW_LABELS.sessionGroupItem) ?? []).map((row) => [
+      row[2],
+      {
+        groupId: row[1],
+        sessionId: row[2],
+        order: row[3],
+        eventId: row[4]
+      }
+    ])
+  );
   const sessionMetaById = new Map(
     (rowsByLabel.get(SETTINGS_MACHINE_ROW_LABELS.sessionMeta) ?? []).map((row) => [row[1], row])
   );
@@ -288,6 +313,8 @@ const buildStructuredSessions = (rowsByLabel: Map<string, string[][]>): PAPSSess
     return sessionRows.map((row) => {
       const metaRow = sessionMetaById.get(row[1] ?? "");
       const statusRow = sessionStatusById.get(row[1] ?? "");
+      const groupItem = sessionGroupItemBySessionId.get(row[1] ?? "");
+      const group = groupItem?.groupId ? sessionGroupById.get(groupItem.groupId) : null;
 
       return {
         id: row[1]!,
@@ -300,6 +327,13 @@ const buildStructuredSessions = (rowsByLabel: Map<string, string[][]>): PAPSSess
         classScope: (metaRow?.[4] as PAPSSession["classScope"]) ?? "single",
         eventId: (metaRow?.[5] as PAPSSession["eventId"]) ?? "sit-and-reach",
         classTargets: sessionTargetsById.get(row[1]!) ?? [],
+        ...(groupItem?.groupId
+          ? {
+              sessionGroupId: groupItem.groupId,
+              sessionGroupName: group?.name || row[5] || groupItem.groupId,
+              sessionGroupOrder: Number(groupItem.order) || 0
+            }
+          : {}),
         isOpen: (statusRow?.[2] ?? "Y") !== "N",
         createdAt: normalizeIsoValue(statusRow?.[3])
       } satisfies PAPSSession;

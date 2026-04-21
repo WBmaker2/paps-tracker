@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  createStudentSessionGroupAccessToken,
+  createStudentSessionGroupUrl,
   createStudentSessionAccessToken,
-  resolveStudentSessionAccess
+  resolveStudentSessionAccess,
+  resolveStudentSessionAccessToken
 } from "../../src/lib/student-session-access";
 
 const ORIGINAL_NEXTAUTH_SECRET = process.env.NEXTAUTH_SECRET;
@@ -78,5 +81,26 @@ describe("student session access token", () => {
         sessionId: "session-1"
       })
     ).toThrow("Invalid student session access token.");
+  });
+
+  it("round-trips a grouped session access token and URL", () => {
+    process.env.NODE_ENV = "test";
+    process.env.NEXTAUTH_SECRET = "test-secret";
+
+    const token = createStudentSessionGroupAccessToken({
+      sessionGroupId: "group-1",
+      spreadsheetId: "sheet-123"
+    });
+
+    expect(resolveStudentSessionAccessToken(token)).toEqual({
+      sessionGroupId: "group-1",
+      spreadsheetId: "sheet-123"
+    });
+    expect(
+      createStudentSessionGroupUrl({
+        sessionGroupId: "group-1",
+        spreadsheetId: "sheet-123"
+      })
+    ).toContain("/session-group/group-1?access=");
   });
 });

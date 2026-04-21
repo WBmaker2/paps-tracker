@@ -11,10 +11,13 @@ export interface SessionFormProps {
   classes: PAPSClassroom[];
   defaultTeacherId?: string;
   defaultSchoolId?: string;
-  onCreated?: (session: PAPSSession, studentSessionUrl?: string | null) => void;
+  onCreated?: (sessions: PAPSSession[], studentSessionUrl?: string | null) => void;
   sheetConnected?: boolean;
   sheetStatus?: TeacherSheetStatus;
 }
+
+const arraysEqual = <T,>(left: T[], right: T[]): boolean =>
+  left.length === right.length && left.every((value, index) => value === right[index]);
 
 export function SessionForm({
   classes,
@@ -27,6 +30,7 @@ export function SessionForm({
   const [isPending, startTransition] = useTransition();
   const [name, setName] = useState("");
   const [sessionType, setSessionType] = useState<"official" | "practice">("practice");
+  const [sessionMode, setSessionMode] = useState<"single-event" | "event-group">("single-event");
   const [classScope, setClassScope] = useState<"single" | "split">("single");
   const [primaryClassId, setPrimaryClassId] = useState(classes[0]?.id ?? "");
   const [secondaryClassId, setSecondaryClassId] = useState(classes[1]?.id ?? classes[0]?.id ?? "");
@@ -46,14 +50,35 @@ export function SessionForm({
   );
   const fallbackEventId = eligibleEvents[0]?.id ?? "shuttle-run";
   const [primaryEventId, setPrimaryEventId] = useState<EventId>(fallbackEventId);
+  const [selectedEventIds, setSelectedEventIds] = useState<EventId[]>([fallbackEventId]);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!eligibleEvents.some((eventDefinition) => eventDefinition.id === primaryEventId)) {
+    if (
+      primaryEventId !== fallbackEventId &&
+      !eligibleEvents.some((eventDefinition) => eventDefinition.id === primaryEventId)
+    ) {
       setPrimaryEventId(fallbackEventId);
     }
   }, [eligibleEvents, fallbackEventId, primaryEventId]);
+
+  useEffect(() => {
+    const eligibleEventIds = new Set(eligibleEvents.map((eventDefinition) => eventDefinition.id));
+    const nextEventIds = selectedEventIds.filter((eventId) => eligibleEventIds.has(eventId));
+    const fallbackEventIds = eligibleEventIds.has(fallbackEventId) ? [fallbackEventId] : [];
+
+    if (nextEventIds.length === 0) {
+      if (!arraysEqual(selectedEventIds, fallbackEventIds)) {
+        setSelectedEventIds(fallbackEventIds);
+      }
+      return;
+    }
+
+    if (!arraysEqual(selectedEventIds, nextEventIds)) {
+      setSelectedEventIds(nextEventIds);
+    }
+  }, [eligibleEvents, fallbackEventId, selectedEventIds]);
 
   useEffect(() => {
     if (classes.length === 0) {
@@ -88,6 +113,11 @@ export function SessionForm({
     setFeedback(null);
     setErrorMessage(null);
 
+    if (sessionMode === "event-group" && selectedEventIds.length < 2) {
+      setErrorMessage("여러 종목 묶음은 종목을 2개 이상 선택해주세요.");
+      return;
+    }
+
     startTransition(async () => {
       try {
         const response = await fetch("/api/sessions", {
@@ -102,6 +132,7 @@ export function SessionForm({
             primaryClassId,
             secondaryClassId: classScope === "split" ? secondaryClassId : undefined,
             primaryEventId,
+            eventIds: sessionMode === "event-group" ? selectedEventIds : undefined,
             teacherId: defaultTeacherId,
             schoolId: defaultSchoolId,
             isOpen: true
@@ -110,17 +141,23 @@ export function SessionForm({
         const payload = (await response.json()) as {
           error?: string;
           session?: PAPSSession;
+          sessions?: PAPSSession[];
           studentSessionUrl?: string | null;
           teacherStateVersion?: string;
         };
 
-        if (!response.ok || !payload.session) {
+        const createdSessions =
+          payload.sessions ?? (payload.session ? [payload.session] : []);
+
+        if (!response.ok || createdSessions.length === 0) {
           throw new Error(payload.error ?? "세션을 저장하지 못했습니다.");
         }
 
-        setFeedback("세션을 저장했습니다.");
+        setFeedback(
+          sessionMode === "event-group" ? "세션 묶음을 저장했습니다." : "세션을 저장했습니다."
+        );
         setName("");
-        onCreated?.(payload.session, payload.studentSessionUrl ?? null);
+        onCreated?.(createdSessions, payload.studentSessionUrl ?? null);
         notifyTeacherDataRefresh({
           refresh: false,
           nextVersion: payload.teacherStateVersion ?? null
@@ -165,6 +202,17 @@ export function SessionForm({
           </select>
         </label>
         <label className="flex flex-col gap-2 text-sm">
+          세션 구성
+          <select
+            className="rounded-2xl border border-ink/15 px-4 py-3"
+            value={sessionMode}
+            onChange={(event) => setSessionMode(event.target.value as typeof sessionMode)}
+          >
+            <option value="single-event">단일 종목</option>
+            <option value="event-group">여러 종목 묶음</option>
+          </select>
+        </label>
+        <label className="flex flex-col gap-2 text-sm">
           운영 방식
           <select
             className="rounded-2xl border border-ink/15 px-4 py-3"
@@ -189,20 +237,51 @@ export function SessionForm({
             ))}
           </select>
         </label>
-        <label className="flex flex-col gap-2 text-sm">
-          주 종목
-          <select
-            className="rounded-2xl border border-ink/15 px-4 py-3"
-            value={primaryEventId}
-            onChange={(event) => setPrimaryEventId(event.target.value as EventId)}
-          >
-            {eligibleEvents.map((eventDefinition) => (
-              <option key={eventDefinition.id} value={eventDefinition.id}>
-                {eventDefinition.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        {sessionMode === "single-event" ? (
+          <label className="flex flex-col gap-2 text-sm">
+            주 종목
+            <select
+              className="rounded-2xl border border-ink/15 px-4 py-3"
+              value={primaryEventId}
+              onChange={(event) => setPrimaryEventId(event.target.value as EventId)}
+            >
+              {eligibleEvents.map((eventDefinition) => (
+                <option key={eventDefinition.id} value={eventDefinition.id}>
+                  {eventDefinition.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <fieldset className="rounded-2xl border border-ink/10 px-4 py-3 md:col-span-2">
+            <legend className="px-1 text-sm font-medium">기록할 종목</legend>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {eligibleEvents.map((eventDefinition) => {
+                const checked = selectedEventIds.includes(eventDefinition.id);
+
+                return (
+                  <label
+                    key={eventDefinition.id}
+                    className="flex items-center gap-2 rounded-xl border border-ink/10 px-3 py-2 text-sm"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(event) => {
+                        setSelectedEventIds((currentEventIds) =>
+                          event.target.checked
+                            ? Array.from(new Set([...currentEventIds, eventDefinition.id]))
+                            : currentEventIds.filter((eventId) => eventId !== eventDefinition.id)
+                        );
+                      }}
+                    />
+                    {eventDefinition.label}
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+        )}
         {classScope === "split" ? (
           <>
             <label className="flex flex-col gap-2 text-sm">

@@ -11,7 +11,7 @@ import {
   assertMeasurementDetailAllowed
 } from "../../../../../src/lib/paps/validation";
 import { createStoreForRequest } from "../../../../../src/lib/store/paps-store";
-import { resolveStudentSessionAccess } from "../../../../../src/lib/student-session-access";
+import { resolveStudentSessionAccessToken } from "../../../../../src/lib/student-session-access";
 import type { OfficialGrade } from "../../../../../src/lib/paps/types";
 
 type SubmitRouteContext = {
@@ -60,22 +60,28 @@ export async function POST(request: NextRequest, context: SubmitRouteContext) {
         throw new Error("Student session access token is required.");
       }
 
-      const { spreadsheetId } = resolveStudentSessionAccess({
-        token: accessToken,
-        sessionId
-      });
+      const accessPayload = resolveStudentSessionAccessToken(accessToken);
+
+      if (accessPayload.sessionId && accessPayload.sessionId !== sessionId) {
+        throw new Error("Student session access token does not match this session.");
+      }
+
+      if (!accessPayload.sessionId && !accessPayload.sessionGroupId) {
+        throw new Error("Student session access token does not match this session.");
+      }
 
       const clientSubmissionKey =
         typeof body?.clientSubmissionKey === "string" && body.clientSubmissionKey.trim()
           ? body.clientSubmissionKey.trim()
           : randomUUID();
       const sheetResult = await appendStudentSubmissionToSheet({
-        spreadsheetId,
+        spreadsheetId: accessPayload.spreadsheetId,
         sessionId,
         studentId,
         measurement: parseOptionalMeasurement(body?.measurement),
         detail: body?.detail ?? null,
-        clientSubmissionKey
+        clientSubmissionKey,
+        authorizedSessionGroupId: accessPayload.sessionGroupId ?? null
       });
 
       if (!sheetResult.ok) {

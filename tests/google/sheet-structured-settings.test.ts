@@ -97,4 +97,47 @@ describe("Google Sheet structured settings parser", () => {
     expect(structuredSettings.classes).toEqual([]);
     expect(structuredSettings.sessions).toEqual([]);
   });
+
+  it("parses session group rows and attaches group metadata to child sessions", () => {
+    const structuredSettings = parseGoogleSheetStructuredSettings({
+      settingsRows: [
+        ["__PAPS_SCHOOL", "demo-school", "Demo Elementary", "", "2026-03-24T09:00:00.000Z", "2026-03-24T09:00:00.000Z"],
+        ["__PAPS_TEACHER", "demo-teacher", "demo-school", "Demo Teacher", "demo-teacher@example.com", ""],
+        ["__PAPS_CLASS", "class-3-1", "demo-school", "2026", "3", "1"],
+        ["__PAPS_CLASS_META", "class-3-1", "3-1", "Y", "", ""],
+        ["__PAPS_CLASS", "class-4-1", "demo-school", "2026", "4", "1"],
+        ["__PAPS_CLASS_META", "class-4-1", "4-1", "Y", "", ""],
+        ["__PAPS_SESSION_GROUP", "group-1", "3월", "demo-school", "demo-teacher", "2026-03-24T09:10:00.000Z"],
+        ["__PAPS_SESSION_GROUP_ITEM", "group-1", "session-grip", "0", "grip-strength", ""],
+        ["__PAPS_SESSION_GROUP_ITEM", "group-1", "session-jump", "1", "standing-long-jump", ""],
+        ["__PAPS_SESSION", "session-grip", "demo-school", "demo-teacher", "2026", "3월 - 악력"],
+        ["__PAPS_SESSION_META", "session-grip", "3", "official", "split", "grip-strength"],
+        ["__PAPS_SESSION_STATUS", "session-grip", "Y", "2026-03-24T09:10:00.000Z", "", ""],
+        ["__PAPS_SESSION_TARGET", "session-grip", "class-3-1", "grip-strength", "0", ""],
+        ["__PAPS_SESSION_TARGET", "session-grip", "class-4-1", "grip-strength", "1", ""],
+        ["__PAPS_SESSION", "session-jump", "demo-school", "demo-teacher", "2026", "3월 - 제자리멀리뛰기"],
+        ["__PAPS_SESSION_META", "session-jump", "3", "official", "split", "standing-long-jump"],
+        ["__PAPS_SESSION_STATUS", "session-jump", "Y", "2026-03-24T09:10:00.000Z", "", ""],
+        ["__PAPS_SESSION_TARGET", "session-jump", "class-3-1", "standing-long-jump", "0", ""],
+        ["__PAPS_SESSION_TARGET", "session-jump", "class-4-1", "standing-long-jump", "1", ""]
+      ],
+      spreadsheetId: "sheet-123",
+      teacherEmail: "demo-teacher@example.com"
+    });
+
+    expect(structuredSettings.sessions).toEqual([
+      expect.objectContaining({
+        id: "session-grip",
+        sessionGroupId: "group-1",
+        sessionGroupName: "3월",
+        sessionGroupOrder: 0
+      }),
+      expect.objectContaining({
+        id: "session-jump",
+        sessionGroupId: "group-1",
+        sessionGroupName: "3월",
+        sessionGroupOrder: 1
+      })
+    ]);
+  });
 });

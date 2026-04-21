@@ -62,6 +62,12 @@ export interface StudentSessionView {
   classSections: StudentSessionClassSection[];
 }
 
+export interface StudentSessionGroupView {
+  groupId: string;
+  groupName: string;
+  sessions: StudentSessionView[];
+}
+
 export interface SetSyncStatusInput extends RecordSelector {
   status: PAPSSyncStatusRecord["status"];
   updatedAt: string;
@@ -80,10 +86,12 @@ export interface PapsStore {
   deleteStudent(studentId: string): void;
   getSession(sessionId: string): PAPSSession;
   saveSession(session: PAPSSession): PAPSSession;
+  saveSessions(sessions: PAPSSession[]): PAPSSession[];
   deleteSession(sessionId: string): void;
   appendAttempt(input: AppendAttemptInput): PAPSAttemptRecord;
   listSessionRecords(sessionId: string): PAPSAttemptRecord[];
   getStudentSessionView(sessionId: string): Promise<StudentSessionView>;
+  getStudentSessionGroupView(sessionGroupId: string): Promise<StudentSessionGroupView>;
   selectRepresentativeAttempt(input: SelectRepresentativeAttemptInput): PAPSAttemptRecord;
   getSyncStatus(selector: RecordSelector): PAPSSyncStatusRecord | null;
   setSyncStatus(input: SetSyncStatusInput): PAPSSyncStatusRecord;
