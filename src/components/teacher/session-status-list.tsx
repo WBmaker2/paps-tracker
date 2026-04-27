@@ -14,6 +14,8 @@ export interface SessionStatusListProps {
   sessions: PAPSSession[];
   studentSessionUrls?: Record<string, string>;
   onUpdated?: (session: PAPSSession) => void;
+  onEdit?: (sessions: PAPSSession[]) => void;
+  editingSessionKey?: string | null;
   title?: string;
   description?: string;
 }
@@ -22,6 +24,8 @@ export function SessionStatusList({
   sessions,
   studentSessionUrls,
   onUpdated,
+  onEdit,
+  editingSessionKey = null,
   title = "세션 목록",
   description = "최근 생성 순으로 확인하고 열기와 닫기를 바로 전환할 수 있습니다."
 }: SessionStatusListProps) {
@@ -163,13 +167,24 @@ export function SessionStatusList({
                       </a>
                     ) : null}
                   </div>
-                  <button
-                    type="button"
-                    className="rounded-full border border-ink/15 px-4 py-2 text-sm font-medium"
-                    onClick={() => toggleGroupOpen(item.sessions)}
-                  >
-                    {item.sessions.some((session) => session.isOpen !== false) ? "닫기" : "열기"}
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {onEdit ? (
+                      <button
+                        type="button"
+                        className="rounded-full border border-ink/15 px-4 py-2 text-sm font-medium"
+                        onClick={() => onEdit(item.sessions)}
+                      >
+                        {editingSessionKey === item.id ? `${item.name} 수정 중` : `${item.name} 수정`}
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="rounded-full border border-ink/15 px-4 py-2 text-sm font-medium"
+                      onClick={() => toggleGroupOpen(item.sessions)}
+                    >
+                      {item.sessions.some((session) => session.isOpen !== false) ? "닫기" : "열기"}
+                    </button>
+                  </div>
                 </>
               ) : (
                 <>
@@ -185,13 +200,26 @@ export function SessionStatusList({
                       </a>
                     ) : null}
                   </div>
-                  <button
-                    type="button"
-                    className="rounded-full border border-ink/15 px-4 py-2 text-sm font-medium"
-                    onClick={() => toggleOpen(item.session)}
-                  >
-                    {item.session.isOpen ? "닫기" : "열기"}
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {onEdit ? (
+                      <button
+                        type="button"
+                        className="rounded-full border border-ink/15 px-4 py-2 text-sm font-medium"
+                        onClick={() => onEdit([item.session])}
+                      >
+                        {editingSessionKey === item.id
+                          ? `${item.session.name ?? "세션"} 수정 중`
+                          : `${item.session.name ?? "세션"} 수정`}
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="rounded-full border border-ink/15 px-4 py-2 text-sm font-medium"
+                      onClick={() => toggleOpen(item.session)}
+                    >
+                      {item.session.isOpen ? "닫기" : "열기"}
+                    </button>
+                  </div>
                 </>
               )}
             </article>

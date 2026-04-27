@@ -189,9 +189,7 @@ describe("teacher session smoke flow", () => {
     fireEvent.change(screen.getByLabelText("주 반"), {
       target: { value: "demo-class-5-1" }
     });
-    fireEvent.change(screen.getByLabelText("주 종목"), {
-      target: { value: "sit-and-reach" }
-    });
+    fireEvent.click(screen.getByLabelText("앉아윗몸앞으로굽히기"));
     fireEvent.click(screen.getByRole("button", { name: "세션 저장" }));
 
     await screen.findByText("세션을 저장했습니다.");
@@ -243,30 +241,21 @@ describe("teacher session smoke flow", () => {
       target: { value: "demo-class-4-1" }
     });
 
-    const eventSelect = screen.getByLabelText("주 종목");
-    const grade4Options = Array.from(eventSelect.querySelectorAll("option")).map(
-      (option) => option.textContent
-    );
-
-    expect(grade4Options).toContain("왕복오래달리기");
-    expect(grade4Options).toContain("윗몸말아올리기");
-    expect(grade4Options).toContain("악력");
-    expect(grade4Options).toContain("50m달리기");
-    expect(grade4Options).toContain("제자리멀리뛰기");
-    expect(grade4Options).not.toContain("앉아윗몸앞으로굽히기");
-    expect(grade4Options).not.toContain("오래달리기-걷기");
+    expect(screen.getByLabelText("왕복오래달리기")).toBeInTheDocument();
+    expect(screen.getByLabelText("윗몸말아올리기")).toBeInTheDocument();
+    expect(screen.getByLabelText("악력")).toBeInTheDocument();
+    expect(screen.getByLabelText("50m달리기")).toBeInTheDocument();
+    expect(screen.getByLabelText("제자리멀리뛰기")).toBeInTheDocument();
+    expect(screen.queryByLabelText("앉아윗몸앞으로굽히기")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("오래달리기-걷기")).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("주 반"), {
       target: { value: "demo-class-5-1" }
     });
 
-    const grade5Options = Array.from(eventSelect.querySelectorAll("option")).map(
-      (option) => option.textContent
-    );
-
-    expect(grade5Options).toContain("앉아윗몸앞으로굽히기");
-    expect(grade5Options).toContain("오래달리기-걷기");
-    expect(grade5Options).toContain("윗몸말아올리기");
+    expect(screen.getByLabelText("앉아윗몸앞으로굽히기")).toBeInTheDocument();
+    expect(screen.getByLabelText("오래달리기-걷기")).toBeInTheDocument();
+    expect(screen.getByLabelText("윗몸말아올리기")).toBeInTheDocument();
   });
 
   it("allows a split session to combine classes from different grades with one shared event", async () => {
@@ -300,12 +289,7 @@ describe("teacher session smoke flow", () => {
       target: { value: "demo-class-4-1" }
     });
 
-    const splitEventOptions = Array.from(
-      screen.getByLabelText("주 종목").querySelectorAll("option")
-    ).map((option) => option.textContent);
-
-    expect(splitEventOptions).toContain("왕복오래달리기");
-    expect(screen.queryByLabelText("보조 종목")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("왕복오래달리기")).toBeInTheDocument();
   });
 
   it("creates one grouped session with multiple child event sessions", async () => {
@@ -356,6 +340,195 @@ describe("teacher session smoke flow", () => {
       "3-1",
       "4-1"
     ]);
+  });
+
+  it("updates an existing session into a grouped multi-event session and renames it", async () => {
+    const sessionsRoute = await import("../../app/api/sessions/route");
+    const store = getRequestStore();
+
+    store.saveSession({
+      id: "existing-session",
+      schoolId: "demo-school",
+      teacherId: "demo-teacher",
+      academicYear: 2026,
+      name: "기존 세션",
+      gradeLevel: 5,
+      sessionType: "practice",
+      classScope: "single",
+      eventId: "grip-strength",
+      classTargets: [{ classId: "demo-class-5-1", eventId: "grip-strength" }],
+      isOpen: true,
+      createdAt: "2026-03-23T09:30:00.000Z"
+    });
+
+    const response = await sessionsRoute.POST(
+      jsonRequest("/api/sessions", "POST", {
+        id: "existing-session",
+        name: "3월 통합 세션",
+        sessionType: "official",
+        classScope: "split",
+        primaryClassId: "demo-class-3-1",
+        secondaryClassId: "demo-class-4-1",
+        primaryEventId: "grip-strength",
+        eventIds: ["grip-strength", "standing-long-jump"],
+        teacherId: "demo-teacher",
+        schoolId: "demo-school"
+      })
+    );
+    const payload = (await response.json()) as {
+      sessions?: PAPSSession[];
+      sessionGroupId?: string | null;
+    };
+
+    expect(response.status).toBe(200);
+    expect(payload.sessions).toHaveLength(2);
+    expect(payload.sessionGroupId).toBe("existing-session");
+    expect(payload.sessions?.map((session) => session.name)).toEqual([
+      "3월 통합 세션 - 악력",
+      "3월 통합 세션 - 제자리멀리뛰기"
+    ]);
+    expect(payload.sessions?.map((session) => session.classScope)).toEqual([
+      "split",
+      "split"
+    ]);
+  });
+
+  it("allows renaming an existing grouped session even after students have recorded attempts", async () => {
+    const sessionsRoute = await import("../../app/api/sessions/route");
+    const store = getRequestStore();
+
+    store.saveStudent({
+      id: "student-lee",
+      schoolId: "demo-school",
+      classId: "demo-class-3-1",
+      studentNumber: 2,
+      name: "Lee",
+      sex: "male",
+      gradeLevel: 3,
+      active: true
+    });
+
+    store.saveSessions([
+      {
+        id: "group-session-1",
+        schoolId: "demo-school",
+        teacherId: "demo-teacher",
+        academicYear: 2026,
+        name: "기존 3월 - 악력",
+        sessionGroupId: "group-1",
+        sessionGroupName: "기존 3월",
+        sessionGroupOrder: 0,
+        gradeLevel: 3,
+        sessionType: "official",
+        classScope: "split",
+        eventId: "grip-strength",
+        classTargets: [
+          { classId: "demo-class-3-1", eventId: "grip-strength" },
+          { classId: "demo-class-4-1", eventId: "grip-strength" }
+        ],
+        isOpen: true,
+        createdAt: "2026-03-23T09:40:00.000Z"
+      },
+      {
+        id: "group-session-2",
+        schoolId: "demo-school",
+        teacherId: "demo-teacher",
+        academicYear: 2026,
+        name: "기존 3월 - 제자리멀리뛰기",
+        sessionGroupId: "group-1",
+        sessionGroupName: "기존 3월",
+        sessionGroupOrder: 1,
+        gradeLevel: 3,
+        sessionType: "official",
+        classScope: "split",
+        eventId: "standing-long-jump",
+        classTargets: [
+          { classId: "demo-class-3-1", eventId: "standing-long-jump" },
+          { classId: "demo-class-4-1", eventId: "standing-long-jump" }
+        ],
+        isOpen: true,
+        createdAt: "2026-03-23T09:40:00.000Z"
+      }
+    ]);
+
+    store.appendAttempt({
+      id: "attempt-1",
+      sessionId: "group-session-1",
+      studentId: "student-lee",
+      measurement: 25,
+      createdAt: "2026-03-23T09:45:00.000Z"
+    });
+
+    const response = await sessionsRoute.POST(
+      jsonRequest("/api/sessions", "POST", {
+        sessionGroupId: "group-1",
+        name: "수정된 3월",
+        sessionType: "official",
+        classScope: "split",
+        primaryClassId: "demo-class-3-1",
+        secondaryClassId: "demo-class-4-1",
+        primaryEventId: "grip-strength",
+        eventIds: ["grip-strength", "standing-long-jump"],
+        teacherId: "demo-teacher",
+        schoolId: "demo-school"
+      })
+    );
+    const payload = (await response.json()) as { sessions?: PAPSSession[] };
+
+    expect(response.status).toBe(200);
+    expect(payload.sessions?.map((session) => session.name)).toEqual([
+      "수정된 3월 - 악력",
+      "수정된 3월 - 제자리멀리뛰기"
+    ]);
+    expect(payload.sessions?.map((session) => session.sessionGroupName)).toEqual([
+      "수정된 3월",
+      "수정된 3월"
+    ]);
+  });
+
+  it("rejects changing the event structure of a session that already has student records", async () => {
+    const sessionsRoute = await import("../../app/api/sessions/route");
+    const store = getRequestStore();
+
+    store.saveSession({
+      id: "recorded-session",
+      schoolId: "demo-school",
+      teacherId: "demo-teacher",
+      academicYear: 2026,
+      name: "기록 있는 세션",
+      gradeLevel: 5,
+      sessionType: "practice",
+      classScope: "single",
+      eventId: "grip-strength",
+      classTargets: [{ classId: "demo-class-5-1", eventId: "grip-strength" }],
+      isOpen: true,
+      createdAt: "2026-03-23T09:50:00.000Z"
+    });
+    store.appendAttempt({
+      id: "attempt-2",
+      sessionId: "recorded-session",
+      studentId: "student-kim",
+      measurement: 28,
+      createdAt: "2026-03-23T09:55:00.000Z"
+    });
+
+    const response = await sessionsRoute.POST(
+      jsonRequest("/api/sessions", "POST", {
+        id: "recorded-session",
+        name: "구조 변경 시도",
+        sessionType: "practice",
+        classScope: "single",
+        primaryClassId: "demo-class-5-1",
+        primaryEventId: "standing-long-jump",
+        eventIds: ["standing-long-jump"],
+        teacherId: "demo-teacher",
+        schoolId: "demo-school"
+      })
+    );
+    const payload = (await response.json()) as { error?: string };
+
+    expect(response.status).toBe(400);
+    expect(payload.error).toBe("이미 학생 기록이 있는 세션은 이름만 수정할 수 있습니다.");
   });
 
   it("rejects grouped session requests without any selected event", async () => {

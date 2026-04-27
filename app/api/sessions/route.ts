@@ -47,11 +47,129 @@ const parseEventIds = (value: unknown, fallbackEventId: EventId): EventId[] => {
   return Array.from(new Set(eventIds));
 };
 
-const toSessionInputs = async (
+const sortSessionsByGroupOrder = (sessions: PAPSSession[]): PAPSSession[] =>
+  [...sessions].sort(
+    (left, right) =>
+      (left.sessionGroupOrder ?? 0) - (right.sessionGroupOrder ?? 0) ||
+      (left.createdAt ?? "").localeCompare(right.createdAt ?? "") ||
+      left.id.localeCompare(right.id)
+  );
+
+const resolveExistingSessions = (
   body: Record<string, unknown>,
   context: AuthorizedTeacherRouteContext<TeacherCrudStore>
-): Promise<PAPSSession[]> => {
-  const { store, teacher, bootstrap } = context;
+): PAPSSession[] => {
+  const sessionGroupId =
+    typeof body.sessionGroupId === "string" && body.sessionGroupId.trim()
+      ? body.sessionGroupId.trim()
+      : null;
+  const sessionId =
+    typeof body.id === "string" && body.id.trim() ? body.id.trim() : null;
+
+  if (sessionGroupId) {
+    const matchingSessions = sortSessionsByGroupOrder(
+      context.bootstrap.sessions.filter((session) => session.sessionGroupId === sessionGroupId)
+    );
+
+    if (matchingSessions.length === 0) {
+      throw new Error(`Session group ${sessionGroupId} was not found.`);
+    }
+
+    return matchingSessions;
+  }
+
+  if (!sessionId) {
+    return [];
+  }
+
+  const existingSession = context.bootstrap.sessions.find((session) => session.id === sessionId);
+
+  if (!existingSession) {
+    throw new Error(`Session ${sessionId} was not found.`);
+  }
+
+  return [existingSession];
+};
+
+const getSessionStructureSnapshot = (sessions: PAPSSession[]) => {
+  const orderedSessions = sortSessionsByGroupOrder(sessions);
+  const firstSession = orderedSessions[0];
+
+  return {
+    sessionType: firstSession?.sessionType ?? "practice",
+    classScope: firstSession?.classScope ?? "single",
+    primaryClassId: firstSession?.classTargets[0]?.classId ?? "",
+    secondaryClassId: firstSession?.classTargets[1]?.classId ?? "",
+    eventIds: orderedSessions.map((session) => session.eventId)
+  };
+};
+
+const hasStructuralSessionChanges = (
+  existingSessions: PAPSSession[],
+  nextSessions: PAPSSession[]
+): boolean => {
+  if (existingSessions.length === 0) {
+    return false;
+  }
+
+  const currentSnapshot = getSessionStructureSnapshot(existingSessions);
+  const nextSnapshot = getSessionStructureSnapshot(nextSessions);
+
+  return (
+    currentSnapshot.sessionType !== nextSnapshot.sessionType ||
+    currentSnapshot.classScope !== nextSnapshot.classScope ||
+    currentSnapshot.primaryClassId !== nextSnapshot.primaryClassId ||
+    currentSnapshot.secondaryClassId !== nextSnapshot.secondaryClassId ||
+    currentSnapshot.eventIds.length !== nextSnapshot.eventIds.length ||
+    currentSnapshot.eventIds.some((eventId, index) => eventId !== nextSnapshot.eventIds[index])
+  );
+};
+
+const sessionHasRecordedAttempts = async (
+  store: TeacherCrudStore,
+  sessionId: string
+): Promise<boolean> => {
+  const records = await store.listSessionRecords(sessionId);
+
+  return records.some((record) => record.attempts.length > 0);
+};
+
+const assertEditableSessionStructure = async ({
+  store,
+  existingSessions,
+  nextSessions
+}: {
+  store: TeacherCrudStore;
+  existingSessions: PAPSSession[];
+  nextSessions: PAPSSession[];
+}): Promise<void> => {
+  if (
+    existingSessions.length === 0 ||
+    !hasStructuralSessionChanges(existingSessions, nextSessions)
+  ) {
+    return;
+  }
+
+  const hasRecordedAttempts = await Promise.all(
+    existingSessions.map((session) => sessionHasRecordedAttempts(store, session.id))
+  );
+
+  if (hasRecordedAttempts.some(Boolean)) {
+    throw new Error("이미 학생 기록이 있는 세션은 이름만 수정할 수 있습니다.");
+  }
+};
+
+const toSessionSavePlan = async (
+  body: Record<string, unknown>,
+  context: AuthorizedTeacherRouteContext<TeacherCrudStore>
+): Promise<{
+  sessions: PAPSSession[];
+  deletedSessionIds: string[];
+  isEditing: boolean;
+}> => {
+  const { store, teacher } = context;
+  const existingSessions = resolveExistingSessions(body, context);
+  const firstExistingSession = existingSessions[0] ?? null;
   const sessionType = parseSessionType(body.sessionType);
   const classScope = body.classScope === "split" ? "split" : "single";
   const primaryClassId =
@@ -75,8 +193,14 @@ const toSessionInputs = async (
     typeof body.secondaryClassId === "string" && body.secondaryClassId.trim()
       ? body.secondaryClassId.trim()
       : "";
-  const timestamp = typeof body.createdAt === "string" ? body.createdAt : new Date().toISOString();
-  const academicYear = Number(body.academicYear) || new Date(timestamp).getUTCFullYear();
+  const createdAt =
+    typeof body.createdAt === "string"
+      ? body.createdAt
+      : firstExistingSession?.createdAt ?? new Date().toISOString();
+  const academicYear =
+    Number(body.academicYear) ||
+    firstExistingSession?.academicYear ||
+    new Date(createdAt).getUTCFullYear();
   const schoolId =
     typeof body.schoolId === "string" && body.schoolId.trim()
       ? body.schoolId.trim()
@@ -94,28 +218,35 @@ const toSessionInputs = async (
     throw new Error("Forbidden");
   }
 
-  const existingSessionId =
-    typeof body.id === "string" && body.id.trim() ? body.id.trim() : null;
-  const existingSession = existingSessionId
-    ? bootstrap.sessions.find((session) => session.id === existingSessionId) ?? null
-    : null;
-
-  if (existingSession && existingSession.schoolId !== teacher.schoolId) {
+  if (existingSessions.some((session) => session.schoolId !== teacher.schoolId)) {
     throw new Error("Forbidden");
   }
 
-  if (existingSessionId && eventIds.length > 1) {
-    throw new Error("Existing sessions can only be updated one event at a time.");
-  }
-
+  const defaultBaseName = `${primaryClass.label} ${primaryEventId}`;
   const baseName =
     typeof body.name === "string" && body.name.trim()
       ? body.name.trim()
-      : `${primaryClass.label} ${primaryEventId}`;
-  const sessionGroupId = eventIds.length > 1 ? randomUUID() : null;
+      : firstExistingSession?.sessionGroupName ??
+        firstExistingSession?.name ??
+        defaultBaseName;
+  const nextSessionGroupId =
+    eventIds.length > 1
+      ? firstExistingSession?.sessionGroupId ??
+        (existingSessions.length === 1 ? existingSessions[0]!.id : randomUUID())
+      : null;
+  const remainingReusableSessions = sortSessionsByGroupOrder(existingSessions);
 
-  return Promise.all(
+  const nextSessions = await Promise.all(
     eventIds.map(async (eventId, index) => {
+      const matchingSessionIndex = remainingReusableSessions.findIndex(
+        (session) => session.eventId === eventId
+      );
+      const reusableSession =
+        matchingSessionIndex >= 0
+          ? remainingReusableSessions.splice(matchingSessionIndex, 1)[0] ?? null
+          : index === 0
+            ? remainingReusableSessions.shift() ?? null
+            : null;
       const classTargets =
         classScope === "split"
           ? [
@@ -135,12 +266,12 @@ const toSessionInputs = async (
       }
 
       return validateSession({
-        id: existingSessionId ?? randomUUID(),
+        id: reusableSession?.id ?? randomUUID(),
         schoolId,
         teacherId: teacher.id,
         academicYear,
         name:
-          sessionGroupId && eventIds.length > 1
+          nextSessionGroupId && eventIds.length > 1
             ? `${baseName} - ${getEventDefinition(eventId).label}`
             : baseName,
         gradeLevel: primaryClass.gradeLevel as GradeLevel,
@@ -148,18 +279,35 @@ const toSessionInputs = async (
         classScope,
         eventId,
         classTargets,
-        ...(sessionGroupId
+        ...(nextSessionGroupId
           ? {
-              sessionGroupId,
+              sessionGroupId: nextSessionGroupId,
               sessionGroupName: baseName,
               sessionGroupOrder: index
             }
           : {}),
-        isOpen: body.isOpen !== false,
-        createdAt: timestamp
+        isOpen:
+          typeof body.isOpen === "boolean"
+            ? body.isOpen
+            : reusableSession?.isOpen ?? firstExistingSession?.isOpen ?? true,
+        createdAt: reusableSession?.createdAt ?? firstExistingSession?.createdAt ?? createdAt
       });
     })
   );
+
+  await assertEditableSessionStructure({
+    store,
+    existingSessions,
+    nextSessions
+  });
+
+  return {
+    sessions: nextSessions,
+    deletedSessionIds: existingSessions
+      .map((session) => session.id)
+      .filter((sessionId) => !nextSessions.some((session) => session.id === sessionId)),
+    isEditing: existingSessions.length > 0
+  };
 };
 
 export async function GET(request: NextRequest) {
@@ -216,20 +364,27 @@ export async function POST(request: NextRequest) {
       createStore: createTeacherRuntimeStoreForRequest
     });
     const { store } = context;
-    const sessionInputs = await toSessionInputs((body ?? {}) as Record<string, unknown>, context);
-    const sessions =
-      sessionInputs.length > 1
-        ? await store.saveSessions(sessionInputs)
-        : [await store.saveSession(sessionInputs[0]!)];
-    const session = sessions[0]!;
+    const savePlan = await toSessionSavePlan((body ?? {}) as Record<string, unknown>, context);
+    const savedSessions =
+      savePlan.sessions.length > 1
+        ? await store.saveSessions(savePlan.sessions)
+        : [await store.saveSession(savePlan.sessions[0]!)];
+
+    for (const deletedSessionId of savePlan.deletedSessionIds) {
+      await store.deleteSession(deletedSessionId);
+    }
+
+    const session = savedSessions[0]!;
     const sessionGroupId = session.sessionGroupId ?? null;
     const teacherStateVersion = buildTeacherStateVersion({
       ...context.bootstrap,
       sessions: [
         ...context.bootstrap.sessions.filter(
-          (entry) => !sessions.some((savedSession) => savedSession.id === entry.id)
+          (entry) =>
+            !savePlan.deletedSessionIds.includes(entry.id) &&
+            !savedSessions.some((savedSession) => savedSession.id === entry.id)
         ),
-        ...sessions
+        ...savedSessions
       ]
     });
     const spreadsheetId = request.cookies.get(PAPS_SPREADSHEET_ID_COOKIE)?.value ?? null;
@@ -237,7 +392,7 @@ export async function POST(request: NextRequest) {
     const response = NextResponse.json(
       {
         session,
-        sessions,
+        sessions: savedSessions,
         sessionGroupId,
         teacherStateVersion,
         studentSessionUrl:
@@ -254,7 +409,7 @@ export async function POST(request: NextRequest) {
             : null
       },
       {
-        status: 201
+        status: savePlan.isEditing ? 200 : 201
       }
     );
 
@@ -270,12 +425,15 @@ export async function POST(request: NextRequest) {
       return forbiddenTeacherRouteResponse();
     }
 
+    const message =
+      error instanceof Error ? error.message : "Could not save the session.";
+
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : "Could not save the session."
+        error: message
       },
       {
-        status: 400
+        status: message.includes("was not found") ? 404 : 400
       }
     );
   }

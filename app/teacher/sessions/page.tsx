@@ -60,6 +60,7 @@ export default async function TeacherSessionsPage() {
         showRecentSessions={false}
         sheetConnected={sheetConnected}
         sheetStatus={sheetStatus}
+        submittedSessionIds={Array.from(new Set(bootstrap.attempts.map((attempt) => attempt.sessionId)))}
       />
     </AppShell>
   );

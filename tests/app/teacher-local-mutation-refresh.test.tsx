@@ -302,6 +302,7 @@ describe("teacher local mutation refresh behavior", () => {
     fireEvent.change(screen.getByLabelText("세션 이름"), {
       target: { value: "새 세션" }
     });
+    fireEvent.click(screen.getByLabelText("왕복오래달리기"));
     fireEvent.click(screen.getByRole("button", { name: "세션 저장" }));
 
     await screen.findByText("세션을 저장했습니다.");
@@ -318,6 +319,61 @@ describe("teacher local mutation refresh behavior", () => {
     expect(notifyTeacherDataRefresh).toHaveBeenCalledWith({
       refresh: false,
       nextVersion: "version-sessions-2"
+    });
+  });
+
+  it("edits a session name locally and only syncs the next version baseline", async () => {
+    const { TeacherSessionWorkspace } = await import("../../src/components/teacher/session-form");
+    const fetchMock = vi.fn(async () =>
+      Response.json({
+        session: {
+          ...baseSession,
+          name: "수정된 세션"
+        } satisfies PAPSSession,
+        sessions: [
+          {
+            ...baseSession,
+            name: "수정된 세션"
+          } satisfies PAPSSession
+        ],
+        studentSessionUrl: null,
+        teacherStateVersion: "version-sessions-edited"
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <TeacherSessionWorkspace
+        classes={classes}
+        sessions={[baseSession]}
+        defaultTeacherId="teacher-1"
+        defaultSchoolId="school-1"
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "기존 세션 수정" }));
+
+    expect((screen.getByLabelText("세션 이름") as HTMLInputElement).value).toBe("기존 세션");
+
+    fireEvent.change(screen.getByLabelText("세션 이름"), {
+      target: { value: "수정된 세션" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "세션 수정" }));
+
+    await screen.findByText("세션을 수정했습니다.");
+
+    expect(screen.getAllByText("수정된 세션").length).toBeGreaterThan(0);
+    expect(screen.queryByText("기존 세션")).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/sessions",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining("\"id\":\"session-1\"")
+      })
+    );
+    expect(notifyTeacherDataRefresh).toHaveBeenCalledWith({
+      refresh: false,
+      nextVersion: "version-sessions-edited"
     });
   });
 

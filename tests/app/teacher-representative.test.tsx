@@ -461,9 +461,7 @@ describe("teacher representative and session flows", () => {
     fireEvent.change(screen.getByLabelText("주 반"), {
       target: { value: "demo-class-5-1" }
     });
-    fireEvent.change(screen.getByLabelText("주 종목"), {
-      target: { value: "shuttle-run" }
-    });
+    fireEvent.click(screen.getByLabelText("왕복오래달리기"));
     fireEvent.click(screen.getByRole("button", { name: "세션 저장" }));
 
     await screen.findByText("세션을 저장했습니다.");
@@ -480,9 +478,7 @@ describe("teacher representative and session flows", () => {
     fireEvent.change(screen.getByLabelText("보조 반"), {
       target: { value: "demo-class-5-2" }
     });
-    fireEvent.change(screen.getByLabelText("주 종목"), {
-      target: { value: "sit-and-reach" }
-    });
+    fireEvent.click(screen.getByLabelText("앉아윗몸앞으로굽히기"));
     fireEvent.click(screen.getByRole("button", { name: "세션 저장" }));
 
     await waitFor(() => {
@@ -512,8 +508,7 @@ describe("teacher representative and session flows", () => {
       target: { value: "split" }
     });
 
-    expect(screen.getByLabelText("주 종목")).toBeInTheDocument();
-    expect(screen.queryByLabelText("보조 종목")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("왕복오래달리기")).toBeInTheDocument();
   });
 
   it("lets a teacher choose the representative attempt", async () => {

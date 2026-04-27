@@ -1,5 +1,5 @@
 import { getEventDefinition } from "../../lib/paps/catalog";
-import type { PAPSSession } from "../../lib/paps/types";
+import type { ClassScope, EventId, PAPSSession, SessionType } from "../../lib/paps/types";
 
 export type SessionListItem =
   | {
@@ -15,12 +15,64 @@ export type SessionListItem =
       sessions: PAPSSession[];
     };
 
+export interface SessionFormDraft {
+  sessionKey: string;
+  sessionIds: string[];
+  name: string;
+  sessionType: SessionType;
+  classScope: ClassScope;
+  primaryClassId: string;
+  secondaryClassId: string;
+  eventIds: EventId[];
+}
+
 export const sortSessionsByRecency = (sessions: PAPSSession[]): PAPSSession[] =>
   [...sessions].sort(
     (left, right) =>
       (right.createdAt?.localeCompare(left.createdAt ?? "") ?? 0) ||
       left.id.localeCompare(right.id)
   );
+
+export const sortSessionsByGroupOrder = (sessions: PAPSSession[]): PAPSSession[] =>
+  [...sessions].sort(
+    (left, right) =>
+      (left.sessionGroupOrder ?? 0) - (right.sessionGroupOrder ?? 0) ||
+      (left.createdAt ?? "").localeCompare(right.createdAt ?? "") ||
+      left.id.localeCompare(right.id)
+  );
+
+export const getSessionEntryKey = (session: PAPSSession): string =>
+  session.sessionGroupId ?? session.id;
+
+export const buildSessionFormDraft = (
+  sessions: PAPSSession[]
+): SessionFormDraft | null => {
+  if (sessions.length === 0) {
+    return null;
+  }
+
+  const orderedSessions =
+    sessions[0]?.sessionGroupId ? sortSessionsByGroupOrder(sessions) : [...sessions];
+  const firstSession = orderedSessions[0];
+
+  if (!firstSession) {
+    return null;
+  }
+
+  return {
+    sessionKey: getSessionEntryKey(firstSession),
+    sessionIds: orderedSessions.map((session) => session.id),
+    name: firstSession.sessionGroupName ?? firstSession.name ?? "",
+    sessionType: firstSession.sessionType,
+    classScope: firstSession.classScope,
+    primaryClassId: firstSession.classTargets[0]?.classId ?? "",
+    secondaryClassId:
+      firstSession.classTargets[1]?.classId ??
+      firstSession.classTargets[0]?.classId ??
+      "",
+    eventIds: orderedSessions.map((session) => session.eventId)
+  };
+};
 
 export const formatSessionScopeLabel = (session: PAPSSession): string =>
   session.classScope === "split" ? "2반 분할" : "단일 반";

@@ -84,6 +84,7 @@ export default async function TeacherDashboardPage() {
         defaultSchoolId={bootstrap.teacher?.schoolId}
         sheetConnected={sheetConnected}
         sheetStatus={sheetStatus}
+        submittedSessionIds={Array.from(new Set(bootstrap.attempts.map((attempt) => attempt.sessionId)))}
       />
     </AppShell>
   );
