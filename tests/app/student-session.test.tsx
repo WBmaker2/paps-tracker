@@ -268,6 +268,14 @@ const installStudentApiFetch = async () => {
         });
       }
 
+      if (pathname.startsWith("/api/sessions/") && pathname.endsWith("/submit") && method === "PATCH") {
+        const sessionId = pathname.split("/")[3] ?? "";
+
+        return submitRoute.PATCH(jsonRequest(pathname, method, body), {
+          params: Promise.resolve({ sessionId })
+        });
+      }
+
       throw new Error(`Unhandled fetch request: ${method} ${pathname}`);
     })
   );
@@ -410,8 +418,43 @@ describe("student session flow", () => {
           sessionId: "session-open-single",
           studentId: "student-kim"
         })
-        .attempts.at(-1)?.measurement
+      .attempts.at(-1)?.measurement
     ).toBe(24);
+  });
+
+  it("allows editing the latest submitted attempt without adding another attempt", async () => {
+    await installStudentApiFetch();
+    await renderStudentSessionPage("session-open-single");
+
+    fireEvent.click(screen.getByRole("button", { name: "Kim" }));
+    fireEvent.change(screen.getByLabelText("앉아윗몸앞으로굽히기 기록"), {
+      target: { value: "24" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "기록 제출" }));
+
+    await screen.findByText("Kim 학생 결과");
+    fireEvent.click(screen.getByRole("button", { name: "방금 기록 수정" }));
+
+    const editInput = screen.getByLabelText("앉아윗몸앞으로굽히기 기록") as HTMLInputElement;
+
+    expect(editInput.value).toBe("24");
+
+    fireEvent.change(editInput, {
+      target: { value: "26" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "수정 저장" }));
+
+    await waitFor(() => {
+      const attempts = getRequestStore().getAttemptRecord({
+        sessionId: "session-open-single",
+        studentId: "student-kim"
+      }).attempts;
+
+      expect(attempts).toHaveLength(3);
+      expect(attempts.at(-1)?.measurement).toBe(26);
+    });
+    expect(screen.queryByRole("button", { name: "수정 저장" })).not.toBeInTheDocument();
+    expect(screen.getAllByText("26 cm").length).toBeGreaterThan(0);
   });
 
   it("rejects an empty measurement in the form and submit API", async () => {

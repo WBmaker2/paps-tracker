@@ -72,6 +72,7 @@ export function SplitSessionView({
 }) {
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [submitResult, setSubmitResult] = useState<SubmissionResult | null>(null);
+  const [editingAttempt, setEditingAttempt] = useState<PAPSAttempt | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const studentLookup = useMemo(
@@ -87,6 +88,16 @@ export function SplitSessionView({
     (selectedStudentId ? studentLookup.get(selectedStudentId) ?? null : null) ??
     submitResult?.student ??
     null;
+  const editingInitialSubmission = useMemo(
+    () =>
+      editingAttempt
+        ? {
+            measurement: editingAttempt.measurement,
+            detail: editingAttempt.detail ?? null
+          }
+        : null,
+    [editingAttempt]
+  );
 
   const handleSelectStudent = (studentId: string) => {
     if (isPending && !submitResult) {
@@ -95,6 +106,7 @@ export function SplitSessionView({
 
     setSelectedStudentId(studentId);
     setSubmitResult(null);
+    setEditingAttempt(null);
     setErrorMessage(null);
   };
 
@@ -132,8 +144,53 @@ export function SplitSessionView({
           }
 
           setSubmitResult(payload.result);
+          setEditingAttempt(null);
         } catch (error) {
           setErrorMessage(error instanceof Error ? error.message : "기록을 제출하지 못했습니다.");
+        } finally {
+          resolve();
+        }
+      });
+    });
+  };
+
+  const handleUpdateLatestAttempt = async (submission: RecordFormSubmission) => {
+    if (!selectedStudentId || !editingAttempt) {
+      return;
+    }
+
+    setErrorMessage(null);
+
+    await new Promise<void>((resolve) => {
+      startTransition(async () => {
+        try {
+          const response = await fetch(`/api/sessions/${sessionId}/submit`, {
+            method: "PATCH",
+            headers: {
+              "content-type": "application/json"
+            },
+            body: JSON.stringify({
+              studentId: selectedStudentId,
+              attemptId: editingAttempt.id,
+              measurement: submission.measurement,
+              detail: submission.detail ?? null,
+              clientSubmissionKey: editingAttempt.clientSubmissionKey,
+              accessToken: studentAccessToken ?? undefined
+            })
+          });
+          const payload = (await response.json()) as {
+            error?: string;
+            result?: SubmissionResult;
+          };
+
+          if (!response.ok || !payload.result) {
+            throw new Error(payload.error ?? "기록을 수정하지 못했습니다.");
+          }
+
+          setSubmitResult(payload.result);
+          setEditingAttempt(null);
+        } catch (error) {
+          setErrorMessage(error instanceof Error ? error.message : "기록을 수정하지 못했습니다.");
         } finally {
           resolve();
         }
@@ -144,6 +201,7 @@ export function SplitSessionView({
   const handleReset = () => {
     setSelectedStudentId(null);
     setSubmitResult(null);
+    setEditingAttempt(null);
     setErrorMessage(null);
   };
 
@@ -197,7 +255,31 @@ export function SplitSessionView({
             attempts={submitResult.attempts}
             betterDirection={betterDirection}
             latestOfficialGrade={submitResult.latestOfficialGrade}
+            onEditLatestAttempt={(attempt) => {
+              setEditingAttempt(attempt);
+              setErrorMessage(null);
+            }}
           />
+          {editingAttempt ? (
+            <RecordForm
+              studentId={submitResult.student.id}
+              eventId={eventId}
+              studentName={`${submitResult.student.name} 기록 수정`}
+              eventLabel={eventLabel}
+              unit={unit}
+              measurementConstraints={measurementConstraints}
+              isSubmitting={isPending}
+              errorMessage={errorMessage}
+              initialSubmission={editingInitialSubmission}
+              submitLabel="수정 저장"
+              description="방금 입력한 기록을 고쳐 저장합니다. 저장하면 같은 회차 기록이 수정됩니다."
+              onCancel={() => {
+                setEditingAttempt(null);
+                setErrorMessage(null);
+              }}
+              onSubmit={handleUpdateLatestAttempt}
+            />
+          ) : null}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <StudentSessionNavigation
               teacherReturnEnabled={teacherReturnEnabled}

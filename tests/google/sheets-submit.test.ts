@@ -5,7 +5,8 @@ import type { PAPSAttempt } from "../../src/lib/paps/types";
 import { parseRecordNote } from "../../src/lib/google/sheets-record-note";
 import {
   appendStudentSubmissionToSheet,
-  dedupeAttemptsByClientSubmissionKey
+  dedupeAttemptsByClientSubmissionKey,
+  updateStudentSubmissionInSheet
 } from "../../src/lib/google/sheets-submit";
 
 const createClient = (overrides?: Partial<GoogleSheetsClient>): GoogleSheetsClient => ({
@@ -209,5 +210,93 @@ describe("Google Sheets student submit", () => {
         recoveryHeartRates: [50, 50, 49]
       }
     });
+  });
+
+  it("updates the latest sheet attempt instead of appending a duplicate row", async () => {
+    const existingRecordRow = [
+      "attempt-1",
+      "session-1",
+      "5-1 Sit And Reach",
+      "2026",
+      "2026-03-24",
+      "공식",
+      "1반형",
+      "5-1",
+      "1",
+      "앉아윗몸앞으로굽히기",
+      "cm",
+      "student-kim",
+      "Kim",
+      "1",
+      "24",
+      "N",
+      "",
+      "5",
+      "2026-03-24 09:00:00",
+      "완료",
+      "{\"clientSubmissionKey\":\"submit-1\"}"
+    ];
+    const updateClient = createClient({
+      readRange: vi.fn(async (_spreadsheetId: string, range: string) => {
+        if (range === "'설정'!A2:F200") {
+          return [
+            ["학교명", "Demo Elementary", "교사가 관리 페이지에서 설정", "", "", ""],
+            ["__PAPS_SCHOOL", "demo-school", "Demo Elementary", "https://docs.google.com/spreadsheets/d/sheet-123/edit", "2026-03-24T09:00:00.000Z", "2026-03-24T09:00:00.000Z"],
+            ["__PAPS_TEACHER", "demo-teacher", "demo-school", "Demo Teacher", "demo-teacher@example.com", ""],
+            ["__PAPS_TEACHER_META", "demo-teacher", "2026-03-24T09:00:00.000Z", "2026-03-24T09:00:00.000Z", "", ""],
+            ["__PAPS_CLASS", "demo-class-5-1", "demo-school", "2026", "5", "1"],
+            ["__PAPS_CLASS_META", "demo-class-5-1", "5-1", "Y", "", ""],
+            ["__PAPS_SESSION", "session-1", "demo-school", "demo-teacher", "2026", "5-1 Sit And Reach"],
+            ["__PAPS_SESSION_META", "session-1", "5", "official", "single", "sit-and-reach"],
+            ["__PAPS_SESSION_STATUS", "session-1", "Y", "2026-03-24T09:10:00.000Z", "", ""],
+            ["__PAPS_SESSION_TARGET", "session-1", "demo-class-5-1", "sit-and-reach", "0", ""]
+          ];
+        }
+
+        if (range === "'학생명단'!A2:I1000") {
+          return [["student-kim", "2026", "5", "1", "1", "Kim", "여", "Y", ""]];
+        }
+
+        if (range === "'세션기록'!A2:U5000") {
+          return [existingRecordRow];
+        }
+
+        if (range === "'오류로그'!A2:G2000" || range === "'수정로그'!A2:I2000") {
+          return [];
+        }
+
+        return [];
+      })
+    });
+
+    const result = await updateStudentSubmissionInSheet({
+      spreadsheetId: "sheet-123",
+      sessionId: "session-1",
+      studentId: "student-kim",
+      attemptId: "attempt-1",
+      measurement: 27,
+      clientSubmissionKey: "submit-1",
+      client: updateClient
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      result: {
+        attempts: [
+          expect.objectContaining({
+            id: "attempt-1",
+            measurement: 27
+          })
+        ]
+      }
+    });
+    expect(updateClient.appendRows).not.toHaveBeenCalled();
+
+    const recordUpdateCall = vi
+      .mocked(updateClient.updateRange)
+      .mock.calls.find((call) => call[1] === "'세션기록'!A1:U5000");
+    const updatedRecordRow = recordUpdateCall?.[2].find((row) => row[0] === "attempt-1");
+
+    expect(updatedRecordRow?.[14]).toBe("27");
   });
 });

@@ -43,7 +43,8 @@ export function InstantResultCard({
   unit,
   attempts,
   betterDirection,
-  latestOfficialGrade
+  latestOfficialGrade,
+  onEditLatestAttempt
 }: {
   studentName: string;
   sessionType: SessionType;
@@ -53,6 +54,7 @@ export function InstantResultCard({
   attempts: PAPSAttempt[];
   betterDirection: BetterDirection;
   latestOfficialGrade: OfficialGrade | null;
+  onEditLatestAttempt?: (attempt: PAPSAttempt) => void;
 }) {
   const latestAttempt = attempts.at(-1) ?? null;
   const improvement = formatImprovement({
@@ -83,10 +85,23 @@ export function InstantResultCard({
     <section className="rounded-[1.75rem] border border-accent/20 bg-white p-5 shadow-sm">
       <div className="mb-4">
         <p className="text-sm font-semibold uppercase tracking-[0.24em] text-accent">즉시 결과</p>
-        <h2 className="mt-2 text-2xl font-semibold">{studentName} 학생 결과</h2>
-        <p className="mt-1 text-sm text-ink/70">
-          이번에 입력한 {eventLabel} 기록을 바로 확인합니다.
-        </p>
+        <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold">{studentName} 학생 결과</h2>
+            <p className="mt-1 text-sm text-ink/70">
+              이번에 입력한 {eventLabel} 기록을 바로 확인합니다.
+            </p>
+          </div>
+          {onEditLatestAttempt ? (
+            <button
+              type="button"
+              className="rounded-full border border-accent/30 px-4 py-2 text-sm font-medium text-accent transition hover:bg-accent hover:text-white"
+              onClick={() => onEditLatestAttempt(latestAttempt)}
+            >
+              방금 기록 수정
+            </button>
+          ) : null}
+        </div>
       </div>
       <div className="grid gap-4 md:grid-cols-[0.95fr_1.05fr]">
         <div className="space-y-3 rounded-2xl bg-canvas/80 p-4">

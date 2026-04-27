@@ -77,6 +77,21 @@ const createEmptyFlexibilityState = (): FlexibilityFormState => ({
   }
 });
 
+const createFlexibilityStateFromDetail = (
+  detail: PAPSMeasurementDetail | null | undefined
+): FlexibilityFormState => {
+  if (detail?.kind !== "comprehensive-flexibility") {
+    return createEmptyFlexibilityState();
+  }
+
+  return {
+    shoulder: detail.shoulder,
+    trunk: detail.trunk,
+    side: detail.side,
+    lowerBody: detail.lowerBody
+  };
+};
+
 const buildFlexibilityDetail = (
   value: FlexibilityFormState
 ): ComprehensiveFlexibilityMeasurementDetail | null => {
@@ -116,6 +131,10 @@ export function RecordForm({
   measurementConstraints,
   isSubmitting,
   errorMessage,
+  initialSubmission = null,
+  submitLabel = "기록 제출",
+  description,
+  onCancel,
   onSubmit
 }: {
   studentId: string;
@@ -130,6 +149,10 @@ export function RecordForm({
   };
   isSubmitting: boolean;
   errorMessage: string | null;
+  initialSubmission?: RecordFormSubmission | null;
+  submitLabel?: string;
+  description?: string;
+  onCancel?: () => void;
   onSubmit: (submission: RecordFormSubmission) => Promise<void> | void;
 }) {
   const [measurement, setMeasurement] = useState("");
@@ -140,11 +163,17 @@ export function RecordForm({
   const [localError, setLocalError] = useState<string | null>(null);
 
   useEffect(() => {
-    setMeasurement("");
-    setStepHeartRates(["", "", ""]);
-    setFlexibilityState(createEmptyFlexibilityState());
+    setMeasurement(
+      initialSubmission?.measurement !== undefined ? String(initialSubmission.measurement) : ""
+    );
+    setStepHeartRates(
+      initialSubmission?.detail?.kind === "step-test"
+        ? initialSubmission.detail.recoveryHeartRates.map((value) => String(value))
+        : ["", "", ""]
+    );
+    setFlexibilityState(createFlexibilityStateFromDetail(initialSubmission?.detail));
     setLocalError(null);
-  }, [studentId]);
+  }, [eventId, initialSubmission, studentId]);
 
   const step = measurementConstraints.precision === 0 ? "1" : `0.${"0".repeat(Math.max(0, measurementConstraints.precision - 1))}1`;
 
@@ -224,7 +253,7 @@ export function RecordForm({
       <div className="mb-4">
         <h2 className="text-xl font-semibold">{studentName}</h2>
         <p className="mt-1 text-sm text-ink/70">
-          {eventLabel} 기록을 입력하고 바로 제출합니다.
+          {description ?? `${eventLabel} 기록을 입력하고 바로 제출합니다.`}
         </p>
       </div>
       <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
@@ -362,8 +391,18 @@ export function RecordForm({
             className="rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-white transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
             disabled={isSubmitting}
           >
-            기록 제출
+            {submitLabel}
           </button>
+          {onCancel ? (
+            <button
+              type="button"
+              className="rounded-full border border-ink/15 px-5 py-2.5 text-sm font-medium text-ink transition hover:border-accent hover:text-accent"
+              onClick={onCancel}
+              disabled={isSubmitting}
+            >
+              수정 취소
+            </button>
+          ) : null}
           {localError ? <p className="text-sm font-medium text-rose-700">{localError}</p> : null}
           {!localError && errorMessage ? (
             <p className="text-sm font-medium text-rose-700">{errorMessage}</p>

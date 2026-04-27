@@ -22,6 +22,16 @@ export interface AppendAttemptInput {
   studentId: string;
   measurement: number;
   createdAt: string;
+  clientSubmissionKey?: string | null;
+  detail?: PAPSStoredAttempt["detail"];
+}
+
+export interface UpdateAttemptInput {
+  attemptId: string;
+  sessionId: string;
+  studentId: string;
+  measurement: number;
+  clientSubmissionKey?: string | null;
   detail?: PAPSStoredAttempt["detail"];
 }
 
@@ -526,6 +536,7 @@ export const createPapsMemoryStore = (seedData: PAPSDemoStoreData = createDefaul
       student,
       input: {
         measurement: input.measurement,
+        detail: input.detail ?? null,
         submittedEventId: session.eventId,
         submittedSessionType: session.sessionType
       }
@@ -540,11 +551,66 @@ export const createPapsMemoryStore = (seedData: PAPSDemoStoreData = createDefaul
       attemptNumber: attemptsForRecord.length + 1,
       measurement: input.measurement,
       createdAt: input.createdAt,
+      clientSubmissionKey: input.clientSubmissionKey?.trim() || undefined,
       detail: input.detail ?? null
     };
     writeState({
       ...currentState,
       attempts: [...currentState.attempts, storedAttempt]
+    });
+    return getAttemptRecord(input);
+  };
+
+  const updateAttempt = (input: UpdateAttemptInput): PAPSAttemptRecord => {
+    const session = getSession(input.sessionId);
+    const student = getStudent(input.studentId);
+    const currentState = ensureState();
+    assertAttemptInputAllowed({
+      session,
+      student,
+      input: {
+        measurement: input.measurement,
+        detail: input.detail ?? null,
+        submittedEventId: session.eventId,
+        submittedSessionType: session.sessionType
+      }
+    });
+
+    const attemptsForRecord = getAttemptsForRecord(currentState, input);
+    const latestAttempt = attemptsForRecord.at(-1) ?? null;
+    const existingAttempt =
+      attemptsForRecord.find((attempt) => attempt.id === input.attemptId) ?? null;
+
+    if (!existingAttempt) {
+      throw new Error(`Attempt ${input.attemptId} was not found.`);
+    }
+
+    if (latestAttempt?.id !== existingAttempt.id) {
+      throw new Error("Only the latest attempt can be edited.");
+    }
+
+    const clientSubmissionKey = input.clientSubmissionKey?.trim() || null;
+
+    if (
+      existingAttempt.clientSubmissionKey &&
+      clientSubmissionKey &&
+      existingAttempt.clientSubmissionKey !== clientSubmissionKey
+    ) {
+      throw new Error("Attempt edit token does not match this submission.");
+    }
+
+    writeState({
+      ...currentState,
+      attempts: currentState.attempts.map((attempt) =>
+        attempt.id === existingAttempt.id
+          ? {
+              ...attempt,
+              measurement: input.measurement,
+              detail: input.detail ?? null,
+              clientSubmissionKey: attempt.clientSubmissionKey ?? clientSubmissionKey ?? undefined
+            }
+          : attempt
+      )
     });
     return getAttemptRecord(input);
   };
@@ -677,6 +743,7 @@ export const createPapsMemoryStore = (seedData: PAPSDemoStoreData = createDefaul
     getClass,
     getStudent,
     appendAttempt,
+    updateAttempt,
     getAttemptRecord,
     listSessionRecords,
     selectRepresentativeAttempt,

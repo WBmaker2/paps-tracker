@@ -24,6 +24,7 @@ import { GoogleSheetsAccessError, type GoogleSheetsClient } from "./sheets-clien
 import { buildRecordNote } from "./sheets-record-note";
 import { rebuildGoogleSheetSummaries } from "./sheets-rebuild";
 import { isTeacherReturnPinEnabled } from "../teacher-return";
+import { writeGoogleSheetRecordSourceTab } from "./sheet-source-write";
 
 const STUDENT_RUNTIME_EMAIL = "student-session@paps.local";
 const RECORD_APPEND_RANGE = "'세션기록'!A:U";
@@ -229,16 +230,7 @@ export const loadStudentSessionGroupViewFromSheet = async (input: {
   return buildStudentSessionGroupViewFromState(state, input.sessionGroupId);
 };
 
-export const appendStudentSubmissionToSheet = async (input: {
-  spreadsheetId: string;
-  sessionId: string;
-  studentId: string;
-  measurement?: number;
-  detail?: PAPSMeasurementDetail | null;
-  clientSubmissionKey: string;
-  authorizedSessionGroupId?: string | null;
-  client?: GoogleSheetsClient;
-}): Promise<
+type StudentSubmissionSheetResult =
   | {
       ok: true;
       result: {
@@ -255,8 +247,78 @@ export const appendStudentSubmissionToSheet = async (input: {
       ok: false;
       error: string;
       status: number;
-    }
-> => {
+    };
+
+const toStudentSubmissionSheetError = (
+  error: unknown,
+  fallbackMessage = "Could not submit the attempt."
+): Extract<StudentSubmissionSheetResult, { ok: false }> => {
+  const message = error instanceof Error ? error.message : fallbackMessage;
+
+  if (message.includes("was not found")) {
+    return {
+      ok: false,
+      error: message,
+      status: 404
+    };
+  }
+
+  if (message === "Session is closed." || message === "Only the latest attempt can be edited.") {
+    return {
+      ok: false,
+      error: message,
+      status: 409
+    };
+  }
+
+  if (
+    message === "Inactive students cannot submit attempts." ||
+    message === "Student session access token does not match this session." ||
+    message === "Attempt edit token does not match this submission." ||
+    message.includes("must match") ||
+    message.includes("Students cannot") ||
+    message.includes("assigned to this session")
+  ) {
+    return {
+      ok: false,
+      error: message,
+      status: 400
+    };
+  }
+
+  if (error instanceof GoogleSheetsAccessError) {
+    return {
+      ok: false,
+      error: message,
+      status: 503
+    };
+  }
+
+  if (message.startsWith("Append") || message.startsWith("Update")) {
+    return {
+      ok: false,
+      error: message,
+      status: 409
+    };
+  }
+
+  return {
+    ok: false,
+    error: message,
+    status: 500
+  };
+};
+
+export const appendStudentSubmissionToSheet = async (input: {
+  spreadsheetId: string;
+  sessionId: string;
+  studentId: string;
+  measurement?: number;
+  detail?: PAPSMeasurementDetail | null;
+  clientSubmissionKey: string;
+  authorizedSessionGroupId?: string | null;
+  client?: GoogleSheetsClient;
+}): Promise<StudentSubmissionSheetResult> => {
   const client = input.client ?? createGoogleSheetClientFromEnv();
 
   try {
@@ -382,58 +444,170 @@ export const appendStudentSubmissionToSheet = async (input: {
       }
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Could not submit the attempt.";
+    return toStudentSubmissionSheetError(error);
+  }
+};
 
-    if (message.includes("was not found")) {
-      return {
-        ok: false,
-        error: message,
-        status: 404
-      };
+export const updateStudentSubmissionInSheet = async (input: {
+  spreadsheetId: string;
+  sessionId: string;
+  studentId: string;
+  attemptId: string;
+  measurement?: number;
+  detail?: PAPSMeasurementDetail | null;
+  clientSubmissionKey: string;
+  authorizedSessionGroupId?: string | null;
+  client?: GoogleSheetsClient;
+}): Promise<StudentSubmissionSheetResult> => {
+  const client = input.client ?? createGoogleSheetClientFromEnv();
+
+  try {
+    const state = await buildStructuredStateFromSheet({
+      client,
+      spreadsheetId: input.spreadsheetId,
+      teacherEmail: STUDENT_RUNTIME_EMAIL
+    });
+    const session = state.sessions.find((entry) => entry.id === input.sessionId);
+
+    if (!session) {
+      throw new Error(`Session ${input.sessionId} was not found.`);
     }
 
-    if (message === "Session is closed.") {
-      return {
-        ok: false,
-        error: message,
-        status: 409
-      };
+    if (session.isOpen === false) {
+      throw new Error("Session is closed.");
     }
 
     if (
-      message === "Inactive students cannot submit attempts." ||
-      message === "Student session access token does not match this session." ||
-      message.includes("must match") ||
-      message.includes("Students cannot") ||
-      message.includes("assigned to this session")
+      input.authorizedSessionGroupId &&
+      session.sessionGroupId !== input.authorizedSessionGroupId
     ) {
-      return {
-        ok: false,
-        error: message,
-        status: 400
-      };
+      throw new Error("Student session access token does not match this session.");
     }
 
-    if (error instanceof GoogleSheetsAccessError) {
-      return {
-        ok: false,
-        error: message,
-        status: 503
-      };
+    const student = state.allStudents.find((entry) => entry.id === input.studentId);
+
+    if (!student) {
+      throw new Error(`Student ${input.studentId} was not found.`);
     }
 
-    if (message.startsWith("Append")) {
-      return {
-        ok: false,
-        error: message,
-        status: 409
-      };
+    if (student.active === false) {
+      throw new Error("Inactive students cannot submit attempts.");
     }
+
+    const resolvedSubmission = resolveSubmissionMeasurement({
+      eventId: session.eventId,
+      measurement: input.measurement,
+      detail: input.detail ?? null
+    });
+
+    assertAttemptInputAllowed({
+      session,
+      student,
+      input: {
+        measurement: resolvedSubmission.measurement,
+        detail: resolvedSubmission.detail,
+        submittedEventId: session.eventId,
+        submittedSessionType: session.sessionType
+      }
+    });
+    assertMeasurementDetailAllowed({
+      eventId: session.eventId,
+      detail: resolvedSubmission.detail
+    });
+    assertMeasurementAllowed({
+      eventId: session.eventId,
+      measurement: resolvedSubmission.measurement
+    });
+
+    const attemptsForRecord = sortAttempts(
+      state.attempts
+        .filter(
+          (attempt) =>
+            attempt.sessionId === input.sessionId && attempt.studentId === input.studentId
+        )
+        .map(toStudentAttempt)
+    );
+    const latestAttempt = attemptsForRecord.at(-1) ?? null;
+    const existingAttempt =
+      attemptsForRecord.find((attempt) => attempt.id === input.attemptId) ?? null;
+
+    if (!existingAttempt) {
+      throw new Error(`Attempt ${input.attemptId} was not found.`);
+    }
+
+    if (latestAttempt?.id !== existingAttempt.id) {
+      throw new Error("Only the latest attempt can be edited.");
+    }
+
+    if (
+      existingAttempt.clientSubmissionKey &&
+      existingAttempt.clientSubmissionKey !== input.clientSubmissionKey
+    ) {
+      throw new Error("Attempt edit token does not match this submission.");
+    }
+
+    const latestOfficialGrade =
+      session.sessionType === "official" &&
+      hasOfficialGradeRule(session.eventId, student.gradeLevel, student.sex)
+        ? calculateOfficialGrade({
+            gradeLevel: student.gradeLevel,
+            sex: student.sex,
+            eventId: session.eventId,
+            measurement: resolvedSubmission.measurement
+          })
+        : null;
+    const updatedAttempts: PAPSStoredAttempt[] = state.attempts.map((attempt) =>
+      attempt.id === input.attemptId
+        ? {
+            ...attempt,
+            measurement: resolvedSubmission.measurement,
+            detail: resolvedSubmission.detail,
+            clientSubmissionKey: attempt.clientSubmissionKey ?? input.clientSubmissionKey
+          }
+        : attempt
+    );
+    const nextState = {
+      ...state,
+      attempts: updatedAttempts
+    };
+
+    await writeGoogleSheetRecordSourceTab({
+      spreadsheetId: input.spreadsheetId,
+      client,
+      state: nextState
+    });
+    const summaryRebuild = await rebuildGoogleSheetSummaries({
+      spreadsheetId: input.spreadsheetId,
+      teacherEmail: STUDENT_RUNTIME_EMAIL,
+      client
+    });
 
     return {
-      ok: false,
-      error: message,
-      status: 500
+      ok: true,
+      result: {
+        student: {
+          id: student.id,
+          name: student.name
+        },
+        attempts: dedupeAttemptsByClientSubmissionKey(
+          sortAttempts(
+            updatedAttempts
+              .filter(
+                (attempt) =>
+                  attempt.sessionId === input.sessionId && attempt.studentId === input.studentId
+              )
+              .map(toStudentAttempt)
+          )
+        ),
+        latestOfficialGrade,
+        ...(summaryRebuild.ok
+          ? {}
+          : {
+              summaryWarning: summaryRebuild.error
+            })
+      }
     };
+  } catch (error) {
+    return toStudentSubmissionSheetError(error);
   }
 };

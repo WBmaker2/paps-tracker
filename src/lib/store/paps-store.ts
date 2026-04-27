@@ -20,6 +20,7 @@ const toPapsStoredAttempts = (
       attemptNumber: number;
       measurement: number;
       createdAt: string;
+      clientSubmissionKey?: string;
       detail?: PAPSStoredAttempt["detail"];
     }>;
   }>
@@ -34,6 +35,7 @@ const toPapsStoredAttempts = (
       attemptNumber: attempt.attemptNumber,
       measurement: attempt.measurement,
       createdAt: attempt.createdAt,
+      clientSubmissionKey: attempt.clientSubmissionKey,
       detail: attempt.detail ?? null
     }))
   );
@@ -158,6 +160,7 @@ export const createStoreForRequest = async (): Promise<PapsStore> => {
     saveSessions: demoStore.saveSessions,
     deleteSession: demoStore.deleteSession,
     appendAttempt: demoStore.appendAttempt,
+    updateAttempt: demoStore.updateAttempt,
     listSessionRecords: demoStore.listSessionRecords,
     getStudentSessionView,
     getStudentSessionGroupView,

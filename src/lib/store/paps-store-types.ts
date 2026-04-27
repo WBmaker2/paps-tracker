@@ -18,6 +18,16 @@ export interface AppendAttemptInput {
   studentId: string;
   measurement: number;
   createdAt: string;
+  clientSubmissionKey?: string | null;
+  detail?: PAPSMeasurementDetail | null;
+}
+
+export interface UpdateAttemptInput {
+  attemptId: string;
+  sessionId: string;
+  studentId: string;
+  measurement: number;
+  clientSubmissionKey?: string | null;
   detail?: PAPSMeasurementDetail | null;
 }
 
@@ -91,6 +101,7 @@ export interface PapsStore {
   saveSessions(sessions: PAPSSession[]): PAPSSession[];
   deleteSession(sessionId: string): void;
   appendAttempt(input: AppendAttemptInput): PAPSAttemptRecord;
+  updateAttempt(input: UpdateAttemptInput): PAPSAttemptRecord;
   listSessionRecords(sessionId: string): PAPSAttemptRecord[];
   getStudentSessionView(sessionId: string): Promise<StudentSessionView>;
   getStudentSessionGroupView(sessionGroupId: string): Promise<StudentSessionGroupView>;

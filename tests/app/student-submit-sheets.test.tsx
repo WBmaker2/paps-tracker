@@ -40,9 +40,30 @@ const appendStudentSubmissionToSheet = vi.fn(async () => ({
   error: "Append failed."
 }));
 
+const updateStudentSubmissionInSheet = vi.fn(async () => ({
+  ok: true as const,
+  result: {
+    student: {
+      id: "student-kim",
+      name: "Kim"
+    },
+    attempts: [
+      {
+        id: "attempt-1",
+        attemptNumber: 1,
+        measurement: 26,
+        createdAt: "2026-03-24T09:00:00.000Z",
+        clientSubmissionKey: "submit-1"
+      }
+    ],
+    latestOfficialGrade: null
+  }
+}));
+
 vi.mock("../../src/lib/google/sheets-submit", () => ({
   loadStudentSessionViewFromSheet,
-  appendStudentSubmissionToSheet
+  appendStudentSubmissionToSheet,
+  updateStudentSubmissionInSheet
 }));
 
 const jsonRequest = (pathname: string, method: string, body?: unknown): NextRequest =>
@@ -128,6 +149,52 @@ describe("student sheet-backed submit flow", () => {
       })
     );
     expect(screen.getByRole("button", { name: "Kim" })).toBeInTheDocument();
+  });
+
+  it("updates the just-submitted sheet attempt in production mode", async () => {
+    process.env.NODE_ENV = "production";
+    process.env.NEXTAUTH_SECRET = "test-secret";
+    const { createStudentSessionAccessToken } = await import(
+      "../../src/lib/student-session-access"
+    );
+    const accessToken = createStudentSessionAccessToken({
+      sessionId: "session-1",
+      spreadsheetId: "sheet-123"
+    });
+    const submitRoute = await import("../../app/api/sessions/[sessionId]/submit/route");
+    const response = await submitRoute.PATCH(
+      jsonRequest("/api/sessions/session-1/submit", "PATCH", {
+        studentId: "student-kim",
+        attemptId: "attempt-1",
+        measurement: 26,
+        clientSubmissionKey: "submit-1",
+        accessToken
+      }),
+      {
+        params: Promise.resolve({ sessionId: "session-1" })
+      }
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      result: {
+        attempts: [
+          expect.objectContaining({
+            id: "attempt-1",
+            measurement: 26
+          })
+        ]
+      }
+    });
+    expect(updateStudentSubmissionInSheet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        spreadsheetId: "sheet-123",
+        sessionId: "session-1",
+        studentId: "student-kim",
+        attemptId: "attempt-1",
+        clientSubmissionKey: "submit-1"
+      })
+    );
   });
 
   it("rejects production student access without a valid access token", async () => {
