@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 
 import { AppShell } from "../../../src/components/layout/app-shell";
 import { TeacherDataRefresh } from "../../../src/components/teacher/teacher-data-refresh";
+import { TeacherSheetAutoLoader } from "../../../src/components/teacher/teacher-sheet-auto-loader";
 import { TeacherSettingsManager } from "../../../src/components/teacher/settings-management";
 import { getAppOperationalReadiness, getGoogleSheetsSetupStatus } from "../../../src/lib/env";
 import { buildTeacherStateVersion } from "../../../src/lib/google/sheet-state-version";
@@ -76,6 +77,7 @@ export default async function TeacherSettingsPage() {
       description="학교 정보 수정과 학급 추가를 바로 처리하는 MVP 관리 화면입니다."
     >
       <TeacherDataRefresh initialVersion={initialVersion} pollIntervalMs={60000} />
+      <TeacherSheetAutoLoader sheetStatus={sheetStatus} />
       <div className="space-y-6">
         <section className="rounded-[1.75rem] border border-ink/10 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">

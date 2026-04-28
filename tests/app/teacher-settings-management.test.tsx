@@ -399,6 +399,25 @@ describe("teacher settings management", () => {
     expect(screen.queryByLabelText("새 학급 이름")).not.toBeInTheDocument();
   });
 
+  it("sets a durable spreadsheet cookie when school information is saved", async () => {
+    const connectRoute = await import("../../app/api/google-sheet/connect/route");
+
+    const response = await connectRoute.POST(
+      jsonRequest("/api/google-sheet/connect", "POST", {
+        url: "https://docs.google.com/spreadsheets/d/sheet-verified/edit",
+        schoolName: "Durable Cookie School"
+      })
+    );
+    const setCookieHeader = response.headers.get("set-cookie") ?? "";
+
+    expect(response.status).toBe(200);
+    expect(setCookieHeader).toContain("paps-spreadsheet-id=sheet-verified");
+    expect(setCookieHeader).toContain("HttpOnly");
+    expect(setCookieHeader).toContain("SameSite=lax");
+    expect(setCookieHeader).toContain("Path=/");
+    expect(setCookieHeader).toContain("Max-Age=31536000");
+  });
+
   it("sets and clears the teacher return PIN from the settings screen", async () => {
     const pinRoute = await import("../../app/api/teacher/student-return-pin/route");
     const { TeacherSettingsManager } = await import(

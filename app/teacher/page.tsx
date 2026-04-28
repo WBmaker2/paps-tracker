@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 
 import { AppShell } from "../../src/components/layout/app-shell";
 import { TeacherDataRefresh } from "../../src/components/teacher/teacher-data-refresh";
+import { TeacherSheetAutoLoader } from "../../src/components/teacher/teacher-sheet-auto-loader";
 import { buildTeacherStateVersion } from "../../src/lib/google/sheet-state-version";
 import { TeacherSessionWorkspace } from "../../src/components/teacher/session-form";
 import { loadTeacherPageState, PAPS_SPREADSHEET_ID_COOKIE } from "../../src/lib/google/sheets-store";
@@ -65,6 +66,7 @@ export default async function TeacherDashboardPage() {
       description="학교 현황, 세션 생성, 결과 검토 진입점을 한 화면에서 관리합니다."
     >
       <TeacherDataRefresh initialVersion={initialVersion} pollIntervalMs={60000} />
+      <TeacherSheetAutoLoader sheetStatus={sheetStatus} />
       <section className="grid gap-4 md:grid-cols-4">
         {summaryCards.map((card) => (
           <article

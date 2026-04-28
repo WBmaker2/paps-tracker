@@ -26,6 +26,15 @@ import {
 } from "./sheet-connect";
 
 export const PAPS_SPREADSHEET_ID_COOKIE = "paps-spreadsheet-id";
+export const PAPS_SPREADSHEET_ID_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
+
+export const createPapsSpreadsheetIdCookieOptions = () => ({
+  httpOnly: true,
+  sameSite: "lax" as const,
+  path: "/",
+  maxAge: PAPS_SPREADSHEET_ID_COOKIE_MAX_AGE_SECONDS,
+  secure: process.env.NODE_ENV === "production"
+});
 
 export const createTeacherRuntimeStoreForRequest = async (
   request: NextRequest,

@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 
 import { AppShell } from "../../../src/components/layout/app-shell";
 import { TeacherDataRefresh } from "../../../src/components/teacher/teacher-data-refresh";
+import { TeacherSheetAutoLoader } from "../../../src/components/teacher/teacher-sheet-auto-loader";
 import { TeacherSessionWorkspace } from "../../../src/components/teacher/session-form";
 import { buildTeacherStateVersion } from "../../../src/lib/google/sheet-state-version";
 import { loadTeacherPageState, PAPS_SPREADSHEET_ID_COOKIE } from "../../../src/lib/google/sheets-store";
@@ -51,6 +52,7 @@ export default async function TeacherSessionsPage() {
       description="새 세션을 만들고, 진행 중 세션을 열기와 닫기로 제어합니다."
     >
       <TeacherDataRefresh initialVersion={initialVersion} pollIntervalMs={45000} />
+      <TeacherSheetAutoLoader sheetStatus={sheetStatus} />
       <TeacherSessionWorkspace
         classes={bootstrap.classes}
         sessions={bootstrap.sessions}

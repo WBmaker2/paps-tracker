@@ -5,15 +5,14 @@ import React, { useEffect, useState, useTransition } from "react";
 import type { GoogleSheetsSetupStatus } from "../../lib/env";
 import type { TeacherSheetStatus } from "../../lib/google/sheet-connection-status";
 import type { PAPSClassroom, PAPSSchool } from "../../lib/paps/types";
+import {
+  areSavedSchoolSettingsEqual,
+  createSavedSchoolSettings,
+  persistSavedSchoolSettings,
+  readSavedSchoolSettings,
+  type SavedSchoolSettings
+} from "./saved-school-settings";
 import { buildTeacherMutationHeaders, notifyTeacherDataRefresh } from "./teacher-data-refresh";
-
-const SCHOOL_SETTINGS_STORAGE_KEY = "paps:teacher-settings:saved-school";
-
-type SavedSchoolSettings = {
-  schoolId: string | null;
-  schoolName: string;
-  sheetUrl: string;
-};
 
 type ManagedClassroomItem = PAPSClassroom & {
   optimistic?: boolean;
@@ -30,81 +29,6 @@ type GoogleSheetConnectionPayload = {
   error?: string;
   school?: TeacherSettingsSchool;
   normalizedUrl?: string;
-};
-
-const areSavedSchoolSettingsEqual = (
-  left: SavedSchoolSettings | null,
-  right: SavedSchoolSettings | null
-): boolean =>
-  left?.schoolId === right?.schoolId &&
-  left?.schoolName === right?.schoolName &&
-  left?.sheetUrl === right?.sheetUrl;
-
-const readSavedSchoolSettings = (): SavedSchoolSettings | null => {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  try {
-    const rawValue = window.localStorage.getItem(SCHOOL_SETTINGS_STORAGE_KEY);
-
-    if (!rawValue) {
-      return null;
-    }
-
-    const parsedValue = JSON.parse(rawValue) as Partial<SavedSchoolSettings>;
-
-    return {
-      schoolId: typeof parsedValue.schoolId === "string" ? parsedValue.schoolId : null,
-      schoolName: typeof parsedValue.schoolName === "string" ? parsedValue.schoolName : "",
-      sheetUrl: typeof parsedValue.sheetUrl === "string" ? parsedValue.sheetUrl : ""
-    };
-  } catch {
-    return null;
-  }
-};
-
-const persistSavedSchoolSettings = (value: SavedSchoolSettings | null) => {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  try {
-    if (!value) {
-      window.localStorage.removeItem(SCHOOL_SETTINGS_STORAGE_KEY);
-      return;
-    }
-
-    window.localStorage.setItem(SCHOOL_SETTINGS_STORAGE_KEY, JSON.stringify(value));
-  } catch {
-    // Ignore storage errors so the settings screen still works in restricted browsers.
-  }
-};
-
-const createSavedSchoolSettings = (
-  school: PAPSSchool | null,
-  fallback?: {
-    schoolName?: string;
-    sheetUrl?: string;
-  }
-): SavedSchoolSettings | null => {
-  if (school) {
-    return {
-      schoolId: school.id,
-      schoolName: school.name,
-      sheetUrl: school.sheetUrl ?? ""
-    };
-  }
-
-  if (!fallback?.schoolName && !fallback?.sheetUrl) {
-    return null;
-  }
-
-  return {
-    schoolId: null,
-    schoolName: fallback?.schoolName ?? "",
-    sheetUrl: fallback?.sheetUrl ?? ""
-  };
 };
 
 const sortClassItems = <T extends { label: string }>(items: T[]): T[] =>

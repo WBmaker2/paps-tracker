@@ -4,6 +4,7 @@ import { parseGoogleSheetsUrl } from "../../../../src/lib/google/drive-link";
 import { CurrentTeacherNotAuthorizedForSpreadsheetError } from "../../../../src/lib/google/sheet-connect";
 import {
   connectTeacherGoogleSheet,
+  createPapsSpreadsheetIdCookieOptions,
   createGoogleSheetClientFromEnv,
   PAPS_SPREADSHEET_ID_COOKIE
 } from "../../../../src/lib/google/sheets-store";
@@ -93,9 +94,7 @@ export async function POST(request: NextRequest) {
       school
     });
     response.cookies.set(PAPS_SPREADSHEET_ID_COOKIE, connection.spreadsheetId, {
-      httpOnly: true,
-      sameSite: "lax",
-      path: "/"
+      ...createPapsSpreadsheetIdCookieOptions()
     });
     publishTeacherLiveUpdate({
       teacherEmail: teacherSession.session.email,

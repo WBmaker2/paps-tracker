@@ -4,6 +4,7 @@ import { AppShell } from "../../../src/components/layout/app-shell";
 import { ResultTable, type TeacherResultRow } from "../../../src/components/teacher/result-table";
 import { TeacherDataRefresh } from "../../../src/components/teacher/teacher-data-refresh";
 import { TeacherResultsWorkspace } from "../../../src/components/teacher/teacher-results-workspace";
+import { TeacherSheetAutoLoader } from "../../../src/components/teacher/teacher-sheet-auto-loader";
 import { buildTeacherStateVersion } from "../../../src/lib/google/sheet-state-version";
 import { createPapsGoogleSheetTabPayloads } from "../../../src/lib/google/sheets";
 import { loadTeacherPageState, PAPS_SPREADSHEET_ID_COOKIE } from "../../../src/lib/google/sheets-store";
@@ -35,6 +36,7 @@ export default async function TeacherResultsPage() {
         description={sheetStatus.summary}
       >
         <TeacherDataRefresh initialVersion={initialVersion} pollIntervalMs={30000} />
+        <TeacherSheetAutoLoader sheetStatus={sheetStatus} />
         {sheetStatus.detail ? (
           <section className="rounded-[1.75rem] border border-amber-300/70 bg-amber-50 px-5 py-4 text-sm text-ink/80">
             {sheetStatus.detail}
@@ -53,6 +55,7 @@ export default async function TeacherResultsPage() {
         description="대표값 선택과 동기화 상태를 확인할 세션이 아직 없습니다."
       >
         <TeacherDataRefresh initialVersion={initialVersion} pollIntervalMs={30000} />
+        <TeacherSheetAutoLoader sheetStatus={sheetStatus} />
         <ResultTable rows={emptyResults} />
       </AppShell>
     );
@@ -98,6 +101,7 @@ export default async function TeacherResultsPage() {
       description="대표 기록 확정, 요약 재계산, 시트 반영 현황을 한 화면에서 확인합니다."
     >
       <TeacherDataRefresh initialVersion={initialVersion} pollIntervalMs={30000} />
+      <TeacherSheetAutoLoader sheetStatus={sheetStatus} />
       <TeacherResultsWorkspace
         rows={viewModel.rows}
         filterOptions={viewModel.filterOptions}

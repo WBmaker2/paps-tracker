@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 
 import { AppShell } from "../../../src/components/layout/app-shell";
 import { TeacherDataRefresh } from "../../../src/components/teacher/teacher-data-refresh";
+import { TeacherSheetAutoLoader } from "../../../src/components/teacher/teacher-sheet-auto-loader";
 import { StudentTable } from "../../../src/components/teacher/student-table";
 import { buildTeacherStateVersion } from "../../../src/lib/google/sheet-state-version";
 import { loadTeacherPageState, PAPS_SPREADSHEET_ID_COOKIE } from "../../../src/lib/google/sheets-store";
@@ -26,6 +27,7 @@ export default async function TeacherStudentsPage() {
       description="학급별 학생을 확인하고 추가하여 세션 대상자를 바로 준비합니다."
     >
       <TeacherDataRefresh initialVersion={initialVersion} pollIntervalMs={45000} />
+      <TeacherSheetAutoLoader sheetStatus={sheetStatus} />
       <StudentTable
         students={bootstrap.students}
         classes={bootstrap.classes}
