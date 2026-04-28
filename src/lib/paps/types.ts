@@ -95,6 +95,15 @@ export interface PAPSAttempt {
   detail?: PAPSMeasurementDetail | null;
 }
 
+export interface PAPSStudentEventHistoryAttempt extends PAPSAttempt {
+  sessionId: string;
+  sessionName: string;
+  sessionType: SessionType;
+  eventId: EventId;
+  academicYear?: number;
+  isCurrentSession: boolean;
+}
+
 export interface PAPSAttemptRecord {
   sessionId: string;
   studentId: string;

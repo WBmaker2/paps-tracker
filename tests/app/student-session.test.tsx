@@ -139,6 +139,20 @@ const buildStudentSeed = (): PAPSDemoStoreData => ({
       createdAt: "2026-03-23T09:10:00.000Z"
     },
     {
+      id: "session-previous-sit",
+      schoolId: "demo-school",
+      teacherId: "demo-teacher",
+      academicYear: 2026,
+      name: "3월 앉아윗몸앞으로굽히기",
+      gradeLevel: 5,
+      sessionType: "practice",
+      classScope: "single",
+      eventId: "sit-and-reach",
+      classTargets: [{ classId: "demo-class-5-1", eventId: "sit-and-reach" }],
+      isOpen: false,
+      createdAt: "2026-03-01T09:10:00.000Z"
+    },
+    {
       id: "session-step-test",
       schoolId: "demo-school",
       teacherId: "demo-teacher",
@@ -201,6 +215,16 @@ const buildStudentSeed = (): PAPSDemoStoreData => ({
     }
   ],
   attempts: [
+    {
+      id: "attempt-previous-sit",
+      sessionId: "session-previous-sit",
+      studentId: "student-kim",
+      eventId: "sit-and-reach",
+      unit: "cm",
+      attemptNumber: 1,
+      measurement: 16,
+      createdAt: "2026-03-01T09:40:00.000Z"
+    },
     {
       id: "attempt-1",
       sessionId: "session-open-single",
@@ -420,6 +444,25 @@ describe("student session flow", () => {
         })
       .attempts.at(-1)?.measurement
     ).toBe(24);
+  });
+
+  it("shows same-event history from previous sessions after submit", async () => {
+    await installStudentApiFetch();
+    await renderStudentSessionPage("session-open-single");
+
+    fireEvent.click(screen.getByRole("button", { name: "Kim" }));
+    fireEvent.change(screen.getByLabelText("앉아윗몸앞으로굽히기 기록"), {
+      target: { value: "24" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "기록 제출" }));
+
+    await screen.findByText("Kim 학생 결과");
+
+    expect(screen.getByText("3월 앉아윗몸앞으로굽히기 · 연습")).toBeInTheDocument();
+    expect(screen.getAllByText("5-1 Official Sit And Reach · 공식").length).toBeGreaterThan(0);
+    expect(screen.getByText("16 cm")).toBeInTheDocument();
+    expect(screen.getAllByText("이번 기록")).toHaveLength(2);
+    expect(screen.getByText("직전 대비 +3 cm")).toBeInTheDocument();
   });
 
   it("allows editing the latest submitted attempt without adding another attempt", async () => {

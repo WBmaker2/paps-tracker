@@ -7,24 +7,28 @@ import type {
   EventId,
   OfficialGrade,
   PAPSAttempt,
+  PAPSStudentEventHistoryAttempt,
   SessionType
 } from "../../lib/paps/types";
 
 const formatImprovement = ({
   attempts,
+  latestAttempt,
   betterDirection
 }: {
   attempts: PAPSAttempt[];
+  latestAttempt: PAPSAttempt | null;
   betterDirection: BetterDirection;
 }): number | null => {
-  if (attempts.length < 2) {
+  if (attempts.length < 2 || latestAttempt === null) {
     return null;
   }
 
-  const latestAttempt = attempts.at(-1);
-  const previousAttempt = attempts.at(-2);
+  const latestAttemptIndex = attempts.findIndex((attempt) => attempt.id === latestAttempt.id);
+  const comparisonIndex = latestAttemptIndex >= 0 ? latestAttemptIndex : attempts.length - 1;
+  const previousAttempt = comparisonIndex > 0 ? attempts[comparisonIndex - 1] : null;
 
-  if (!latestAttempt || !previousAttempt) {
+  if (!previousAttempt) {
     return null;
   }
 
@@ -35,6 +39,32 @@ const formatImprovement = ({
   return previousAttempt.measurement - latestAttempt.measurement;
 };
 
+const isHistoryAttempt = (attempt: PAPSAttempt): attempt is PAPSStudentEventHistoryAttempt =>
+  "sessionName" in attempt;
+
+const formatHistorySessionLabel = (attempt: PAPSAttempt): string =>
+  isHistoryAttempt(attempt)
+    ? `${attempt.sessionName} · ${attempt.sessionType === "official" ? "공식" : "연습"}`
+    : `${attempt.attemptNumber}회차`;
+
+const formatChartLabel = (
+  attempt: PAPSAttempt,
+  index: number,
+  latestAttemptId: string | null
+): string => {
+  if (!isHistoryAttempt(attempt)) {
+    return `${attempt.attemptNumber}회`;
+  }
+
+  if (attempt.id === latestAttemptId) {
+    return "이번";
+  }
+
+  const compactSessionName = attempt.sessionName.replace(/\s+/g, "");
+
+  return compactSessionName.length > 5 ? `${index + 1}번째` : compactSessionName;
+};
+
 export function InstantResultCard({
   studentName,
   sessionType,
@@ -42,6 +72,7 @@ export function InstantResultCard({
   eventLabel,
   unit,
   attempts,
+  historyAttempts,
   betterDirection,
   latestOfficialGrade,
   onEditLatestAttempt
@@ -52,13 +83,24 @@ export function InstantResultCard({
   eventLabel: string;
   unit: string;
   attempts: PAPSAttempt[];
+  historyAttempts?: PAPSStudentEventHistoryAttempt[];
   betterDirection: BetterDirection;
   latestOfficialGrade: OfficialGrade | null;
   onEditLatestAttempt?: (attempt: PAPSAttempt) => void;
 }) {
   const latestAttempt = attempts.at(-1) ?? null;
+  const displayAttempts =
+    historyAttempts && historyAttempts.length > 0
+      ? latestAttempt && !historyAttempts.some((attempt) => attempt.id === latestAttempt.id)
+        ? [...historyAttempts, latestAttempt]
+        : historyAttempts
+      : attempts;
+  const showHistory = historyAttempts !== undefined && historyAttempts.length > 0;
+  const hasPastSessionHistory =
+    showHistory && displayAttempts.some((attempt) => isHistoryAttempt(attempt) && !attempt.isCurrentSession);
   const improvement = formatImprovement({
-    attempts,
+    attempts: displayAttempts,
+    latestAttempt,
     betterDirection
   });
   const latestDetailSummary =
@@ -68,7 +110,7 @@ export function InstantResultCard({
           eventId,
           detail: latestAttempt.detail
         });
-  const attemptRows = attempts.map((attempt) => ({
+  const attemptRows = displayAttempts.map((attempt) => ({
     attempt,
     detailSummary: formatAttemptDetailSummary({
       eventId,
@@ -89,7 +131,9 @@ export function InstantResultCard({
           <div>
             <h2 className="text-2xl font-semibold">{studentName} 학생 결과</h2>
             <p className="mt-1 text-sm text-ink/70">
-              이번에 입력한 {eventLabel} 기록을 바로 확인합니다.
+              {hasPastSessionHistory
+                ? `이번 ${eventLabel} 기록과 지난 세션의 누적 흐름을 함께 확인합니다.`
+                : `이번에 입력한 ${eventLabel} 기록을 바로 확인합니다.`}
             </p>
           </div>
           {onEditLatestAttempt ? (
@@ -124,21 +168,31 @@ export function InstantResultCard({
             <p className="text-sm font-medium text-ink">이번 기록 기준 등급: {latestOfficialGrade}등급</p>
           ) : null}
         </div>
-        <ProgressMiniChart attempts={attempts} unit={unit} />
+        <ProgressMiniChart
+          attempts={displayAttempts}
+          unit={unit}
+          getLabel={(attempt, index) => formatChartLabel(attempt, index, latestAttempt.id)}
+        />
       </div>
       <div className="mt-4 overflow-hidden rounded-2xl border border-ink/10">
         <table className="min-w-full divide-y divide-ink/10 text-sm">
           <thead className="bg-canvas/60 text-left">
             <tr>
-              <th className="px-4 py-3 font-medium">회차</th>
+              <th className="px-4 py-3 font-medium">측정</th>
+              {showHistory ? <th className="px-4 py-3 font-medium">세션</th> : null}
               <th className="px-4 py-3 font-medium">기록</th>
               {hasDetailSummary ? <th className="px-4 py-3 font-medium">세부 기록</th> : null}
             </tr>
           </thead>
           <tbody className="divide-y divide-ink/10">
-            {attemptRows.map(({ attempt, detailSummary }) => (
+            {attemptRows.map(({ attempt, detailSummary }, index) => (
               <tr key={attempt.id}>
-                <td className="px-4 py-3">{attempt.attemptNumber}회차</td>
+                <td className="px-4 py-3">
+                  {attempt.id === latestAttempt.id ? "이번 기록" : `${index + 1}번째 기록`}
+                </td>
+                {showHistory ? (
+                  <td className="px-4 py-3 text-ink/70">{formatHistorySessionLabel(attempt)}</td>
+                ) : null}
                 <td className="px-4 py-3">
                   {attempt.measurement} {unit}
                 </td>

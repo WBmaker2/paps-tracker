@@ -76,16 +76,16 @@ describe("Google Sheets student submit", () => {
 
     const successClient = createClient();
 
-    await expect(
-      appendStudentSubmissionToSheet({
-        spreadsheetId: "sheet-123",
-        sessionId: "session-1",
-        studentId: "student-kim",
-        measurement: 24,
-        clientSubmissionKey: "submit-1",
-        client: successClient
-      })
-    ).resolves.toMatchObject({
+    const successResult = await appendStudentSubmissionToSheet({
+      spreadsheetId: "sheet-123",
+      sessionId: "session-1",
+      studentId: "student-kim",
+      measurement: 24,
+      clientSubmissionKey: "submit-1",
+      client: successClient
+    });
+
+    expect(successResult).toMatchObject({
       ok: true,
       result: {
         student: {
@@ -94,6 +94,15 @@ describe("Google Sheets student submit", () => {
         }
       }
     });
+    expect(successResult.ok ? successResult.result.historyAttempts : []).toEqual([
+      expect.objectContaining({
+        sessionId: "session-1",
+        sessionName: "5-1 Sit And Reach",
+        eventId: "sit-and-reach",
+        isCurrentSession: true,
+        measurement: 24
+      })
+    ]);
     expect(successClient.updateRange).toHaveBeenCalledWith(
       "sheet-123",
       "'학생요약'!A1:L2000",

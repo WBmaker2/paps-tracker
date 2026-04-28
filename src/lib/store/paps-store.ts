@@ -162,6 +162,7 @@ export const createStoreForRequest = async (): Promise<PapsStore> => {
     appendAttempt: demoStore.appendAttempt,
     updateAttempt: demoStore.updateAttempt,
     listSessionRecords: demoStore.listSessionRecords,
+    listStudentEventHistory: demoStore.listStudentEventHistory,
     getStudentSessionView,
     getStudentSessionGroupView,
     selectRepresentativeAttempt: demoStore.selectRepresentativeAttempt,

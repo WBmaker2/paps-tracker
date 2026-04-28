@@ -10,6 +10,7 @@ import type {
   OfficialGrade,
   PAPSAttempt,
   PAPSMeasurementDetail,
+  PAPSStudentEventHistoryAttempt,
   PAPSStoredAttempt
 } from "../paps/types";
 import {
@@ -18,7 +19,7 @@ import {
   assertMeasurementDetailAllowed
 } from "../paps/validation";
 import type { StudentSessionGroupView, StudentSessionView } from "../store/paps-store-types";
-import { buildStructuredStateFromSheet } from "./sheets-bootstrap";
+import { buildStructuredStateFromSheet, type GoogleSheetStructuredState } from "./sheets-bootstrap";
 import { createGoogleSheetClientFromEnv } from "./sheets-store";
 import { GoogleSheetsAccessError, type GoogleSheetsClient } from "./sheets-client";
 import { buildRecordNote } from "./sheets-record-note";
@@ -56,6 +57,87 @@ const toStudentAttempt = (attempt: PAPSStoredAttempt): PAPSAttempt => ({
   clientSubmissionKey: attempt.clientSubmissionKey,
   detail: attempt.detail ?? null
 });
+
+const sortStudentEventHistoryAttempts = (
+  attempts: PAPSStudentEventHistoryAttempt[]
+): PAPSStudentEventHistoryAttempt[] =>
+  [...attempts].sort(
+    (left, right) =>
+      left.createdAt.localeCompare(right.createdAt) ||
+      left.sessionId.localeCompare(right.sessionId) ||
+      left.attemptNumber - right.attemptNumber
+  );
+
+const dedupeStudentEventHistoryAttemptsByClientSubmissionKey = (
+  attempts: PAPSStudentEventHistoryAttempt[]
+): PAPSStudentEventHistoryAttempt[] => {
+  const seenKeys = new Set<string>();
+
+  return sortStudentEventHistoryAttempts(attempts).filter((attempt) => {
+    const key = attempt.clientSubmissionKey?.trim();
+
+    if (!key) {
+      return true;
+    }
+
+    if (seenKeys.has(key)) {
+      return false;
+    }
+
+    seenKeys.add(key);
+    return true;
+  });
+};
+
+const buildStudentEventHistoryAttempts = ({
+  state,
+  sessionId,
+  studentId
+}: {
+  state: GoogleSheetStructuredState;
+  sessionId: string;
+  studentId: string;
+}): PAPSStudentEventHistoryAttempt[] => {
+  const currentSession = state.sessions.find((entry) => entry.id === sessionId);
+
+  if (!currentSession) {
+    throw new Error(`Session ${sessionId} was not found.`);
+  }
+
+  return dedupeStudentEventHistoryAttemptsByClientSubmissionKey(
+    state.attempts.flatMap((attempt) => {
+      if (attempt.studentId !== studentId || attempt.eventId !== currentSession.eventId) {
+        return [];
+      }
+
+      const session = state.sessions.find((entry) => entry.id === attempt.sessionId);
+
+      if (!session) {
+        return [];
+      }
+
+      if (
+        currentSession.academicYear !== undefined &&
+        session.academicYear !== undefined &&
+        currentSession.academicYear !== session.academicYear
+      ) {
+        return [];
+      }
+
+      return [
+        {
+          ...toStudentAttempt(attempt),
+          sessionId: session.id,
+          sessionName: session.name ?? session.id,
+          sessionType: session.sessionType,
+          eventId: attempt.eventId,
+          academicYear: session.academicYear,
+          isCurrentSession: session.id === sessionId
+        }
+      ];
+    })
+  );
+};
 
 const buildStudentSessionViewFromState = (
   state: Awaited<ReturnType<typeof buildStructuredStateFromSheet>>,
@@ -239,6 +321,7 @@ type StudentSubmissionSheetResult =
           name: string;
         };
         attempts: PAPSAttempt[];
+        historyAttempts: PAPSStudentEventHistoryAttempt[];
         latestOfficialGrade: OfficialGrade | null;
         summaryWarning?: string;
       };
@@ -398,13 +481,22 @@ export const appendStudentSubmissionToSheet = async (input: {
             measurement: resolvedSubmission.measurement
           })
         : null;
-    const appendedAttempt: PAPSAttempt = {
+    const appendedStoredAttempt: PAPSStoredAttempt = {
       id: randomUUID(),
+      sessionId: input.sessionId,
+      studentId: input.studentId,
+      eventId: session.eventId,
+      unit: getEventDefinition(session.eventId).unit,
       attemptNumber: rawAttempts.length + 1,
       measurement: resolvedSubmission.measurement,
       createdAt,
       clientSubmissionKey: input.clientSubmissionKey,
       detail: resolvedSubmission.detail
+    };
+    const appendedAttempt = toStudentAttempt(appendedStoredAttempt);
+    const nextState = {
+      ...state,
+      attempts: [...state.attempts, appendedStoredAttempt]
     };
 
     await client.appendRows(input.spreadsheetId, RECORD_APPEND_RANGE, [
@@ -435,6 +527,11 @@ export const appendStudentSubmissionToSheet = async (input: {
           name: student.name
         },
         attempts: dedupeAttemptsByClientSubmissionKey([...rawAttempts, appendedAttempt]),
+        historyAttempts: buildStudentEventHistoryAttempts({
+          state: nextState,
+          sessionId: input.sessionId,
+          studentId: input.studentId
+        }),
         latestOfficialGrade,
         ...(summaryRebuild.ok
           ? {}
@@ -599,6 +696,11 @@ export const updateStudentSubmissionInSheet = async (input: {
               .map(toStudentAttempt)
           )
         ),
+        historyAttempts: buildStudentEventHistoryAttempts({
+          state: nextState,
+          sessionId: input.sessionId,
+          studentId: input.studentId
+        }),
         latestOfficialGrade,
         ...(summaryRebuild.ok
           ? {}

@@ -9,6 +9,7 @@ import type {
   PAPSSyncErrorLog,
   PAPSSyncStatusRecord,
   PAPSStoredAttempt,
+  PAPSStudentEventHistoryAttempt,
   PAPSStudent
 } from "../paps/types";
 
@@ -103,6 +104,7 @@ export interface PapsStore {
   appendAttempt(input: AppendAttemptInput): PAPSAttemptRecord;
   updateAttempt(input: UpdateAttemptInput): PAPSAttemptRecord;
   listSessionRecords(sessionId: string): PAPSAttemptRecord[];
+  listStudentEventHistory(input: RecordSelector): PAPSStudentEventHistoryAttempt[];
   getStudentSessionView(sessionId: string): Promise<StudentSessionView>;
   getStudentSessionGroupView(sessionGroupId: string): Promise<StudentSessionGroupView>;
   selectRepresentativeAttempt(input: SelectRepresentativeAttemptInput): PAPSAttemptRecord;

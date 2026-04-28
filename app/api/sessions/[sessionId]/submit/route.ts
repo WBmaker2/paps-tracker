@@ -216,6 +216,10 @@ export async function POST(request: NextRequest, context: SubmitRouteContext) {
             name: student.name
           },
           attempts: record.attempts,
+          historyAttempts: store.listStudentEventHistory({
+            sessionId,
+            studentId
+          }),
           latestOfficialGrade
         }
       },
@@ -348,6 +352,10 @@ export async function PATCH(request: NextRequest, context: SubmitRouteContext) {
           name: student.name
         },
         attempts: record.attempts,
+        historyAttempts: store.listStudentEventHistory({
+          sessionId,
+          studentId
+        }),
         latestOfficialGrade
       }
     });

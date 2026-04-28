@@ -12,6 +12,7 @@ import type {
   EventId,
   OfficialGrade,
   PAPSAttempt,
+  PAPSStudentEventHistoryAttempt,
   SessionType
 } from "../../lib/paps/types";
 
@@ -30,6 +31,7 @@ type SubmissionResult = {
     name: string;
   };
   attempts: PAPSAttempt[];
+  historyAttempts?: PAPSStudentEventHistoryAttempt[];
   latestOfficialGrade: OfficialGrade | null;
 };
 
@@ -253,6 +255,7 @@ export function SplitSessionView({
             eventLabel={eventLabel}
             unit={unit}
             attempts={submitResult.attempts}
+            historyAttempts={submitResult.historyAttempts}
             betterDirection={betterDirection}
             latestOfficialGrade={submitResult.latestOfficialGrade}
             onEditLatestAttempt={(attempt) => {

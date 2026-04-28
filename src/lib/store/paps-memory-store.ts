@@ -13,6 +13,7 @@ import type {
   PAPSSyncState,
   PAPSSyncStatusRecord,
   PAPSStudent,
+  PAPSStudentEventHistoryAttempt,
   PAPSStoredAttempt
 } from "../paps/types";
 
@@ -407,6 +408,73 @@ export const createPapsMemoryStore = (seedData: PAPSDemoStoreData = createDefaul
     });
   };
 
+  const listStudentEventHistory = (selector: RecordSelector): PAPSStudentEventHistoryAttempt[] => {
+    const currentSession = getSession(selector.sessionId);
+    getStudent(selector.studentId);
+    const currentState = ensureState();
+    const historyAttempts = currentState.attempts
+      .flatMap((attempt) => {
+        if (attempt.studentId !== selector.studentId || attempt.eventId !== currentSession.eventId) {
+          return [];
+        }
+
+        const session = currentState.sessions.find((entry) => entry.id === attempt.sessionId);
+
+        if (!session) {
+          return [];
+        }
+
+        if (
+          currentSession.academicYear !== undefined &&
+          session.academicYear !== undefined &&
+          currentSession.academicYear !== session.academicYear
+        ) {
+          return [];
+        }
+
+        return [
+          {
+            id: attempt.id,
+            attemptNumber: attempt.attemptNumber,
+            measurement: attempt.measurement,
+            createdAt: attempt.createdAt,
+            clientSubmissionKey: attempt.clientSubmissionKey,
+            detail: attempt.detail ?? null,
+            sessionId: session.id,
+            sessionName: session.name ?? session.id,
+            sessionType: session.sessionType,
+            eventId: attempt.eventId,
+            academicYear: session.academicYear,
+            isCurrentSession: session.id === selector.sessionId
+          }
+        ];
+      })
+      .sort(
+        (left, right) =>
+          left.createdAt.localeCompare(right.createdAt) ||
+          left.sessionId.localeCompare(right.sessionId) ||
+          left.attemptNumber - right.attemptNumber
+      );
+    const seenClientSubmissionKeys = new Set<string>();
+
+    return cloneValue(
+      historyAttempts.filter((attempt) => {
+        const clientSubmissionKey = attempt.clientSubmissionKey?.trim();
+
+        if (!clientSubmissionKey) {
+          return true;
+        }
+
+        if (seenClientSubmissionKeys.has(clientSubmissionKey)) {
+          return false;
+        }
+
+        seenClientSubmissionKeys.add(clientSubmissionKey);
+        return true;
+      })
+    );
+  };
+
   const saveSchool = (school: PAPSSchool): PAPSSchool => {
     const currentState = ensureState();
     writeState({
@@ -746,6 +814,7 @@ export const createPapsMemoryStore = (seedData: PAPSDemoStoreData = createDefaul
     updateAttempt,
     getAttemptRecord,
     listSessionRecords,
+    listStudentEventHistory,
     selectRepresentativeAttempt,
     setSyncStatus,
     getSyncStatus,

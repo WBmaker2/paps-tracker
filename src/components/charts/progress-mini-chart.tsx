@@ -4,10 +4,12 @@ import type { PAPSAttempt } from "../../lib/paps/types";
 
 export function ProgressMiniChart({
   attempts,
-  unit
+  unit,
+  getLabel
 }: {
   attempts: PAPSAttempt[];
   unit: string;
+  getLabel?: (attempt: PAPSAttempt, index: number) => string;
 }) {
   if (attempts.length === 0) {
     return null;
@@ -54,7 +56,7 @@ export function ProgressMiniChart({
             <g key={attempt.id}>
               <circle cx={x} cy={y} r="5" fill="#14213d" />
               <text x={x} y={105} textAnchor="middle" fontSize="10" fill="#14213d">
-                {attempt.attemptNumber}회
+                {getLabel?.(attempt, index) ?? `${attempt.attemptNumber}회`}
               </text>
             </g>
           );
