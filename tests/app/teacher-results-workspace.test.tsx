@@ -109,6 +109,34 @@ const rows: TeacherResultRowView[] = [
     ]
   },
   {
+    recordId: "session-practice-2:student-kim",
+    sessionId: "session-practice-2",
+    studentId: "student-kim",
+    studentName: "홍길동",
+    studentNameNormalized: "홍길동",
+    studentNumber: 1,
+    classId: "class-5-1",
+    classLabel: "5학년 1반",
+    classNumber: 1,
+    gradeLevel: 5,
+    schoolId: "school-1",
+    sessionName: "5학년 1반 4월 연습",
+    sessionType: "practice",
+    eventId: "sit-and-reach",
+    eventLabel: "앉아윗몸앞으로굽히기",
+    unit: "cm",
+    representativeAttemptId: "attempt-4",
+    duplicateAttemptCount: 0,
+    attempts: [
+      {
+        id: "attempt-4",
+        attemptNumber: 1,
+        measurement: 25,
+        createdAt: "2026-04-15T09:21:00.000Z"
+      }
+    ]
+  },
+  {
     recordId: "session-practice-1:student-lee",
     sessionId: "session-practice-1",
     studentId: "student-lee",
@@ -190,7 +218,7 @@ describe("teacher results workspace", () => {
     );
 
     expect(screen.getByRole("heading", { name: "검색 및 필터" })).toBeInTheDocument();
-    expect(screen.getByText("현재 2건 / 전체 2건")).toBeInTheDocument();
+    expect(screen.getByText("현재 3건 / 전체 3건")).toBeInTheDocument();
     expect(screen.getByText("이하나 추이")).toBeInTheDocument();
     expect(
       screen.getByText("이 요약표는 현재 화면 필터와 별개로 전체 연결 시트 기준입니다.")
@@ -200,12 +228,14 @@ describe("teacher results workspace", () => {
       target: { value: "홍길" }
     });
 
-    expect(screen.getByTestId("result-count")).toHaveTextContent("1");
-    expect(screen.getByText("홍길동")).toBeInTheDocument();
+    expect(screen.getByTestId("result-count")).toHaveTextContent("2");
+    expect(screen.getAllByText("홍길동")).toHaveLength(2);
     expect(screen.queryByText("이하나")).not.toBeInTheDocument();
     expect(screen.getByText("홍길동 추이")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "연습" }));
+    fireEvent.change(screen.getByLabelText("종목"), {
+      target: { value: "shuttle-run" }
+    });
 
     expect(screen.getByText("조건에 맞는 측정 결과가 없습니다.")).toBeInTheDocument();
     expect(
@@ -214,9 +244,40 @@ describe("teacher results workspace", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "필터 초기화" }));
 
-    expect(screen.getByText("현재 2건 / 전체 2건")).toBeInTheDocument();
+    expect(screen.getByText("현재 3건 / 전체 3건")).toBeInTheDocument();
     expect(screen.getByText("이하나")).toBeInTheDocument();
-    expect(screen.getByText("홍길동")).toBeInTheDocument();
+    expect(screen.getAllByText("홍길동").length).toBeGreaterThan(0);
+  });
+
+  it("shows a student growth report with event history after searching a student", async () => {
+    const { TeacherResultsWorkspace } = await import(
+      "../../src/components/teacher/teacher-results-workspace"
+    );
+
+    render(
+      <TeacherResultsWorkspace
+        rows={rows}
+        filterOptions={filterOptions}
+        initialFocusRecordId="session-practice-1:student-lee"
+        syncStateByRecordId={syncStateByRecordId}
+        sheetTabs={[]}
+        failedSyncCount={0}
+        summariesNote="이 요약표는 현재 화면 필터와 별개로 전체 연결 시트 기준입니다."
+      />
+    );
+
+    fireEvent.change(screen.getByPlaceholderText("학생 이름으로 검색"), {
+      target: { value: "홍길동" }
+    });
+
+    expect(screen.getByRole("heading", { name: "학생별 성장 리포트" })).toBeInTheDocument();
+    expect(screen.getByText("홍길동 · 5학년 1반")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "앉아윗몸앞으로굽히기" })).toBeInTheDocument();
+    expect(screen.getByText("앉아윗몸앞으로굽히기 누적 추이")).toBeInTheDocument();
+    expect(screen.getByText("5학년 1반 3월 공식 · 공식")).toBeInTheDocument();
+    expect(screen.getByText("5학년 1반 4월 연습 · 연습")).toBeInTheDocument();
+    expect(screen.getByText("22 cm")).toBeInTheDocument();
+    expect(screen.getByText("25 cm")).toBeInTheDocument();
   });
 
   it("keeps sidebar sync metadata in local state after sync-related actions", async () => {
@@ -228,8 +289,9 @@ describe("teacher results workspace", () => {
       <TeacherResultsWorkspace
         rows={[
           rows[0]!,
+          rows[1]!,
           {
-            ...rows[1]!,
+            ...rows[2]!,
             duplicateAttemptCount: 1
           }
         ]}

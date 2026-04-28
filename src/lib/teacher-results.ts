@@ -46,6 +46,36 @@ export interface TeacherResultRowView {
   duplicateAttemptCount: number;
 }
 
+export interface TeacherStudentGrowthAttemptView extends PAPSAttempt {
+  sessionId: string;
+  sessionName: string;
+  sessionType: "official" | "practice";
+  eventId: EventId;
+  eventLabel: string;
+  unit: string;
+  isRepresentative: boolean;
+}
+
+export interface TeacherStudentGrowthEventView {
+  eventId: EventId;
+  eventLabel: string;
+  unit: string;
+  attempts: TeacherStudentGrowthAttemptView[];
+}
+
+export interface TeacherStudentGrowthReportView {
+  studentId: string;
+  studentName: string;
+  studentNameNormalized: string;
+  studentNumber: number | null;
+  classId: string;
+  classLabel: string;
+  classNumber: number | null;
+  gradeLevel: 3 | 4 | 5 | 6;
+  schoolId: string | null;
+  events: TeacherStudentGrowthEventView[];
+}
+
 export interface TeacherResultFilterOptions {
   grades: Array<{
     value: 3 | 4 | 5 | 6;
@@ -170,6 +200,82 @@ const buildTeacherResultFilterOptions = (
     { value: "practice", label: "연습" }
   ]
 });
+
+export const buildStudentGrowthReports = (
+  rows: TeacherResultRowView[]
+): TeacherStudentGrowthReportView[] => {
+  const reportsByStudent = new Map<string, TeacherStudentGrowthReportView>();
+
+  for (const row of rows) {
+    const existingReport = reportsByStudent.get(row.studentId);
+    const report =
+      existingReport ??
+      ({
+        studentId: row.studentId,
+        studentName: row.studentName,
+        studentNameNormalized: row.studentNameNormalized,
+        studentNumber: row.studentNumber,
+        classId: row.classId,
+        classLabel: row.classLabel,
+        classNumber: row.classNumber,
+        gradeLevel: row.gradeLevel,
+        schoolId: row.schoolId,
+        events: []
+      } satisfies TeacherStudentGrowthReportView);
+
+    if (!existingReport) {
+      reportsByStudent.set(row.studentId, report);
+    }
+
+    let eventReport = report.events.find((event) => event.eventId === row.eventId) ?? null;
+
+    if (!eventReport) {
+      eventReport = {
+        eventId: row.eventId,
+        eventLabel: row.eventLabel,
+        unit: row.unit,
+        attempts: []
+      };
+      report.events.push(eventReport);
+    }
+
+    eventReport.attempts.push(
+      ...row.attempts.map((attempt) => ({
+        ...attempt,
+        sessionId: row.sessionId,
+        sessionName: row.sessionName,
+        sessionType: row.sessionType,
+        eventId: row.eventId,
+        eventLabel: row.eventLabel,
+        unit: row.unit,
+        isRepresentative: row.representativeAttemptId === attempt.id
+      }))
+    );
+  }
+
+  return [...reportsByStudent.values()]
+    .map((report) => ({
+      ...report,
+      events: report.events
+        .map((event) => ({
+          ...event,
+          attempts: [...event.attempts].sort(
+            (left, right) =>
+              left.createdAt.localeCompare(right.createdAt) ||
+              left.sessionId.localeCompare(right.sessionId) ||
+              left.attemptNumber - right.attemptNumber
+          )
+        }))
+        .sort((left, right) => left.eventLabel.localeCompare(right.eventLabel, "ko"))
+    }))
+    .sort(
+      (left, right) =>
+        left.classLabel.localeCompare(right.classLabel, "ko") ||
+        (left.studentNumber ?? Number.MAX_SAFE_INTEGER) -
+          (right.studentNumber ?? Number.MAX_SAFE_INTEGER) ||
+        left.studentName.localeCompare(right.studentName, "ko")
+    );
+};
 
 export const buildTeacherResultsViewModel = ({
   classes,

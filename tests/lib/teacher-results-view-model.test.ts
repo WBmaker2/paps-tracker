@@ -8,6 +8,7 @@ import type {
   PAPSSyncStatusRecord,
   PAPSStudent
 } from "../../src/lib/paps/types";
+import type { TeacherResultRowView } from "../../src/lib/teacher-results";
 
 describe("teacher results view model", () => {
   it("builds filter-ready rows across multiple sessions and computes options with initial focus", async () => {
@@ -209,5 +210,136 @@ describe("teacher results view model", () => {
       updatedAt: "-",
       message: "temporary error"
     });
+  });
+
+  it("groups rows into student event growth reports with chronological attempts", async () => {
+    const { buildStudentGrowthReports } = await import("../../src/lib/teacher-results");
+    const rows: TeacherResultRowView[] = [
+      {
+        recordId: "session-march:student-kim",
+        sessionId: "session-march",
+        studentId: "student-kim",
+        studentName: "홍길동",
+        studentNameNormalized: "홍길동",
+        studentNumber: 1,
+        classId: "class-5-1",
+        classLabel: "5학년 1반",
+        classNumber: 1,
+        gradeLevel: 5,
+        schoolId: "school-1",
+        sessionName: "3월 측정",
+        sessionType: "practice",
+        eventId: "sit-and-reach",
+        eventLabel: "앉아윗몸앞으로굽히기",
+        unit: "cm",
+        representativeAttemptId: "attempt-march-2",
+        duplicateAttemptCount: 0,
+        attempts: [
+          {
+            id: "attempt-march-2",
+            attemptNumber: 2,
+            measurement: 19,
+            createdAt: "2026-03-10T09:06:00.000Z"
+          },
+          {
+            id: "attempt-march-1",
+            attemptNumber: 1,
+            measurement: 17,
+            createdAt: "2026-03-10T09:05:00.000Z"
+          }
+        ]
+      },
+      {
+        recordId: "session-april:student-kim",
+        sessionId: "session-april",
+        studentId: "student-kim",
+        studentName: "홍길동",
+        studentNameNormalized: "홍길동",
+        studentNumber: 1,
+        classId: "class-5-1",
+        classLabel: "5학년 1반",
+        classNumber: 1,
+        gradeLevel: 5,
+        schoolId: "school-1",
+        sessionName: "4월 측정",
+        sessionType: "official",
+        eventId: "sit-and-reach",
+        eventLabel: "앉아윗몸앞으로굽히기",
+        unit: "cm",
+        representativeAttemptId: "attempt-april-1",
+        duplicateAttemptCount: 0,
+        attempts: [
+          {
+            id: "attempt-april-1",
+            attemptNumber: 1,
+            measurement: 23,
+            createdAt: "2026-04-10T09:05:00.000Z"
+          }
+        ]
+      },
+      {
+        recordId: "session-april-run:student-kim",
+        sessionId: "session-april-run",
+        studentId: "student-kim",
+        studentName: "홍길동",
+        studentNameNormalized: "홍길동",
+        studentNumber: 1,
+        classId: "class-5-1",
+        classLabel: "5학년 1반",
+        classNumber: 1,
+        gradeLevel: 5,
+        schoolId: "school-1",
+        sessionName: "4월 왕복오래달리기",
+        sessionType: "practice",
+        eventId: "shuttle-run",
+        eventLabel: "왕복오래달리기",
+        unit: "laps",
+        representativeAttemptId: null,
+        duplicateAttemptCount: 0,
+        attempts: [
+          {
+            id: "attempt-run-1",
+            attemptNumber: 1,
+            measurement: 31,
+            createdAt: "2026-04-12T09:05:00.000Z"
+          }
+        ]
+      }
+    ];
+
+    const reports = buildStudentGrowthReports(rows);
+
+    expect(reports).toHaveLength(1);
+    expect(reports[0]).toMatchObject({
+      studentId: "student-kim",
+      studentName: "홍길동",
+      classLabel: "5학년 1반"
+    });
+    expect(reports[0]?.events.map((event) => event.eventLabel)).toEqual([
+      "앉아윗몸앞으로굽히기",
+      "왕복오래달리기"
+    ]);
+    expect(reports[0]?.events[0]?.attempts).toEqual([
+      expect.objectContaining({
+        id: "attempt-march-1",
+        sessionName: "3월 측정",
+        sessionType: "practice",
+        measurement: 17,
+        isRepresentative: false
+      }),
+      expect.objectContaining({
+        id: "attempt-march-2",
+        sessionName: "3월 측정",
+        measurement: 19,
+        isRepresentative: true
+      }),
+      expect.objectContaining({
+        id: "attempt-april-1",
+        sessionName: "4월 측정",
+        sessionType: "official",
+        measurement: 23,
+        isRepresentative: true
+      })
+    ]);
   });
 });

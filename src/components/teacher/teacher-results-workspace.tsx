@@ -8,12 +8,14 @@ import type {
   TeacherResultsViewModel,
   TeacherResultSyncView
 } from "../../lib/teacher-results";
+import { buildStudentGrowthReports } from "../../lib/teacher-results";
 import { ResultTable } from "./result-table";
 import { ResultsFilterPanel, type TeacherResultsFilterState } from "./results-filter-panel";
 import {
   createDefaultFilterState,
   filterTeacherResultRows
 } from "./teacher-results-workspace-filters";
+import { StudentGrowthReport } from "./student-growth-report";
 import { TeacherResultsSidebar } from "./teacher-results-sidebar";
 
 function ResultCountSummary({
@@ -71,6 +73,7 @@ export function TeacherResultsWorkspace({
   const [summariesNote, setSummariesNote] = useState(initialSummariesNote);
   const [filterState, setFilterState] = useState<TeacherResultsFilterState>(createDefaultFilterState);
   const [focusedRecordId, setFocusedRecordId] = useState<string | null>(initialFocusRecordId);
+  const [selectedGrowthStudentId, setSelectedGrowthStudentId] = useState<string | null>(null);
 
   useEffect(() => {
     setRows(initialRows);
@@ -88,6 +91,28 @@ export function TeacherResultsWorkspace({
     () => filterTeacherResultRows(rows, filterState),
     [rows, filterState]
   );
+  const studentGrowthReports = useMemo(() => buildStudentGrowthReports(rows), [rows]);
+  const studentGrowthQuery = filterState.query.trim().toLocaleLowerCase("ko-KR");
+  const matchingGrowthReports = useMemo(
+    () =>
+      studentGrowthQuery
+        ? studentGrowthReports.filter((report) =>
+            report.studentNameNormalized.includes(studentGrowthQuery)
+          )
+        : [],
+    [studentGrowthQuery, studentGrowthReports]
+  );
+  const selectedGrowthReport = useMemo(() => {
+    if (!studentGrowthQuery) {
+      return null;
+    }
+
+    const selectedReport = selectedGrowthStudentId
+      ? matchingGrowthReports.find((report) => report.studentId === selectedGrowthStudentId) ?? null
+      : null;
+
+    return selectedReport ?? (matchingGrowthReports.length === 1 ? matchingGrowthReports[0] ?? null : null);
+  }, [matchingGrowthReports, selectedGrowthStudentId, studentGrowthQuery]);
   const failedSyncCount = useMemo(() => {
     const derivedCount = Object.values(syncStateByRecordId).filter(
       (entry) => entry.status === "failed"
@@ -109,6 +134,24 @@ export function TeacherResultsWorkspace({
     setFocusedRecordId(filteredRows[0]?.recordId ?? null);
   }, [filteredRows, focusedRecordId]);
 
+  useEffect(() => {
+    if (!studentGrowthQuery) {
+      setSelectedGrowthStudentId(null);
+      return;
+    }
+
+    if (
+      selectedGrowthStudentId &&
+      matchingGrowthReports.some((report) => report.studentId === selectedGrowthStudentId)
+    ) {
+      return;
+    }
+
+    setSelectedGrowthStudentId(
+      matchingGrowthReports.length === 1 ? matchingGrowthReports[0]?.studentId ?? null : null
+    );
+  }, [matchingGrowthReports, selectedGrowthStudentId, studentGrowthQuery]);
+
   const focusedRow =
     filteredRows.find((row) => row.recordId === focusedRecordId) ?? filteredRows[0] ?? null;
   const focusedSync: TeacherResultSyncView | null = focusedRow
@@ -118,6 +161,7 @@ export function TeacherResultsWorkspace({
   const resetFilters = () => {
     setFilterState(createDefaultFilterState());
     setFocusedRecordId(initialFocusRecordId);
+    setSelectedGrowthStudentId(null);
   };
 
   return (
@@ -130,6 +174,13 @@ export function TeacherResultsWorkspace({
           onReset={resetFilters}
         />
         <ResultCountSummary visibleCount={filteredRows.length} totalCount={rows.length} />
+        <StudentGrowthReport
+          query={filterState.query}
+          report={selectedGrowthReport}
+          candidates={matchingGrowthReports}
+          selectedStudentId={selectedGrowthReport?.studentId ?? selectedGrowthStudentId}
+          onSelectStudent={setSelectedGrowthStudentId}
+        />
         {filteredRows.length > 0 ? (
           <ResultTable
             rows={filteredRows}
