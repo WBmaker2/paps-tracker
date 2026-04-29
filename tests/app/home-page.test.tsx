@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 vi.stubGlobal("React", React);
@@ -40,5 +40,50 @@ describe("home page", () => {
     expect(screen.queryByText(/PAPS Tracker MVP/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Ready For Next Tasks/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/다음 단계에서는/)).not.toBeInTheDocument();
+  });
+
+  it("uses teacher home as the only actionable entry point", async () => {
+    const { default: HomePage } = await import("../../app/page");
+
+    render(<HomePage />);
+
+    expect(screen.getByRole("link", { name: /교사 홈으로 시작/ })).toHaveAttribute(
+      "href",
+      "/teacher"
+    );
+    expect(screen.queryByRole("link", { name: /학생 입력 영역/ })).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/학생은 선생님이 열어 준 세션 링크 또는 QR 코드로 접속합니다\./)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/학생 입력 링크는 교사 홈에서 세션을 연 뒤 안내할 수 있습니다\./)
+    ).toBeInTheDocument();
+
+    const links = screen.getAllByRole("link") as HTMLAnchorElement[];
+    expect(links.some((link) => link.getAttribute("href")?.startsWith("/session"))).toBe(false);
+  });
+
+  it("opens update history from the landing page", async () => {
+    const { default: HomePage } = await import("../../app/page");
+
+    render(<HomePage />);
+
+    expect(screen.getByText("v1.0.0")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Update info/i }));
+
+    expect(
+      screen.getByRole("dialog", {
+        name: /업데이트 기록/
+      })
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("v1.0.0").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/완제품 운영 흐름/)).toBeInTheDocument();
+    expect(screen.getByText(/v0\.1\.0/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "초기 MVP" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "닫기" }));
+
+    expect(screen.queryByRole("dialog", { name: /업데이트 기록/ })).not.toBeInTheDocument();
   });
 });

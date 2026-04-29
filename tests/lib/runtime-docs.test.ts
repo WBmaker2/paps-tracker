@@ -18,4 +18,14 @@ describe("runtime docs", () => {
     expect(envExample).not.toContain("PAPS_STORE_PATH");
     expect(packageJson.scripts?.["migrate:demo-store"]).toBeTruthy();
   });
+
+  it("documents the public update history from MVP to v1.0.0", () => {
+    const updateHistory = readFileSync(join(projectRoot, "docs", "update-history.md"), "utf8");
+
+    expect(updateHistory).toContain("# PAPS Tracker Update History");
+    expect(updateHistory).toContain("v1.0.0");
+    expect(updateHistory).toContain("완제품 운영 흐름");
+    expect(updateHistory).toContain("v0.1.0");
+    expect(updateHistory).toContain("초기 MVP");
+  });
 });

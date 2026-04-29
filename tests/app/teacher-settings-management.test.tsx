@@ -710,6 +710,9 @@ describe("teacher settings management", () => {
 
     await screen.findByText("기존 PAPS 시트 가져오기");
     await waitFor(() => expect(requestBodies).toHaveLength(1));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "기존 시트 가져오기" })).not.toBeDisabled()
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "기존 시트 가져오기" }));
 
