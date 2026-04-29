@@ -3,9 +3,8 @@ import React, { type ReactNode } from "react";
 import Link from "next/link";
 
 const NAV_ITEMS = [
-  { href: "/teacher", label: "대시보드" },
+  { href: "/teacher", label: "교사 홈" },
   { href: "/teacher/students", label: "학생" },
-  { href: "/teacher/sessions", label: "세션" },
   { href: "/teacher/results", label: "결과" },
   { href: "/teacher/settings", label: "설정" }
 ];

@@ -62,8 +62,8 @@ export default async function TeacherDashboardPage() {
   return (
     <AppShell
       eyebrow="Teacher"
-      title="교사 대시보드"
-      description="학교 현황, 세션 생성, 결과 검토 진입점을 한 화면에서 관리합니다."
+      title="교사 홈"
+      description="학교 현황과 세션 운영을 한 화면에서 관리합니다."
     >
       <TeacherDataRefresh initialVersion={initialVersion} pollIntervalMs={60000} />
       <TeacherSheetAutoLoader sheetStatus={sheetStatus} />
