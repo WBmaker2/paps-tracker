@@ -28,6 +28,7 @@ type GoogleSheetConnectionPayload = {
   action?: string;
   error?: string;
   school?: TeacherSettingsSchool;
+  classes?: PAPSClassroom[];
   normalizedUrl?: string;
 };
 
@@ -52,6 +53,7 @@ export function TeacherSettingsManager({
 }) {
   const initialSavedSchoolSettings = createSavedSchoolSettings(school) ?? readSavedSchoolSettings();
   const [schoolState, setSchoolState] = useState(school);
+  const [hasLocallyConnectedSchool, setHasLocallyConnectedSchool] = useState(false);
   const [classItems, setClassItems] = useState<ManagedClassroomItem[]>(() => sortClassItems(classes));
   const [savedSchoolSettings, setSavedSchoolSettings] = useState<SavedSchoolSettings | null>(
     initialSavedSchoolSettings
@@ -94,6 +96,10 @@ export function TeacherSettingsManager({
     });
 
     setSchoolState(payload.school);
+    setHasLocallyConnectedSchool(true);
+    if (Array.isArray(payload.classes)) {
+      setClassItems(sortClassItems(payload.classes));
+    }
     setSavedSchoolSettings(nextSavedSchoolSettings);
     persistSavedSchoolSettings(nextSavedSchoolSettings);
     setSchoolName(nextSavedSchoolSettings?.schoolName ?? "");
@@ -145,6 +151,14 @@ export function TeacherSettingsManager({
   useEffect(() => {
     const nextSavedSchoolSettings = createSavedSchoolSettings(school) ?? readSavedSchoolSettings();
 
+    if (!school && hasLocallyConnectedSchool) {
+      return;
+    }
+
+    if (school && hasLocallyConnectedSchool) {
+      setHasLocallyConnectedSchool(false);
+    }
+
     setSchoolState(school);
     setTeacherReturnPinConfigured(hasTeacherReturnPin(school));
 
@@ -159,7 +173,7 @@ export function TeacherSettingsManager({
       setSchoolName(nextSavedSchoolSettings.schoolName);
       setSheetUrl(nextSavedSchoolSettings.sheetUrl);
     }
-  }, [isSchoolDirty, savedSchoolSettings, school]);
+  }, [hasLocallyConnectedSchool, isSchoolDirty, savedSchoolSettings, school]);
 
   const saveSchool = () => {
     if (!sheetUrl.trim()) {

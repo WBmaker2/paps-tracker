@@ -255,8 +255,24 @@ const createLockedSheetClient = (updateRange = vi.fn(async () => ({}))) => ({
       return [
         ["학교명", "Locked School", "교사가 관리 페이지에서 설정", "", "", ""],
         ["__PAPS_SCHOOL", "locked-school", "Locked School", "https://docs.google.com/spreadsheets/d/sheet-owned/edit", "2026-03-24T09:00:00.000Z", "2026-03-24T09:00:00.000Z"],
+        [
+          "__PAPS_TEACHER_RETURN_PIN",
+          JSON.stringify({
+            algorithm: "hmac-sha256-v1",
+            salt: "test-salt",
+            hash: "test-hash",
+            updatedAt: "2026-04-21T09:00:00.000Z",
+            updatedByTeacherEmail: "other-teacher@example.com"
+          }),
+          "교사 화면 접근 PIN 해시",
+          "",
+          "",
+          ""
+        ],
         ["__PAPS_TEACHER", "teacher-other", "locked-school", "Other Teacher", "other-teacher@example.com", ""],
-        ["__PAPS_TEACHER_META", "teacher-other", "2026-03-24T09:00:00.000Z", "2026-03-24T09:00:00.000Z", "", ""]
+        ["__PAPS_TEACHER_META", "teacher-other", "2026-03-24T09:00:00.000Z", "2026-03-24T09:00:00.000Z", "", ""],
+        ["__PAPS_CLASS", "locked-class-4-1", "locked-school", "2026", "4", "1"],
+        ["__PAPS_CLASS_META", "locked-class-4-1", "4-1", "Y", "", ""]
       ];
     }
 
@@ -730,6 +746,89 @@ describe("teacher settings management", () => {
     ]);
   });
 
+  it("updates PIN and class cards immediately after saving school information", async () => {
+    const { TeacherSettingsManager } = await import(
+      "../../src/components/teacher/settings-management"
+    );
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          ok: true,
+          school: {
+            id: "connected-school",
+            name: "도촌초등학교",
+            teacherIds: ["teacher-demo-teacher-example-com"],
+            sheetUrl: "https://docs.google.com/spreadsheets/d/sheet-connected/edit",
+            teacherReturnPinConfigured: true,
+            createdAt: "2026-03-24T09:00:00.000Z",
+            updatedAt: "2026-04-29T09:00:00.000Z"
+          },
+          classes: [
+            {
+              id: "connected-class-4-1",
+              schoolId: "connected-school",
+              academicYear: 2026,
+              gradeLevel: 4,
+              classNumber: 1,
+              label: "4-1",
+              active: true
+            },
+            {
+              id: "connected-class-3-1",
+              schoolId: "connected-school",
+              academicYear: 2026,
+              gradeLevel: 3,
+              classNumber: 1,
+              label: "3-1",
+              active: true
+            }
+          ],
+          normalizedUrl: "https://docs.google.com/spreadsheets/d/sheet-connected/edit"
+        })
+      )
+    );
+
+    render(
+      <TeacherSettingsManager
+        school={null}
+        classes={[]}
+        sheetConnected={false}
+        sheetStatus={{
+          code: "not_connected",
+          isConnected: false,
+          canReconnect: true,
+          summary: "연결된 구글 시트가 없습니다.",
+          detail: null
+        }}
+        sheetSetupStatus={{
+          templateConfigured: true,
+          serviceAccountConfigured: true,
+          serviceAccountEmail: "service-account@example.com",
+          missingKeys: []
+        }}
+      />
+    );
+
+    expect(screen.getByText("PIN 미설정")).toBeInTheDocument();
+    expect(screen.queryByText("3-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("4-1")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("학교명"), {
+      target: { value: "도촌초등학교" }
+    });
+    fireEvent.change(screen.getByLabelText("구글 시트 URL"), {
+      target: { value: "https://docs.google.com/spreadsheets/d/sheet-connected/edit" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "학교 정보 저장" }));
+
+    await screen.findByText("학교 정보를 저장했습니다.");
+    expect(screen.getByText("PIN 설정됨")).toBeInTheDocument();
+    expect(screen.getByText("3-1")).toBeInTheDocument();
+    expect(screen.getByText("4-1")).toBeInTheDocument();
+  });
+
   it("rejects connect requests when the service account is not shared on the sheet", async () => {
     const connectRoute = await import("../../app/api/google-sheet/connect/route");
     const sheetsClient = await import("../../src/lib/google/sheets-client");
@@ -888,6 +987,16 @@ describe("teacher settings management", () => {
 
     expect(response.status).toBe(200);
     expect(payload.ok).toBe(true);
+    expect(payload.school.teacherReturnPin).toBeNull();
+    expect(payload.school.teacherReturnPinConfigured).toBe(true);
+    expect(payload.classes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "locked-class-4-1",
+          label: "4-1"
+        })
+      ])
+    );
     expect(settingsRows).toEqual(
       expect.arrayContaining([
         [

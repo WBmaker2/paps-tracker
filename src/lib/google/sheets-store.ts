@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 
-import type { PAPSSchool } from "../paps/types";
+import type { PAPSClassroom, PAPSSchool } from "../paps/types";
 import { createSchoolStoreForRequest, createStoreForRequest } from "../store/paps-store";
 import type { TeacherBootstrap } from "../store/paps-store-types";
 import {
@@ -79,7 +79,12 @@ export const loadTeacherPageState = async ({
 
 export const connectTeacherGoogleSheet = async (
   input: ConnectTeacherGoogleSheetInput
-): Promise<{ school: PAPSSchool; spreadsheetId: string; normalizedUrl: string }> =>
+): Promise<{
+  school: PAPSSchool;
+  classes: PAPSClassroom[];
+  spreadsheetId: string;
+  normalizedUrl: string;
+}> =>
   connectGoogleSheetForTeacher({
     ...input,
     client: input.client ?? createGoogleSheetClientFromEnv()

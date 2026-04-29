@@ -1,4 +1,4 @@
-import type { PAPSSchool, PAPSTeacher } from "../paps/types";
+import type { PAPSClassroom, PAPSSchool, PAPSTeacher } from "../paps/types";
 import {
   buildStructuredStateFromSheet,
   type GoogleSheetStructuredState
@@ -93,7 +93,12 @@ const buildConnectedTeachers = (
 
 export const connectGoogleSheetForTeacher = async (
   input: ConnectTeacherGoogleSheetInput
-): Promise<{ school: PAPSSchool; spreadsheetId: string; normalizedUrl: string }> => {
+): Promise<{
+  school: PAPSSchool;
+  classes: PAPSClassroom[];
+  spreadsheetId: string;
+  normalizedUrl: string;
+}> => {
   await validatePapsGoogleSheetTemplate(input.client, input.spreadsheetId);
   const currentState = await buildStructuredStateFromSheet({
     client: input.client,
@@ -122,6 +127,7 @@ export const connectGoogleSheetForTeacher = async (
 
   return {
     school,
+    classes: currentState.classes,
     spreadsheetId: input.spreadsheetId,
     normalizedUrl: input.normalizedUrl
   };

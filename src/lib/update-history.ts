@@ -5,9 +5,20 @@ export type UpdateHistoryEntry = {
   highlights: string[];
 };
 
-export const APP_VERSION = "v1.0.1";
+export const APP_VERSION = "v1.0.2";
 
 export const UPDATE_HISTORY: UpdateHistoryEntry[] = [
+  {
+    version: "v1.0.2",
+    title: "설정 저장 후 즉시 최신화",
+    summary:
+      "학교 정보를 저장한 뒤 새로고침하지 않아도 교사 PIN 상태와 학급 관리 목록이 최신 시트 정보로 바로 바뀌도록 개선했습니다.",
+    highlights: [
+      "학교 정보 저장 API가 연결된 시트의 학급 목록까지 함께 반환하도록 확장했습니다.",
+      "교사 화면 접근 PIN 설정 여부를 저장 직후 화면 상태에 즉시 반영하도록 수정했습니다.",
+      "기존 시트 연결 응답에서 PIN 해시 값은 숨기고 설정 여부만 내려주도록 안전하게 정리했습니다."
+    ]
+  },
   {
     version: "v1.0.1",
     title: "즉시 결과 기록 순서 보정",

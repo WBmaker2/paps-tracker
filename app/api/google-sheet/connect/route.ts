@@ -10,8 +10,14 @@ import {
 } from "../../../../src/lib/google/sheets-store";
 import { TEACHER_LIVE_UPDATE_CLIENT_HEADER } from "../../../../src/lib/teacher-live-update-protocol";
 import { publishTeacherLiveUpdate } from "../../../../src/lib/teacher-live-updates";
+import type { PAPSClassroom, PAPSSchool } from "../../../../src/lib/paps/types";
 import { createSchoolStoreForRequest } from "../../../../src/lib/store/paps-store";
 import { requireTeacherRouteSession } from "../../../../src/lib/teacher-auth";
+
+type TeacherSettingsSchoolPayload = Omit<PAPSSchool, "teacherReturnPin"> & {
+  teacherReturnPin: null;
+  teacherReturnPinConfigured: boolean;
+};
 
 const badRequest = (error: string) =>
   NextResponse.json(
@@ -36,6 +42,15 @@ const teacherNotAuthorized = (error: CurrentTeacherNotAuthorizedForSpreadsheetEr
       status: 409
     }
   );
+
+const toTeacherSettingsSchoolPayload = (school: PAPSSchool): TeacherSettingsSchoolPayload => ({
+  ...school,
+  teacherReturnPin: null,
+  teacherReturnPinConfigured: Boolean(school.teacherReturnPin)
+});
+
+const sortClassrooms = (classes: PAPSClassroom[]): PAPSClassroom[] =>
+  classes.slice().sort((left, right) => left.label.localeCompare(right.label));
 
 export async function POST(request: NextRequest) {
   const teacherSession = await requireTeacherRouteSession();
@@ -64,6 +79,7 @@ export async function POST(request: NextRequest) {
       client
     });
     let school = connection.school;
+    let classes = connection.classes;
 
     if (process.env.NODE_ENV === "test") {
       const store = await createSchoolStoreForRequest();
@@ -85,13 +101,15 @@ export async function POST(request: NextRequest) {
         createdAt: existingSchool?.createdAt ?? connection.school.createdAt,
         updatedAt: connection.school.updatedAt
       });
+      classes = connection.classes.length > 0 ? connection.classes : bootstrap.classes;
     }
 
     const response = NextResponse.json({
       ok: true,
       spreadsheetId: connection.spreadsheetId,
       normalizedUrl: connection.normalizedUrl,
-      school
+      school: toTeacherSettingsSchoolPayload(school),
+      classes: sortClassrooms(classes)
     });
     response.cookies.set(PAPS_SPREADSHEET_ID_COOKIE, connection.spreadsheetId, {
       ...createPapsSpreadsheetIdCookieOptions()
