@@ -61,12 +61,22 @@ const toStudentAttempt = (attempt: PAPSStoredAttempt): PAPSAttempt => ({
 const sortStudentEventHistoryAttempts = (
   attempts: PAPSStudentEventHistoryAttempt[]
 ): PAPSStudentEventHistoryAttempt[] =>
-  [...attempts].sort(
-    (left, right) =>
+  [...attempts].sort((left, right) => {
+    if (left.sessionId === right.sessionId) {
+      return (
+        left.attemptNumber - right.attemptNumber ||
+        left.createdAt.localeCompare(right.createdAt) ||
+        left.id.localeCompare(right.id)
+      );
+    }
+
+    return (
       left.createdAt.localeCompare(right.createdAt) ||
       left.sessionId.localeCompare(right.sessionId) ||
-      left.attemptNumber - right.attemptNumber
-  );
+      left.attemptNumber - right.attemptNumber ||
+      left.id.localeCompare(right.id)
+    );
+  });
 
 const dedupeStudentEventHistoryAttemptsByClientSubmissionKey = (
   attempts: PAPSStudentEventHistoryAttempt[]

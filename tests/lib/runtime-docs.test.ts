@@ -19,10 +19,12 @@ describe("runtime docs", () => {
     expect(packageJson.scripts?.["migrate:demo-store"]).toBeTruthy();
   });
 
-  it("documents the public update history from MVP to v1.0.0", () => {
+  it("documents the public update history from MVP to v1.0.1", () => {
     const updateHistory = readFileSync(join(projectRoot, "docs", "update-history.md"), "utf8");
 
     expect(updateHistory).toContain("# PAPS Tracker Update History");
+    expect(updateHistory).toContain("v1.0.1");
+    expect(updateHistory).toContain("즉시 결과 기록 순서 보정");
     expect(updateHistory).toContain("v1.0.0");
     expect(updateHistory).toContain("완제품 운영 흐름");
     expect(updateHistory).toContain("v0.1.0");

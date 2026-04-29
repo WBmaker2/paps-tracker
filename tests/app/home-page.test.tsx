@@ -68,7 +68,7 @@ describe("home page", () => {
 
     render(<HomePage />);
 
-    expect(screen.getByText("v1.0.0")).toBeInTheDocument();
+    expect(screen.getByText("v1.0.1")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Update info/i }));
 
@@ -77,7 +77,8 @@ describe("home page", () => {
         name: /업데이트 기록/
       })
     ).toBeInTheDocument();
-    expect(screen.getAllByText("v1.0.0").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("v1.0.1").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/즉시 결과 기록 순서 보정/)).toBeInTheDocument();
     expect(screen.getByText(/완제품 운영 흐름/)).toBeInTheDocument();
     expect(screen.getByText(/v0\.1\.0/)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "초기 MVP" })).toBeInTheDocument();

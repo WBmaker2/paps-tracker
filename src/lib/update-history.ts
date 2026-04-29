@@ -5,9 +5,20 @@ export type UpdateHistoryEntry = {
   highlights: string[];
 };
 
-export const APP_VERSION = "v1.0.0";
+export const APP_VERSION = "v1.0.1";
 
 export const UPDATE_HISTORY: UpdateHistoryEntry[] = [
+  {
+    version: "v1.0.1",
+    title: "즉시 결과 기록 순서 보정",
+    summary:
+      "학생이 기록을 입력한 직후 누적 기록 표와 직전 대비 수치가 실제 측정 흐름에 맞게 표시되도록 안정화했습니다.",
+    highlights: [
+      "같은 세션 안의 여러 회차 기록은 저장 시각보다 회차 순서를 우선해 표시하도록 수정했습니다.",
+      "직전 대비 계산이 바로 이전 기록과 비교되도록 보정해 잘못된 향상 폭이 표시되는 문제를 해결했습니다.",
+      "소수 계산 오차가 화면에 길게 노출되지 않도록 직전 대비 값을 보기 좋은 숫자로 정리했습니다."
+    ]
+  },
   {
     version: "v1.0.0",
     title: "완제품 운영 흐름",

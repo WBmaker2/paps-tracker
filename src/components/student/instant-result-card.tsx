@@ -42,6 +42,34 @@ const formatImprovement = ({
 const isHistoryAttempt = (attempt: PAPSAttempt): attempt is PAPSStudentEventHistoryAttempt =>
   "sessionName" in attempt;
 
+const compareAttemptsForDisplay = (left: PAPSAttempt, right: PAPSAttempt): number => {
+  const leftHistory = isHistoryAttempt(left) ? left : null;
+  const rightHistory = isHistoryAttempt(right) ? right : null;
+
+  if (leftHistory && rightHistory && leftHistory.sessionId === rightHistory.sessionId) {
+    return (
+      left.attemptNumber - right.attemptNumber ||
+      left.createdAt.localeCompare(right.createdAt) ||
+      left.id.localeCompare(right.id)
+    );
+  }
+
+  return (
+    left.createdAt.localeCompare(right.createdAt) ||
+    (leftHistory?.sessionId ?? "").localeCompare(rightHistory?.sessionId ?? "") ||
+    left.attemptNumber - right.attemptNumber ||
+    left.id.localeCompare(right.id)
+  );
+};
+
+const sortAttemptsForDisplay = (attempts: PAPSAttempt[]): PAPSAttempt[] =>
+  [...attempts].sort(compareAttemptsForDisplay);
+
+const formatDelta = (value: number): string =>
+  new Intl.NumberFormat("ko-KR", {
+    maximumFractionDigits: 3
+  }).format(Number(value.toFixed(3)));
+
 const formatHistorySessionLabel = (attempt: PAPSAttempt): string =>
   isHistoryAttempt(attempt)
     ? `${attempt.sessionName} · ${attempt.sessionType === "official" ? "공식" : "연습"}`
@@ -89,12 +117,13 @@ export function InstantResultCard({
   onEditLatestAttempt?: (attempt: PAPSAttempt) => void;
 }) {
   const latestAttempt = attempts.at(-1) ?? null;
-  const displayAttempts =
+  const rawDisplayAttempts =
     historyAttempts && historyAttempts.length > 0
       ? latestAttempt && !historyAttempts.some((attempt) => attempt.id === latestAttempt.id)
         ? [...historyAttempts, latestAttempt]
         : historyAttempts
       : attempts;
+  const displayAttempts = sortAttemptsForDisplay(rawDisplayAttempts);
   const showHistory = historyAttempts !== undefined && historyAttempts.length > 0;
   const hasPastSessionHistory =
     showHistory && displayAttempts.some((attempt) => isHistoryAttempt(attempt) && !attempt.isCurrentSession);
@@ -159,7 +188,7 @@ export function InstantResultCard({
           {improvement !== null ? (
             <p className="text-sm text-ink/70">
               직전 대비 {improvement > 0 ? "+" : ""}
-              {improvement} {unit}
+              {formatDelta(improvement)} {unit}
             </p>
           ) : (
             <p className="text-sm text-ink/70">첫 입력이라 비교값이 아직 없습니다.</p>
