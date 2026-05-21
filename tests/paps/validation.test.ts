@@ -1,6 +1,7 @@
 import {
   appendAttempt,
   assertAttemptInputAllowed,
+  assertMeasurementDetailAllowed,
   createAttemptRecord,
   validateSession
 } from "../../src/lib/paps/validation";
@@ -113,6 +114,33 @@ describe("PAPS validation", () => {
     expect(withSecondAttempt.attempts).toHaveLength(2);
     expect(withSecondAttempt.attempts.map((attempt) => attempt.attemptNumber)).toEqual([1, 2]);
     expect(withSecondAttempt.representativeAttemptId).toBeNull();
+  });
+
+  it("requires valid grip-strength detail format", () => {
+    expect(() =>
+      assertMeasurementDetailAllowed({
+        eventId: "grip-strength",
+        detail: {
+          kind: "grip-strength",
+          right: 18.5,
+          left: 17
+        }
+      })
+    ).not.toThrow();
+
+    expect(() =>
+      assertMeasurementDetailAllowed({
+        eventId: "grip-strength",
+        detail: { kind: "grip-strength", right: 18, left: NaN }
+      })
+    ).toThrow("악력 세부 기록을 입력해 주세요.");
+
+    expect(() =>
+      assertMeasurementDetailAllowed({
+        eventId: "grip-strength",
+        detail: { kind: "grip-strength", right: -1, left: 18 }
+      })
+    ).toThrow("악력 세부 기록을 입력해 주세요.");
   });
 
   it("enforces grade-specific event eligibility", () => {

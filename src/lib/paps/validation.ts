@@ -1,5 +1,9 @@
 import { getEventDefinition, isEventEligibleForGrade, supportsSessionType } from "./catalog";
-import { isComprehensiveFlexibilityMeasurementDetail, isStepTestMeasurementDetail } from "./composite-measurements";
+import {
+  isComprehensiveFlexibilityMeasurementDetail,
+  isGripStrengthMeasurementDetail,
+  isStepTestMeasurementDetail
+} from "./composite-measurements";
 import type {
   PAPSAttemptDraft,
   PAPSAttemptRecord,
@@ -119,6 +123,14 @@ export const assertMeasurementDetailAllowed = ({
   if (eventId === "comprehensive-flexibility") {
     if (!isComprehensiveFlexibilityMeasurementDetail(detail)) {
       throw new Error("종합유연성 세부 기록을 입력해 주세요.");
+    }
+
+    return;
+  }
+
+  if (eventId === "grip-strength") {
+    if (!isGripStrengthMeasurementDetail(detail)) {
+      throw new Error("악력 세부 기록을 입력해 주세요.");
     }
   }
 };

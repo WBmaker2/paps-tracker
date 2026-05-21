@@ -1,5 +1,6 @@
 import type {
   ComprehensiveFlexibilityMeasurementDetail,
+  GripStrengthMeasurementDetail,
   EventId,
   PAPSMeasurementDetail,
   StepTestMeasurementDetail
@@ -14,6 +15,8 @@ const roundUpToPrecision = (value: number, precision: number): number => {
 };
 
 const isBoolean = (value: unknown): value is boolean => typeof value === "boolean";
+const isFiniteNumber = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value);
 
 const isComprehensiveFlexibilitySection = (
   value: unknown
@@ -52,7 +55,30 @@ export const isComprehensiveFlexibilityMeasurementDetail = (
       isComprehensiveFlexibilitySection((value as { lowerBody?: unknown }).lowerBody)
   );
 
+export const isGripStrengthMeasurementDetail = (
+  value: unknown
+): value is GripStrengthMeasurementDetail =>
+  Boolean(
+    value &&
+      typeof value === "object" &&
+      (value as { kind?: unknown }).kind === "grip-strength" &&
+      isFiniteNumber((value as { right?: unknown }).right) &&
+      isFiniteNumber((value as { left?: unknown }).left) &&
+      (value as { right: number }).right >= 0 &&
+      (value as { left: number }).left >= 0 &&
+      (value as { right: number }).right <= 200 &&
+      (value as { left: number }).left <= 200
+  );
+
 export const parseMeasurementDetail = (value: unknown): PAPSMeasurementDetail | null => {
+  if (isGripStrengthMeasurementDetail(value)) {
+    return {
+      kind: "grip-strength",
+      right: value.right,
+      left: value.left
+    };
+  }
+
   if (isStepTestMeasurementDetail(value)) {
     return {
       kind: "step-test",
@@ -154,6 +180,19 @@ export const resolveSubmissionMeasurement = ({
     };
   }
 
+  if (eventId === "grip-strength") {
+    const parsedDetail = parseMeasurementDetail(detail);
+
+    if (!parsedDetail || !isGripStrengthMeasurementDetail(parsedDetail)) {
+      throw new Error("악력 세부 기록을 입력해 주세요.");
+    }
+
+    return {
+      measurement: Math.max(parsedDetail.right, parsedDetail.left),
+      detail: parsedDetail
+    };
+  }
+
   if (!Number.isFinite(measurement)) {
     throw new Error("A numeric measurement is required.");
   }
@@ -185,6 +224,10 @@ export const formatAttemptDetailSummary = ({
       `옆구리 ${getComprehensiveFlexibilitySectionScore(detail.side)}점`,
       `하체 ${getComprehensiveFlexibilitySectionScore(detail.lowerBody)}점`
     ].join(" · ");
+  }
+
+  if (eventId === "grip-strength" && isGripStrengthMeasurementDetail(detail)) {
+    return `오른쪽 ${detail.right}kg · 왼쪽 ${detail.left}kg`;
   }
 
   return null;

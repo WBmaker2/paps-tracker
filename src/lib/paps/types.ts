@@ -82,9 +82,16 @@ export interface ComprehensiveFlexibilityMeasurementDetail {
   lowerBody: ComprehensiveFlexibilitySectionDetail;
 }
 
+export interface GripStrengthMeasurementDetail {
+  kind: "grip-strength";
+  right: number;
+  left: number;
+}
+
 export type PAPSMeasurementDetail =
   | StepTestMeasurementDetail
-  | ComprehensiveFlexibilityMeasurementDetail;
+  | ComprehensiveFlexibilityMeasurementDetail
+  | GripStrengthMeasurementDetail;
 
 export interface PAPSAttempt {
   id: string;
