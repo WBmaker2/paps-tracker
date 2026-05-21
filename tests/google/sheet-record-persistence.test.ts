@@ -142,6 +142,54 @@ describe("Google Sheet record persistence helpers", () => {
     });
   });
 
+  it("preserves grip-strength attempt detail when rebuilding attempt records", () => {
+    const state: GoogleSheetStructuredState = {
+      ...createState(),
+      sessions: [
+        {
+          ...createState().sessions[0]!,
+          eventId: "grip-strength",
+          classTargets: [{ classId: "class-1", eventId: "grip-strength" }]
+        }
+      ],
+      attempts: [
+        {
+          id: "attempt-detail",
+          sessionId: "session-1",
+          studentId: "student-1",
+          eventId: "grip-strength",
+          unit: "kg",
+          attemptNumber: 1,
+          measurement: 18,
+          createdAt: "2026-03-23T09:03:00.000Z",
+          detail: {
+            kind: "grip-strength",
+            right: 18,
+            left: 17.4
+          }
+        }
+      ]
+    };
+
+    const records = buildAttemptRecordsForSession(state, "session-1");
+
+    expect(records).toHaveLength(2);
+    expect(records[0]).toMatchObject({
+      studentId: "student-1",
+      eventId: "grip-strength",
+      attempts: [
+        {
+          id: "attempt-detail",
+          detail: {
+            kind: "grip-strength",
+            right: 18,
+            left: 17.4
+          }
+        }
+      ]
+    });
+  });
+
   it("writes record and error tabs when sync status fails with a message", async () => {
     const nextStatus = await setGoogleSheetSyncStatus({
       client: {} as never,

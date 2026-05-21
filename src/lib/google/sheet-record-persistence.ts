@@ -77,7 +77,8 @@ export const buildAttemptRecordsForSession = (
       attemptNumber: attempt.attemptNumber,
       measurement: attempt.measurement,
       createdAt: attempt.createdAt,
-      clientSubmissionKey: attempt.clientSubmissionKey
+      clientSubmissionKey: attempt.clientSubmissionKey,
+      detail: attempt.detail ?? null
     });
     recordMap.set(recordId, record);
   }

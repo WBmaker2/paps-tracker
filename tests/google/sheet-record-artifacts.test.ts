@@ -125,4 +125,84 @@ describe("Google Sheet record artifacts parser", () => {
       })
     ]);
   });
+
+  it("parses grip-strength detail from existing 비고 JSON payload", () => {
+    const gripSessions: PAPSSession[] = [
+      {
+        id: "session-grip",
+        schoolId: "school-1",
+        teacherId: "teacher-1",
+        academicYear: 2026,
+        name: "Grip Strength Practice",
+        gradeLevel: 5,
+        sessionType: "practice",
+        classScope: "single",
+        eventId: "grip-strength",
+        classTargets: [{ classId: "class-1", eventId: "grip-strength" }],
+        isOpen: true,
+        createdAt: "2026-03-24T09:00:00.000Z"
+      }
+    ];
+
+    const artifacts = parseGoogleSheetRecordArtifacts({
+      sessions: gripSessions,
+      teachers,
+      teacherEmail: "demo-teacher@example.com",
+      recordRows: [
+        [
+          "attempt-grip",
+          "session-grip",
+          "Grip Strength Practice",
+          "2026",
+          "2026-03-24",
+          "practice",
+          "1반형",
+          "5-1",
+          "5-1",
+          "Grip Strength",
+          "kg",
+          "student-1",
+          "Kim",
+          "1",
+          "18",
+          "",
+          "",
+          "",
+          "2026-03-24T09:01:00.000Z",
+          "synced",
+          JSON.stringify({
+            clientSubmissionKey: "abc",
+            detail: {
+              kind: "grip-strength",
+              right: 18,
+              left: 17.4
+            }
+          })
+        ]
+      ],
+      errorRows: [],
+      auditRows: [],
+      normalizeIsoValue: (value?: string | null) => {
+        if (!value?.trim()) {
+          return "2026-03-24T00:00:00.000Z";
+        }
+
+        return value.includes("T") ? value : `${value}T00:00:00.000Z`;
+      },
+      createTeacherId: (email: string) =>
+        `teacher-${email.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-")}`
+    });
+
+    expect(artifacts.attempts).toHaveLength(1);
+    expect(artifacts.attempts[0]).toMatchObject({
+      id: "attempt-grip",
+      eventId: "grip-strength",
+      measurement: 18,
+      detail: {
+        kind: "grip-strength",
+        right: 18,
+        left: 17.4
+      }
+    });
+  });
 });

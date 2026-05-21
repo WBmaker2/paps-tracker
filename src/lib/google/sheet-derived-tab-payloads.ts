@@ -1,7 +1,8 @@
 import { getEventDefinition } from "../paps/catalog";
-import { formatAttemptDetailSummary } from "../paps/composite-measurements";
+import { formatAttemptDetailSummary, summarizeGripStrengthBilateralBest } from "../paps/composite-measurements";
 import { summarizeRepresentativeRecords, summarizeStudentRecord } from "../paps/summaries";
 import type {
+  PAPSAttempt,
   PAPSAttemptRecord,
   PAPSClassroom,
   PAPSRepresentativeSelectionAuditLog,
@@ -60,6 +61,18 @@ const toSyncStatusLabel = (status?: PAPSSyncStatusRecord["status"] | null): stri
     default:
       return "대기";
   }
+};
+
+const summarizeGripAttemptRepresentativeText = (
+  attempts: ReadonlyArray<PAPSAttempt>
+): string | null => {
+  const summary = summarizeGripStrengthBilateralBest({ attempts: [...attempts] });
+
+  if (!summary) {
+    return null;
+  }
+
+  return `오른쪽 대표 ${summary.right}kg · 왼쪽 대표 ${summary.left}kg`;
 };
 
 const createAttemptRecords = (
@@ -216,6 +229,20 @@ export const buildDerivedGoogleSheetTabPayloads = ({
     header: PAPS_GOOGLE_SHEET_PROTOTYPE_TABS[3]!.header,
     rows: representativeSummaries.studentSummaries.map((summary) => {
       const classroom = classById.get(summary.classId);
+      const latestRecord = attemptRecords.find(
+        (attemptRecord) =>
+          attemptRecord.sessionId === summary.latestSessionId &&
+          attemptRecord.studentId === summary.studentId &&
+          attemptRecord.sessionId &&
+          attemptRecord.studentId
+      );
+      const bilateralRepresentativeText =
+        summary.eventId === "grip-strength"
+          ? summarizeGripAttemptRepresentativeText(latestRecord?.attempts ?? [])
+          : null;
+      const displayMessage = bilateralRepresentativeText
+        ? `${summary.message} · ${bilateralRepresentativeText}`
+        : summary.message;
 
       return [
         summary.studentId,
@@ -229,7 +256,7 @@ export const buildDerivedGoogleSheetTabPayloads = ({
         summary.improvement ?? "",
         summary.bestRepresentativeMeasurement,
         formatIsoDate(summary.latestMeasuredAt),
-        summary.message
+        displayMessage
       ];
     })
   };
@@ -253,6 +280,14 @@ export const buildDerivedGoogleSheetTabPayloads = ({
             detail: representativeAttempt.detail
           })
         : null;
+      const summaryRepresentativeRecord = attemptRecords.find(
+        (record) =>
+          record.sessionId === summary.sessionId && record.studentId === summary.studentId
+      );
+      const bilateralRepresentativeText =
+        summary.eventId === "grip-strength"
+          ? summarizeGripAttemptRepresentativeText(summaryRepresentativeRecord?.attempts ?? [])
+          : null;
 
       return [
         summary.studentId,
@@ -265,7 +300,9 @@ export const buildDerivedGoogleSheetTabPayloads = ({
         summary.officialGrade ?? "",
         formatIsoDate(summary.measuredAt),
         summary.sessionName,
-        [auditLog?.reason ?? summary.note, detailSummary].filter(Boolean).join(" · ")
+        [auditLog?.reason ?? summary.note, detailSummary, bilateralRepresentativeText]
+          .filter(Boolean)
+          .join(" · ")
       ];
     })
   };

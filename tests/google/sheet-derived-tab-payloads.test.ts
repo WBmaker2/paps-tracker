@@ -141,4 +141,173 @@ describe("Google Sheet derived tab payloads", () => {
       "대표값선택"
     ]);
   });
+
+  it("includes bilateral grip-strength representative summaries in derived payload rows", () => {
+    const tabs = buildDerivedGoogleSheetTabPayloads({
+      classes: [
+        {
+          id: "class-5-1",
+          schoolId: "school-1",
+          academicYear: 2026,
+          gradeLevel: 5,
+          classNumber: 1,
+          label: "5-1",
+          active: true
+        }
+      ],
+      teachers: [
+        {
+          id: "teacher-1",
+          schoolId: "school-1",
+          name: "Teacher",
+          email: "teacher@example.com",
+          createdAt: "2026-03-23T09:00:00.000Z",
+          updatedAt: "2026-03-23T09:00:00.000Z"
+        }
+      ],
+      students: [
+        {
+          id: "student-1",
+          schoolId: "school-1",
+          classId: "class-5-1",
+          studentNumber: 1,
+          name: "Kim",
+          sex: "female",
+          gradeLevel: 5,
+          active: true
+        }
+      ],
+      sessions: [
+        {
+          id: "session-official",
+          schoolId: "school-1",
+          teacherId: "teacher-1",
+          academicYear: 2026,
+          name: "Grip Strength Official",
+          gradeLevel: 5,
+          sessionType: "official",
+          classScope: "single",
+          eventId: "grip-strength",
+          classTargets: [{ classId: "class-5-1", eventId: "grip-strength" }],
+          isOpen: false,
+          createdAt: "2026-03-20T09:00:00.000Z"
+        },
+        {
+          id: "session-practice",
+          schoolId: "school-1",
+          teacherId: "teacher-1",
+          academicYear: 2026,
+          name: "Grip Strength Practice",
+          gradeLevel: 5,
+          sessionType: "practice",
+          classScope: "single",
+          eventId: "grip-strength",
+          classTargets: [{ classId: "class-5-1", eventId: "grip-strength" }],
+          isOpen: false,
+          createdAt: "2026-03-21T09:00:00.000Z"
+        }
+      ],
+      attempts: [
+        {
+          id: "attempt-official-1",
+          sessionId: "session-official",
+          studentId: "student-1",
+          eventId: "grip-strength",
+          unit: "kg",
+          attemptNumber: 1,
+          measurement: 18,
+          createdAt: "2026-03-20T09:01:00.000Z",
+          detail: {
+            kind: "grip-strength",
+            right: 18,
+            left: 17
+          }
+        },
+        {
+          id: "attempt-official-2",
+          sessionId: "session-official",
+          studentId: "student-1",
+          eventId: "grip-strength",
+          unit: "kg",
+          attemptNumber: 2,
+          measurement: 20,
+          createdAt: "2026-03-20T09:02:00.000Z",
+          detail: {
+            kind: "grip-strength",
+            right: 17.5,
+            left: 19
+          }
+        },
+        {
+          id: "attempt-practice-1",
+          sessionId: "session-practice",
+          studentId: "student-1",
+          eventId: "grip-strength",
+          unit: "kg",
+          attemptNumber: 1,
+          measurement: 20,
+          createdAt: "2026-03-21T09:01:00.000Z",
+          detail: {
+            kind: "grip-strength",
+            right: 20,
+            left: 15
+          }
+        },
+        {
+          id: "attempt-practice-2",
+          sessionId: "session-practice",
+          studentId: "student-1",
+          eventId: "grip-strength",
+          unit: "kg",
+          attemptNumber: 2,
+          measurement: 22,
+          createdAt: "2026-03-21T09:02:00.000Z",
+          detail: {
+            kind: "grip-strength",
+            right: 18,
+            left: 22
+          }
+        }
+      ],
+      syncStatuses: [],
+      syncErrorLogs: [],
+      representativeSelectionAuditLogs: [
+        {
+          id: "rep:session-official:student-1:2026-03-20T09:03:00.000Z",
+          sessionId: "session-official",
+          studentId: "student-1",
+          eventId: "grip-strength",
+          previousAttemptId: null,
+          selectedAttemptId: "attempt-official-2",
+          changedByTeacherId: "teacher-1",
+          reason: "Official grip rep",
+          createdAt: "2026-03-20T09:03:00.000Z"
+        },
+        {
+          id: "rep:session-practice:student-1:2026-03-21T09:03:00.000Z",
+          sessionId: "session-practice",
+          studentId: "student-1",
+          eventId: "grip-strength",
+          previousAttemptId: null,
+          selectedAttemptId: "attempt-practice-2",
+          changedByTeacherId: "teacher-1",
+          reason: "Practice grip rep",
+          createdAt: "2026-03-21T09:03:00.000Z"
+        }
+      ]
+    });
+
+    const recordRows = tabs.find((tab) => tab.tabName === "세션기록")?.rows ?? [];
+    const studentSummaryRows = tabs.find((tab) => tab.tabName === "학생요약")?.rows ?? [];
+    const officialSummaryRows = tabs.find((tab) => tab.tabName === "공식평가요약")?.rows ?? [];
+    const practiceSessionRow = recordRows.find((row) => row[0] === "attempt-practice-2");
+    const studentSummaryRow = studentSummaryRows.find((row) => row[0] === "student-1");
+    const officialSummaryRow = officialSummaryRows[0];
+
+    expect(String(practiceSessionRow?.[20] ?? "")).toContain("세부기록: 오른쪽 18kg · 왼쪽 22kg");
+    expect(studentSummaryRow?.[11]).toBe(
+      "지난 기록 대비 +2kg · 오른쪽 대표 20kg · 왼쪽 대표 22kg"
+    );
+    expect(String(officialSummaryRow?.[10] ?? "")).toContain("오른쪽 대표 18kg · 왼쪽 대표 19kg");
+  });
 });
