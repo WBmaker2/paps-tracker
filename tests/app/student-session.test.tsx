@@ -153,6 +153,20 @@ const buildStudentSeed = (): PAPSDemoStoreData => ({
       createdAt: "2026-03-01T09:10:00.000Z"
     },
     {
+      id: "session-grip",
+      schoolId: "demo-school",
+      teacherId: "demo-teacher",
+      academicYear: 2026,
+      name: "5-1 Grip Strength",
+      gradeLevel: 5,
+      sessionType: "official",
+      classScope: "single",
+      eventId: "grip-strength",
+      classTargets: [{ classId: "demo-class-5-1", eventId: "grip-strength" }],
+      isOpen: true,
+      createdAt: "2026-03-23T09:17:00.000Z"
+    },
+    {
       id: "session-step-test",
       schoolId: "demo-school",
       teacherId: "demo-teacher",
@@ -463,6 +477,99 @@ describe("student session flow", () => {
     expect(screen.getByText("16 cm")).toBeInTheDocument();
     expect(screen.getAllByText("이번 기록")).toHaveLength(2);
     expect(screen.getByText("직전 대비 +3 cm")).toBeInTheDocument();
+  });
+
+  it("renders bilateral grip-strength inputs with side-specific labels", async () => {
+    await renderStudentSessionPage("session-grip");
+
+    fireEvent.click(screen.getByRole("button", { name: "Kim" }));
+
+    expect(screen.getByLabelText("오른쪽 악력")).toBeInTheDocument();
+    expect(screen.getByLabelText("왼쪽 악력")).toBeInTheDocument();
+    expect(screen.queryByLabelText("악력 기록")).not.toBeInTheDocument();
+  });
+
+  it("validates that both grip-strength sides are required", async () => {
+    await installStudentApiFetch();
+    await renderStudentSessionPage("session-grip");
+
+    fireEvent.click(screen.getByRole("button", { name: "Kim" }));
+    fireEvent.change(screen.getByLabelText("오른쪽 악력"), {
+      target: { value: "17.5" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "기록 제출" }));
+
+    await screen.findByText("양쪽 악력 값을 모두 입력해 주세요.");
+    const attempts = getRequestStore().getAttemptRecord({
+      sessionId: "session-grip",
+      studentId: "student-kim"
+    }).attempts;
+
+    expect(attempts).toHaveLength(0);
+  });
+
+  it("stores grip-strength as max measurement and bilateral detail, and prefills values in edit mode", async () => {
+    await installStudentApiFetch();
+    await renderStudentSessionPage("session-grip");
+
+    fireEvent.click(screen.getByRole("button", { name: "Kim" }));
+    fireEvent.change(screen.getByLabelText("오른쪽 악력"), {
+      target: { value: "18.4" }
+    });
+    fireEvent.change(screen.getByLabelText("왼쪽 악력"), {
+      target: { value: "17.4" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "기록 제출" }));
+
+    await screen.findByText("Kim 학생 결과");
+
+    const submitted = getRequestStore().getAttemptRecord({
+      sessionId: "session-grip",
+      studentId: "student-kim"
+    }).attempts.at(-1);
+
+    expect(submitted?.measurement).toBe(18.4);
+    expect(submitted?.detail).toEqual({
+      kind: "grip-strength",
+      right: 18.4,
+      left: 17.4
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "방금 기록 수정" }));
+
+    const editRightInput = screen.getByLabelText("오른쪽 악력") as HTMLInputElement;
+    const editLeftInput = screen.getByLabelText("왼쪽 악력") as HTMLInputElement;
+
+    expect(editRightInput.value).toBe("18.4");
+    expect(editLeftInput.value).toBe("17.4");
+
+    fireEvent.change(editRightInput, {
+      target: { value: "17" }
+    });
+    fireEvent.change(editLeftInput, {
+      target: { value: "19.2" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "수정 저장" }));
+
+    await waitFor(() => {
+      const latest = getRequestStore().getAttemptRecord({
+        sessionId: "session-grip",
+        studentId: "student-kim"
+      }).attempts.at(-1);
+
+      expect(latest?.measurement).toBe(19.2);
+      expect(latest?.detail).toEqual({
+        kind: "grip-strength",
+        right: 17,
+        left: 19.2
+      });
+      expect(
+        getRequestStore().getAttemptRecord({
+          sessionId: "session-grip",
+          studentId: "student-kim"
+        }).attempts
+      ).toHaveLength(1);
+    });
   });
 
   it("allows editing the latest submitted attempt without adding another attempt", async () => {

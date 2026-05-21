@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   deriveCompositeMeasurement,
   formatAttemptDetailSummary,
+  summarizeGripStrengthBilateralBest,
   isGripStrengthMeasurementDetail,
   parseMeasurementDetail,
   resolveSubmissionMeasurement
@@ -149,6 +150,46 @@ describe("PAPS composite measurements", () => {
         }
       })
     ).toBe("오른쪽 18kg · 왼쪽 17.4kg");
+  });
+
+  it("summarizes grip-strength bilateral representative values from attempts", () => {
+    expect(
+      summarizeGripStrengthBilateralBest({
+        attempts: [
+          {
+            id: "attempt-1",
+            attemptNumber: 1,
+            measurement: 17.8,
+            createdAt: "2026-03-01T09:00:00.000Z",
+            detail: {
+              kind: "grip-strength",
+              right: 18,
+              left: 16
+            }
+          },
+          {
+            id: "attempt-2",
+            attemptNumber: 2,
+            measurement: 17,
+            createdAt: "2026-03-02T09:00:00.000Z",
+            detail: {
+              kind: "grip-strength",
+              right: 16.5,
+              left: 19.4
+            }
+          },
+          {
+            id: "attempt-3",
+            attemptNumber: 3,
+            measurement: 19,
+            createdAt: "2026-03-03T09:00:00.000Z"
+          }
+        ]
+      })
+    ).toEqual({
+      right: 18,
+      left: 19.4
+    });
   });
 
   it("isGripStrengthMeasurementDetail validates grip details", () => {

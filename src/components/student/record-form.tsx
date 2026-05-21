@@ -160,12 +160,25 @@ export function RecordForm({
   const [flexibilityState, setFlexibilityState] = useState<FlexibilityFormState>(
     createEmptyFlexibilityState()
   );
+  const [gripRight, setGripRight] = useState("");
+  const [gripLeft, setGripLeft] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
 
   useEffect(() => {
-    setMeasurement(
-      initialSubmission?.measurement !== undefined ? String(initialSubmission.measurement) : ""
-    );
+    if (eventId === "grip-strength") {
+      setGripRight(
+        initialSubmission?.detail?.kind === "grip-strength" ? String(initialSubmission.detail.right) : ""
+      );
+      setGripLeft(
+        initialSubmission?.detail?.kind === "grip-strength" ? String(initialSubmission.detail.left) : ""
+      );
+      setMeasurement("");
+    } else {
+      setMeasurement(
+        initialSubmission?.measurement !== undefined ? String(initialSubmission.measurement) : ""
+      );
+    }
+
     setStepHeartRates(
       initialSubmission?.detail?.kind === "step-test"
         ? initialSubmission.detail.recoveryHeartRates.map((value) => String(value))
@@ -226,6 +239,31 @@ export function RecordForm({
       setLocalError(null);
       await onSubmit({
         detail
+      });
+      return;
+    }
+
+    if (eventId === "grip-strength") {
+      if (!gripRight.trim() || !gripLeft.trim()) {
+        setLocalError("양쪽 악력 값을 모두 입력해 주세요.");
+        return;
+      }
+
+      const rightMeasurement = Number(gripRight);
+      const leftMeasurement = Number(gripLeft);
+
+      if (!Number.isFinite(rightMeasurement) || !Number.isFinite(leftMeasurement)) {
+        setLocalError("악력은 숫자로 입력해 주세요.");
+        return;
+      }
+
+      setLocalError(null);
+      await onSubmit({
+        detail: {
+          kind: "grip-strength",
+          right: rightMeasurement,
+          left: leftMeasurement
+        }
       });
       return;
     }
@@ -365,7 +403,37 @@ export function RecordForm({
           </>
         ) : null}
 
-        {eventId !== "step-test" && eventId !== "comprehensive-flexibility" ? (
+        {eventId === "grip-strength" ? (
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="flex flex-col gap-2 text-sm">
+              오른쪽 악력
+              <input
+                type="number"
+                inputMode="decimal"
+                step={step}
+                min={measurementConstraints.min}
+                max={measurementConstraints.max}
+                className="rounded-2xl border border-ink/15 px-4 py-3"
+                value={gripRight}
+                onChange={(inputEvent) => setGripRight(inputEvent.target.value)}
+              />
+            </label>
+            <label className="flex flex-col gap-2 text-sm">
+              왼쪽 악력
+              <input
+                type="number"
+                inputMode="decimal"
+                step={step}
+                min={measurementConstraints.min}
+                max={measurementConstraints.max}
+                className="rounded-2xl border border-ink/15 px-4 py-3"
+                value={gripLeft}
+                onChange={(inputEvent) => setGripLeft(inputEvent.target.value)}
+              />
+            </label>
+          </div>
+        ) : null}
+        {eventId !== "step-test" && eventId !== "comprehensive-flexibility" && eventId !== "grip-strength" ? (
           <>
             <label className="flex flex-col gap-2 text-sm">
               {eventLabel} 기록

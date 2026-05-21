@@ -1,7 +1,10 @@
 import React from "react";
 
 import { ProgressMiniChart } from "../charts/progress-mini-chart";
-import { formatAttemptDetailSummary } from "../../lib/paps/composite-measurements";
+import {
+  formatAttemptDetailSummary,
+  summarizeGripStrengthBilateralBest
+} from "../../lib/paps/composite-measurements";
 import type {
   BetterDirection,
   EventId,
@@ -147,6 +150,8 @@ export function InstantResultCard({
     })
   }));
   const hasDetailSummary = attemptRows.some((entry) => entry.detailSummary !== null);
+  const gripRepresentativeSummary =
+    eventId === "grip-strength" ? summarizeGripStrengthBilateralBest({ attempts: displayAttempts }) : null;
 
   if (!latestAttempt) {
     return null;
@@ -184,6 +189,11 @@ export function InstantResultCard({
           </p>
           {latestDetailSummary ? (
             <p className="text-sm text-ink/70">{latestDetailSummary}</p>
+          ) : null}
+          {gripRepresentativeSummary ? (
+            <p className="text-sm text-ink/70">
+              오른쪽 대표 {gripRepresentativeSummary.right}kg · 왼쪽 대표 {gripRepresentativeSummary.left}kg
+            </p>
           ) : null}
           {improvement !== null ? (
             <p className="text-sm text-ink/70">

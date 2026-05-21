@@ -3,6 +3,7 @@ import type {
   GripStrengthMeasurementDetail,
   EventId,
   PAPSMeasurementDetail,
+  PAPSAttempt,
   StepTestMeasurementDetail
 } from "./types";
 
@@ -238,4 +239,30 @@ export const formatAttemptDetailSummary = ({
   }
 
   return null;
+};
+
+export const summarizeGripStrengthBilateralBest = ({
+  attempts
+}: {
+  attempts: PAPSAttempt[];
+}): {
+  right: number;
+  left: number;
+} | null => {
+  const validGripAttempts = attempts.filter(
+    (attempt): attempt is PAPSAttempt & { detail: GripStrengthMeasurementDetail } =>
+      attempt.detail?.kind === "grip-strength"
+  );
+
+  if (validGripAttempts.length === 0) {
+    return null;
+  }
+
+  const right = Math.max(...validGripAttempts.map((attempt) => attempt.detail.right));
+  const left = Math.max(...validGripAttempts.map((attempt) => attempt.detail.left));
+
+  return {
+    right,
+    left
+  };
 };

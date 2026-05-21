@@ -11,14 +11,19 @@ describe("student instant result card", () => {
       {
         id: "attempt-march",
         attemptNumber: 1,
-        measurement: 17.2,
+        measurement: 18,
         createdAt: "2026-03-05T09:00:00.000Z",
         sessionId: "session-march",
         sessionName: "3월 5, 6학년 - 악력",
         sessionType: "practice",
         eventId: "grip-strength",
         academicYear: 2026,
-        isCurrentSession: false
+        isCurrentSession: false,
+        detail: {
+          kind: "grip-strength",
+          right: 18,
+          left: 17.4
+        }
       },
       {
         id: "attempt-current",
@@ -30,7 +35,12 @@ describe("student instant result card", () => {
         sessionType: "official",
         eventId: "grip-strength",
         academicYear: 2026,
-        isCurrentSession: true
+        isCurrentSession: true,
+        detail: {
+          kind: "grip-strength",
+          right: 16.4,
+          left: 18.6
+        }
       },
       {
         id: "attempt-april-first",
@@ -42,7 +52,12 @@ describe("student instant result card", () => {
         sessionType: "official",
         eventId: "grip-strength",
         academicYear: 2026,
-        isCurrentSession: true
+        isCurrentSession: true,
+        detail: {
+          kind: "grip-strength",
+          right: 19.8,
+          left: 16.4
+        }
       }
     ];
 
@@ -64,11 +79,12 @@ describe("student instant result card", () => {
     );
 
     expect(screen.getByText("직전 대비 +0.6 kg")).toBeInTheDocument();
+    expect(screen.getByText("오른쪽 대표 19.8kg · 왼쪽 대표 18.6kg")).toBeInTheDocument();
 
     const rows = screen.getAllByRole("row").slice(1);
     expect(rows).toHaveLength(3);
     expect(within(rows[0]!).getByText("1번째 기록")).toBeInTheDocument();
-    expect(within(rows[0]!).getByText("17.2 kg")).toBeInTheDocument();
+    expect(within(rows[0]!).getByText("18 kg")).toBeInTheDocument();
     expect(within(rows[1]!).getByText("2번째 기록")).toBeInTheDocument();
     expect(within(rows[1]!).getByText("17.4 kg")).toBeInTheDocument();
     expect(within(rows[2]!).getByText("이번 기록")).toBeInTheDocument();
