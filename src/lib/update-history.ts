@@ -5,9 +5,20 @@ export type UpdateHistoryEntry = {
   highlights: string[];
 };
 
-export const APP_VERSION = "v1.0.2";
+export const APP_VERSION = "v1.0.3";
 
 export const UPDATE_HISTORY: UpdateHistoryEntry[] = [
+  {
+    version: "v1.0.3",
+    title: "악력 좌우 기록",
+    summary:
+      "악력 측정을 오른쪽과 왼쪽으로 나누어 입력하고, 양손 각각의 최고 기록을 대표값으로 확인할 수 있게 개선했습니다.",
+    highlights: [
+      "학생 입력 화면에서 악력 종목은 오른쪽 악력과 왼쪽 악력을 따로 입력하도록 변경했습니다.",
+      "기존 기록 구조와 호환되도록 전체 기록값은 유지하면서 좌우 상세 기록을 함께 저장합니다.",
+      "학생 즉시 결과와 Google Sheets 요약에서 오른쪽 대표값과 왼쪽 대표값을 각각 표시합니다."
+    ]
+  },
   {
     version: "v1.0.2",
     title: "설정 저장 후 즉시 최신화",
