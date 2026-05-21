@@ -495,7 +495,9 @@ describe("teacher settings management", () => {
       nextVersion: expect.any(String)
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "PIN 해제" }));
+    const clearPinButton = screen.getByRole("button", { name: "PIN 해제" });
+    await waitFor(() => expect(clearPinButton).not.toBeDisabled());
+    fireEvent.click(clearPinButton);
 
     await screen.findByText("교사 화면 접근 PIN을 해제했습니다.");
     expect(screen.getByText("PIN 미설정")).toBeInTheDocument();
