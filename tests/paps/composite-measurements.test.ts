@@ -105,6 +105,7 @@ describe("PAPS composite measurements", () => {
     expect(parseMeasurementDetail({ kind: "grip-strength", right: 201, left: 12 })).toBeNull();
     expect(parseMeasurementDetail({ kind: "grip-strength", right: Number.NaN, left: 12 })).toBeNull();
     expect(parseMeasurementDetail({ kind: "grip-strength", right: Infinity, left: 12 })).toBeNull();
+    expect(parseMeasurementDetail({ kind: "grip-strength", right: 18.5, left: 17.456 })).toBeNull();
   });
 
   it("resolves grip-strength submission measurement from right/left values", () => {
@@ -162,5 +163,6 @@ describe("PAPS composite measurements", () => {
     expect(isGripStrengthMeasurementDetail({ kind: "grip-strength", right: -1, left: 17 })).toBe(false);
     expect(isGripStrengthMeasurementDetail({ kind: "grip-strength", right: "18", left: 17 })).toBe(false);
     expect(isGripStrengthMeasurementDetail({ kind: "grip-strength", right: 18, left: NaN })).toBe(false);
+    expect(isGripStrengthMeasurementDetail({ kind: "grip-strength", right: 18.5, left: 17.456 })).toBe(false);
   });
 });

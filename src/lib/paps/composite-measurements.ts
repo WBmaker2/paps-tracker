@@ -17,6 +17,11 @@ const roundUpToPrecision = (value: number, precision: number): number => {
 const isBoolean = (value: unknown): value is boolean => typeof value === "boolean";
 const isFiniteNumber = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value);
+const hasOneDecimalOrLess = (value: number): boolean => {
+  const scaled = value * 10;
+
+  return Math.abs(scaled - Math.round(scaled)) <= Number.EPSILON * 10;
+};
 
 const isComprehensiveFlexibilitySection = (
   value: unknown
@@ -67,7 +72,9 @@ export const isGripStrengthMeasurementDetail = (
       (value as { right: number }).right >= 0 &&
       (value as { left: number }).left >= 0 &&
       (value as { right: number }).right <= 200 &&
-      (value as { left: number }).left <= 200
+      (value as { left: number }).left <= 200 &&
+      hasOneDecimalOrLess((value as { right: number }).right) &&
+      hasOneDecimalOrLess((value as { left: number }).left)
   );
 
 export const parseMeasurementDetail = (value: unknown): PAPSMeasurementDetail | null => {
