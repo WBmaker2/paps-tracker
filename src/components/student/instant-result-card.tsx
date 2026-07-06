@@ -137,7 +137,7 @@ export function InstantResultCard({
   const hasDetailSummary = attemptRows.some((entry) => entry.detailSummary !== null);
   const gripRepresentativeSummary =
     eventId === "grip-strength" ? summarizeGripStrengthBilateralBest({ attempts: displayAttempts }) : null;
-  const hasGripStrengthDetailHistory = displayAttempts.some((attempt) =>
+  const isGripStrengthCompleteSeries = displayAttempts.every((attempt) =>
     isGripStrengthMeasurementDetail(attempt.detail)
   );
 
@@ -208,7 +208,7 @@ export function InstantResultCard({
             <p className="text-sm font-medium text-ink">이번 기록 기준 등급: {latestOfficialGrade}등급</p>
           ) : null}
         </div>
-        {eventId === "grip-strength" && hasGripStrengthDetailHistory ? (
+        {eventId === "grip-strength" && isGripStrengthCompleteSeries ? (
           <GripStrengthBilateralChart attempts={displayAttempts} getLabel={chartLabelResolver} />
         ) : (
           <ProgressMiniChart
