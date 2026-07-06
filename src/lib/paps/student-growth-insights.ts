@@ -27,6 +27,8 @@ const isHistoryAttempt = (attempt: PAPSAttempt): attempt is PAPSStudentEventHist
 const isLatestAttempt = (attempt: StudentGrowthAttempt, latestAttemptId: string | null) =>
   latestAttemptId !== null && attempt.id === latestAttemptId;
 
+const normalizeDelta = (value: number): number => clampNegativeZero(Number(value.toFixed(3)));
+
 const compareAttemptsForChronology = (left: StudentGrowthAttempt, right: StudentGrowthAttempt): number => {
   const createdAtCompare = left.createdAt.localeCompare(right.createdAt);
 
@@ -34,8 +36,8 @@ const compareAttemptsForChronology = (left: StudentGrowthAttempt, right: Student
     return createdAtCompare;
   }
 
-  const leftHistory = isHistoryAttempt(left);
-  const rightHistory = isHistoryAttempt(right);
+  const leftHistory = isHistoryAttempt(left) ? left : null;
+  const rightHistory = isHistoryAttempt(right) ? right : null;
 
   if (leftHistory && rightHistory && leftHistory.sessionId === rightHistory.sessionId) {
     const attemptNumberCompare = left.attemptNumber - right.attemptNumber;
@@ -61,7 +63,7 @@ const clampNegativeZero = (value: number): number =>
   Object.is(value, -0) ? 0 : value;
 
 const formatDeltaText = (value: number, unit: string): string => {
-  const rounded = clampNegativeZero(Number(value.toFixed(3)));
+  const rounded = normalizeDelta(value);
 
   if (rounded === 0) {
     return `0 ${unit}`;
@@ -99,8 +101,9 @@ const resolveTrend = (deltas: number[]): StudentGrowthTrend => {
     return "single";
   }
 
-  const hasPositive = deltas.some((delta) => delta > 0);
-  const hasNegative = deltas.some((delta) => delta < 0);
+  const normalizedDeltas = deltas.map(normalizeDelta);
+  const hasPositive = normalizedDeltas.some((delta) => delta > 0);
+  const hasNegative = normalizedDeltas.some((delta) => delta < 0);
 
   if (!hasPositive && !hasNegative) {
     return "same";
@@ -140,7 +143,16 @@ const buildSummary = ({
   }
 
   if (trend === "mixed") {
-    return `${eventLabel} ${overallStartLabel}에서 ${overallEndLabel}까지 총 ${overallDeltaText} 변화했지만, 직전 기록과 달리 ${previousDeltaText}로 보입니다.`;
+    const directionText =
+      previousDeltaText === null
+        ? "같은 수준입니다."
+        : previousDeltaText.startsWith("+")
+          ? "좋아졌습니다."
+          : previousDeltaText.startsWith("-")
+            ? "나빠졌습니다."
+            : "같은 수준입니다.";
+
+    return `${overallStartLabel}에서 ${overallEndLabel}까지 총 ${overallDeltaText} 오르내림이 있었고, 직전 기록보다 ${previousDeltaText} ${directionText}`;
   }
 
   if (trend === "declining") {

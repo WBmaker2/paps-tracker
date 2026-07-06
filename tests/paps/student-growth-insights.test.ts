@@ -258,4 +258,67 @@ describe("student growth insights", () => {
     expect(insight.previousDeltaText).toBe("+0.8 kg");
     expect(insight.overallDeltaText).toBe("+0.8 kg");
   });
+
+  it("classifies near-zero floating-point deltas as same", () => {
+    const attempts: PAPSStudentEventHistoryAttempt[] = [
+      buildAttempt({
+        id: "float-start-same",
+        measurement: 12,
+        createdAt: "2026-01-01T09:00:00.000Z",
+        sessionName: "1월 기록"
+      }),
+      buildAttempt({
+        id: "float-end-same",
+        measurement: 12.000000000000002,
+        createdAt: "2026-01-02T09:00:00.000Z",
+        sessionName: "2월 기록"
+      })
+    ];
+
+    const insight = buildStudentGrowthInsight({
+      attempts,
+      latestAttemptId: "float-end-same",
+      betterDirection: "higher",
+      eventLabel: "점수",
+      unit: "cm"
+    });
+
+    expect(insight.trend).toBe("same");
+    expect(insight.previousDeltaText).toBe("0 cm");
+    expect(insight.overallDeltaText).toBe("0 cm");
+  });
+
+  it("uses clearer mixed trend message based on previous delta", () => {
+    const attempts: PAPSStudentEventHistoryAttempt[] = [
+      buildAttempt({
+        id: "mixed-1",
+        measurement: 10,
+        createdAt: "2026-01-01T09:00:00.000Z",
+        sessionName: "1월 측정"
+      }),
+      buildAttempt({
+        id: "mixed-2",
+        measurement: 16,
+        createdAt: "2026-02-01T09:00:00.000Z",
+        sessionName: "2월 측정"
+      }),
+      buildAttempt({
+        id: "mixed-3",
+        measurement: 12,
+        createdAt: "2026-03-01T09:00:00.000Z",
+        sessionName: "3월 측정"
+      })
+    ];
+
+    const insight = buildStudentGrowthInsight({
+      attempts,
+      latestAttemptId: "mixed-3",
+      betterDirection: "higher",
+      eventLabel: "점수",
+      unit: "cm"
+    });
+
+    expect(insight.trend).toBe("mixed");
+    expect(insight.summary).toContain("오르내림이 있었고, 직전 기록보다 -4 cm 나빠졌습니다.");
+  });
 });
