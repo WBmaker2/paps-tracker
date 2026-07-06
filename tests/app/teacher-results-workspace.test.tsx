@@ -223,6 +223,19 @@ describe("teacher results workspace", () => {
     expect(
       screen.getByText("이 요약표는 현재 화면 필터와 별개로 전체 연결 시트 기준입니다.")
     ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "학생별 성장 리포트" })).toBeInTheDocument();
+    expect(
+      screen.getByText("학생 이름을 검색하면 종목별 누적 기록과 그래프가 이곳에 표시됩니다.")
+    ).toBeInTheDocument();
+    expect(screen.getByText("검색 대기 중")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /예: 3월, 4월, 7월 기록을 한 학생 기준으로 이어서 확인/
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/학생명을 입력하면 아래 학생별 성장 리포트가 열립니다\./)
+    ).toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText("학생 이름으로 검색"), {
       target: { value: "홍길" }

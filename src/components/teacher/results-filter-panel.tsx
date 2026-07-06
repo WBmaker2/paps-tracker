@@ -35,7 +35,8 @@ export function ResultsFilterPanel({
         <div>
           <h2 className="text-lg font-semibold">검색 및 필터</h2>
           <p className="mt-1 text-sm text-ink/70">
-            학년, 반, 종목, 세션 유형으로 결과를 빠르게 좁혀 볼 수 있습니다.
+            학년, 반, 종목, 세션 유형으로 결과를 빠르게 좁혀 볼 수 있습니다. 학생명을 입력하면 아래
+            학생별 성장 리포트가 열립니다.
           </p>
         </div>
         <button

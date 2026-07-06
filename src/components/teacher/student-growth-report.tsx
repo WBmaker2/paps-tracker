@@ -21,7 +21,28 @@ export function StudentGrowthReport({
   const trimmedQuery = query.trim();
 
   if (!trimmedQuery) {
-    return null;
+    return (
+      <section className="rounded-[1.75rem] border border-ink/10 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-accent">
+              Student Growth
+            </p>
+            <h2 className="mt-1 text-lg font-semibold">학생별 성장 리포트</h2>
+            <p className="mt-1 text-sm text-ink/70">
+              학생 이름을 검색하면 종목별 누적 기록과 그래프가 이곳에 표시됩니다.
+            </p>
+          </div>
+          <span className="w-fit rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-ink/70">
+            검색 대기 중
+          </span>
+        </div>
+        <p className="mt-4 rounded-[1.5rem] border border-dashed border-ink/15 bg-canvas/40 p-4 text-sm text-ink/70">
+          예: 3월, 4월, 7월 기록을 한 학생 기준으로 이어서 확인하면 월별 증가 추이를
+          한 번에 볼 수 있습니다.
+        </p>
+      </section>
+    );
   }
 
   return (
