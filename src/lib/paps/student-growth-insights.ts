@@ -128,18 +128,16 @@ const buildSummary = ({
   previousDeltaText,
   overallDeltaText,
   overallStartLabel,
-  overallEndLabel,
-  eventLabel
+  overallEndLabel
 }: {
   trend: StudentGrowthTrend;
   previousDeltaText: string | null;
   overallDeltaText: string | null;
   overallStartLabel: string;
   overallEndLabel: string;
-  eventLabel: string;
 }): string => {
   if (trend === "same") {
-    return `${eventLabel} ${overallStartLabel}에서 ${overallEndLabel}까지 총 ${overallDeltaText} 변화했고, 직전 기록과 거의 동일했습니다.`;
+    return `${overallStartLabel}에서 ${overallEndLabel}까지 총 ${overallDeltaText} 변화했고, 직전 기록과 거의 동일했습니다.`;
   }
 
   if (trend === "mixed") {
@@ -261,8 +259,7 @@ export function buildStudentGrowthInsight({
     previousDeltaText,
     overallDeltaText,
     overallStartLabel,
-    overallEndLabel,
-    eventLabel: eventLabel.trim() === "" ? `${firstAttemptDisplayLabel}` : `${eventLabel} (${firstAttemptDisplayLabel})`
+    overallEndLabel
   });
 
   return {

@@ -286,6 +286,8 @@ describe("student growth insights", () => {
     expect(insight.trend).toBe("same");
     expect(insight.previousDeltaText).toBe("0 cm");
     expect(insight.overallDeltaText).toBe("0 cm");
+    expect(insight.summary).toContain("직전 기록과 거의 동일했습니다.");
+    expect(insight.summary).not.toContain("점수 (1월 기록)");
   });
 
   it("uses clearer mixed trend message based on previous delta", () => {
