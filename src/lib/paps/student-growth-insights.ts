@@ -29,36 +29,6 @@ const isLatestAttempt = (attempt: StudentGrowthAttempt, latestAttemptId: string 
 
 const normalizeDelta = (value: number): number => clampNegativeZero(Number(value.toFixed(3)));
 
-const compareAttemptsForChronology = (left: StudentGrowthAttempt, right: StudentGrowthAttempt): number => {
-  const createdAtCompare = left.createdAt.localeCompare(right.createdAt);
-
-  if (createdAtCompare !== 0) {
-    return createdAtCompare;
-  }
-
-  const leftHistory = isHistoryAttempt(left) ? left : null;
-  const rightHistory = isHistoryAttempt(right) ? right : null;
-
-  if (leftHistory && rightHistory && leftHistory.sessionId === rightHistory.sessionId) {
-    const attemptNumberCompare = left.attemptNumber - right.attemptNumber;
-
-    if (attemptNumberCompare !== 0) {
-      return attemptNumberCompare;
-    }
-  }
-
-  const attemptNumberCompare = left.attemptNumber - right.attemptNumber;
-
-  if (attemptNumberCompare !== 0) {
-    return attemptNumberCompare;
-  }
-
-  return left.id.localeCompare(right.id);
-};
-
-const toSortableAttempts = (attempts: PAPSAttempt[]): StudentGrowthAttempt[] =>
-  [...attempts].sort(compareAttemptsForChronology);
-
 const clampNegativeZero = (value: number): number =>
   Object.is(value, -0) ? 0 : value;
 
@@ -206,11 +176,11 @@ export function buildStudentGrowthInsight({
     };
   }
 
-  const sortedAttempts = toSortableAttempts(attempts);
-  const initialLatestIndex = resolveLatestAttemptIndex(sortedAttempts, latestAttemptId);
-  const latestIndex = initialLatestIndex >= 0 ? initialLatestIndex : sortedAttempts.length - 1;
-  const latestAttempt = sortedAttempts[latestIndex];
-  const previousAttempt = latestIndex > 0 ? sortedAttempts[latestIndex - 1] : null;
+  const orderedAttempts: StudentGrowthAttempt[] = [...attempts];
+  const initialLatestIndex = resolveLatestAttemptIndex(orderedAttempts, latestAttemptId);
+  const latestIndex = initialLatestIndex >= 0 ? initialLatestIndex : orderedAttempts.length - 1;
+  const latestAttempt = orderedAttempts[latestIndex];
+  const previousAttempt = latestIndex > 0 ? orderedAttempts[latestIndex - 1] : null;
 
   if (!previousAttempt) {
     return {
@@ -223,9 +193,9 @@ export function buildStudentGrowthInsight({
 
   const deltas: number[] = [];
 
-  for (let index = 1; index < sortedAttempts.length; index += 1) {
-    const current = sortedAttempts[index];
-    const previous = sortedAttempts[index - 1];
+  for (let index = 1; index < orderedAttempts.length; index += 1) {
+    const current = orderedAttempts[index];
+    const previous = orderedAttempts[index - 1];
     deltas.push(calculateDirectionalDelta({
       previous,
       current,
@@ -240,7 +210,7 @@ export function buildStudentGrowthInsight({
     betterDirection
   });
   const overallDelta = calculateDirectionalDelta({
-    previous: sortedAttempts[0],
+    previous: orderedAttempts[0],
     current: latestAttempt,
     betterDirection
   });
@@ -249,9 +219,9 @@ export function buildStudentGrowthInsight({
   const latestAttemptDisplayLabel = isHistoryAttempt(latestAttempt)
     ? latestAttempt.sessionName
     : "이번 기록";
-  const firstAttemptDisplayLabel = resolveSummaryTargetAttemptLabel(sortedAttempts[0]);
+  const firstAttemptDisplayLabel = resolveSummaryTargetAttemptLabel(orderedAttempts[0]);
 
-  const overallStartLabel = `${firstAttemptDisplayLabel} ${sortedAttempts[0].measurement} ${unit}`;
+  const overallStartLabel = `${firstAttemptDisplayLabel} ${orderedAttempts[0].measurement} ${unit}`;
   const overallEndLabel = `${latestAttemptDisplayLabel} ${latestAttempt.measurement} ${unit}`;
 
   const summary = buildSummary({

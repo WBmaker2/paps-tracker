@@ -10,15 +10,17 @@ const buildAttempt = ({
   id,
   measurement,
   createdAt,
+  attemptNumber = 1,
   sessionName
 }: {
   id: string;
   measurement: number;
   createdAt: string;
+  attemptNumber?: number;
   sessionName: string;
 }): PAPSStudentEventHistoryAttempt => ({
   id,
-  attemptNumber: 1,
+  attemptNumber,
   measurement,
   createdAt,
   sessionId: "session-common",
@@ -67,14 +69,8 @@ describe("student growth insights", () => {
     );
   });
 
-  it("uses the latest chronological attempt when latestAttemptId is null", () => {
+  it("uses the last provided attempt as latest when latestAttemptId is null", () => {
     const attempts: PAPSStudentEventHistoryAttempt[] = [
-      buildAttempt({
-        id: "attempt-july",
-        measurement: 24,
-        createdAt: "2026-07-03T09:00:00.000Z",
-        sessionName: "7월 측정"
-      }),
       buildAttempt({
         id: "attempt-march",
         measurement: 16,
@@ -86,6 +82,12 @@ describe("student growth insights", () => {
         measurement: 21,
         createdAt: "2026-04-03T09:00:00.000Z",
         sessionName: "4월 측정"
+      }),
+      buildAttempt({
+        id: "attempt-july",
+        measurement: 24,
+        createdAt: "2026-07-03T09:00:00.000Z",
+        sessionName: "7월 측정"
       })
     ];
 
@@ -99,6 +101,40 @@ describe("student growth insights", () => {
 
     expect(insight.previousDeltaText).toBe("+3 cm");
     expect(insight.overallDeltaText).toBe("+8 cm");
+    expect(insight.trend).toBe("improving");
+  });
+
+  it("keeps caller-provided same-session attempt order for previous comparison", () => {
+    const attempts: PAPSStudentEventHistoryAttempt[] = [
+      buildAttempt({
+        id: "attempt-1",
+        attemptNumber: 1,
+        measurement: 10,
+        createdAt: "2026-07-10T09:00:00.000Z",
+        sessionName: "1회차"
+      }),
+      buildAttempt({
+        id: "attempt-2",
+        attemptNumber: 2,
+        measurement: 13,
+        createdAt: "2026-07-03T09:00:00.000Z",
+        sessionName: "2회차"
+      })
+    ];
+
+    const insight = buildStudentGrowthInsight({
+      attempts,
+      latestAttemptId: "attempt-2",
+      betterDirection: "higher",
+      eventLabel: "반복 기록",
+      unit: "kg"
+    });
+
+    expect(insight.previousDeltaText).toBe("+3 kg");
+    expect(insight.overallDeltaText).toBe("+3 kg");
+    expect(insight.summary).toBe(
+      "1회차 10 kg에서 2회차 13 kg까지 총 +3 kg 변화했고, 직전 기록보다 +3 kg 좋아졌습니다."
+    );
     expect(insight.trend).toBe("improving");
   });
 
