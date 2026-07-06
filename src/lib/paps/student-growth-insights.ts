@@ -126,7 +126,6 @@ const buildSummary = ({
   overallDeltaText,
   overallStartLabel,
   overallEndLabel,
-  unit,
   eventLabel
 }: {
   trend: StudentGrowthTrend;
@@ -134,7 +133,6 @@ const buildSummary = ({
   overallDeltaText: string | null;
   overallStartLabel: string;
   overallEndLabel: string;
-  unit: string;
   eventLabel: string;
 }): string => {
   if (trend === "same") {
@@ -184,7 +182,7 @@ export function buildStudentGrowthInsight({
   unit
 }: {
   attempts: PAPSAttempt[];
-  latestAttemptId: string;
+  latestAttemptId: string | null;
   betterDirection: BetterDirection;
   eventLabel: string;
   unit: string;
@@ -215,7 +213,7 @@ export function buildStudentGrowthInsight({
 
   const deltas: number[] = [];
 
-  for (let index = 1; index <= latestIndex; index += 1) {
+  for (let index = 1; index < sortedAttempts.length; index += 1) {
     const current = sortedAttempts[index];
     const previous = sortedAttempts[index - 1];
     deltas.push(calculateDirectionalDelta({
@@ -252,7 +250,6 @@ export function buildStudentGrowthInsight({
     overallDeltaText,
     overallStartLabel,
     overallEndLabel,
-    unit,
     eventLabel: eventLabel.trim() === "" ? `${firstAttemptDisplayLabel}` : `${eventLabel} (${firstAttemptDisplayLabel})`
   });
 

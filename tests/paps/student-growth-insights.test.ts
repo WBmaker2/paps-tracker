@@ -67,6 +67,41 @@ describe("student growth insights", () => {
     );
   });
 
+  it("uses the latest chronological attempt when latestAttemptId is null", () => {
+    const attempts: PAPSStudentEventHistoryAttempt[] = [
+      buildAttempt({
+        id: "attempt-july",
+        measurement: 24,
+        createdAt: "2026-07-03T09:00:00.000Z",
+        sessionName: "7월 측정"
+      }),
+      buildAttempt({
+        id: "attempt-march",
+        measurement: 16,
+        createdAt: "2026-03-03T09:00:00.000Z",
+        sessionName: "3월 측정"
+      }),
+      buildAttempt({
+        id: "attempt-april",
+        measurement: 21,
+        createdAt: "2026-04-03T09:00:00.000Z",
+        sessionName: "4월 측정"
+      })
+    ];
+
+    const insight = buildStudentGrowthInsight({
+      attempts,
+      latestAttemptId: null,
+      betterDirection: "higher",
+      eventLabel: "몸무게",
+      unit: "cm"
+    });
+
+    expect(insight.previousDeltaText).toBe("+3 cm");
+    expect(insight.overallDeltaText).toBe("+8 cm");
+    expect(insight.trend).toBe("improving");
+  });
+
   it("builds higher-is-better decline with clear worse messaging", () => {
     const attempts: PAPSStudentEventHistoryAttempt[] = [
       buildAttempt({
@@ -131,6 +166,42 @@ describe("student growth insights", () => {
     expect(insight.previousDeltaText).toBe("+0.9 초");
     expect(insight.overallDeltaText).toBe("+0.9 초");
     expect(insight.summary).toContain("좋아졌습니다");
+  });
+
+  it("computes trend from the full chronological series even when latest is in the middle", () => {
+    const attempts: PAPSStudentEventHistoryAttempt[] = [
+      buildAttempt({
+        id: "attempt-start",
+        measurement: 12,
+        createdAt: "2026-01-03T09:00:00.000Z",
+        sessionName: "1월 측정"
+      }),
+      buildAttempt({
+        id: "attempt-middle",
+        measurement: 18,
+        createdAt: "2026-03-03T09:00:00.000Z",
+        sessionName: "3월 측정"
+      }),
+      buildAttempt({
+        id: "attempt-end",
+        measurement: 14,
+        createdAt: "2026-06-03T09:00:00.000Z",
+        sessionName: "6월 측정"
+      })
+    ];
+
+    const insight = buildStudentGrowthInsight({
+      attempts,
+      latestAttemptId: "attempt-middle",
+      betterDirection: "higher",
+      eventLabel: "점수",
+      unit: "cm"
+    });
+
+    expect(insight.trend).toBe("mixed");
+    expect(insight.previousDeltaText).toBe("+6 cm");
+    expect(insight.overallDeltaText).toBe("+6 cm");
+    expect(insight.summary).toContain("직전 기록");
   });
 
   it("builds compact chart labels from month sessions and latest marker", () => {
