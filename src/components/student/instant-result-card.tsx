@@ -1,10 +1,13 @@
 import React from "react";
 
+import { GripStrengthBilateralChart } from "../charts/grip-strength-bilateral-chart";
 import { ProgressMiniChart } from "../charts/progress-mini-chart";
 import {
+  isGripStrengthMeasurementDetail,
   formatAttemptDetailSummary,
   summarizeGripStrengthBilateralBest
 } from "../../lib/paps/composite-measurements";
+import { buildStudentGrowthInsight, formatStudentAttemptChartLabel } from "../../lib/paps/student-growth-insights";
 import type {
   BetterDirection,
   EventId,
@@ -78,24 +81,6 @@ const formatHistorySessionLabel = (attempt: PAPSAttempt): string =>
     ? `${attempt.sessionName} · ${attempt.sessionType === "official" ? "공식" : "연습"}`
     : `${attempt.attemptNumber}회차`;
 
-const formatChartLabel = (
-  attempt: PAPSAttempt,
-  index: number,
-  latestAttemptId: string | null
-): string => {
-  if (!isHistoryAttempt(attempt)) {
-    return `${attempt.attemptNumber}회`;
-  }
-
-  if (attempt.id === latestAttemptId) {
-    return "이번";
-  }
-
-  const compactSessionName = attempt.sessionName.replace(/\s+/g, "");
-
-  return compactSessionName.length > 5 ? `${index + 1}번째` : compactSessionName;
-};
-
 export function InstantResultCard({
   studentName,
   sessionType,
@@ -152,10 +137,23 @@ export function InstantResultCard({
   const hasDetailSummary = attemptRows.some((entry) => entry.detailSummary !== null);
   const gripRepresentativeSummary =
     eventId === "grip-strength" ? summarizeGripStrengthBilateralBest({ attempts: displayAttempts }) : null;
+  const hasGripStrengthDetailHistory = displayAttempts.some((attempt) =>
+    isGripStrengthMeasurementDetail(attempt.detail)
+  );
 
   if (!latestAttempt) {
     return null;
   }
+
+  const chartLabelResolver = (attempt: PAPSAttempt, index: number) =>
+    formatStudentAttemptChartLabel(attempt, index, latestAttempt.id);
+  const growthInsight = buildStudentGrowthInsight({
+    attempts: displayAttempts,
+    latestAttemptId: latestAttempt.id,
+    betterDirection,
+    eventLabel,
+    unit
+  });
 
   return (
     <section className="rounded-[1.75rem] border border-accent/20 bg-white p-5 shadow-sm">
@@ -180,6 +178,9 @@ export function InstantResultCard({
             </button>
           ) : null}
         </div>
+      </div>
+      <div className="mb-4 rounded-2xl border border-ink/10 bg-canvas/70 px-4 py-3 text-sm text-ink/80">
+        {growthInsight.summary}
       </div>
       <div className="grid gap-4 md:grid-cols-[0.95fr_1.05fr]">
         <div className="space-y-3 rounded-2xl bg-canvas/80 p-4">
@@ -207,11 +208,17 @@ export function InstantResultCard({
             <p className="text-sm font-medium text-ink">이번 기록 기준 등급: {latestOfficialGrade}등급</p>
           ) : null}
         </div>
-        <ProgressMiniChart
-          attempts={displayAttempts}
-          unit={unit}
-          getLabel={(attempt, index) => formatChartLabel(attempt, index, latestAttempt.id)}
-        />
+        {eventId === "grip-strength" && hasGripStrengthDetailHistory ? (
+          <GripStrengthBilateralChart attempts={displayAttempts} getLabel={chartLabelResolver} />
+        ) : (
+          <ProgressMiniChart
+            attempts={displayAttempts}
+            unit={unit}
+            title="개인 누적 추이"
+            description={hasPastSessionHistory ? "지난 세션까지 이어서 봅니다." : undefined}
+            getLabel={chartLabelResolver}
+          />
+        )}
       </div>
       <div className="mt-4 overflow-hidden rounded-2xl border border-ink/10">
         <table className="min-w-full divide-y divide-ink/10 text-sm">

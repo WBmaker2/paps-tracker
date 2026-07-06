@@ -5,12 +5,18 @@ import type { PAPSAttempt } from "../../lib/paps/types";
 export function ProgressMiniChart({
   attempts,
   unit,
+  title,
+  description,
   getLabel
 }: {
   attempts: PAPSAttempt[];
   unit: string;
+  title?: string;
+  description?: string;
   getLabel?: (attempt: PAPSAttempt, index: number) => string;
 }) {
+  const resolvedTitle = title ?? "개인 추이";
+
   if (attempts.length === 0) {
     return null;
   }
@@ -38,7 +44,8 @@ export function ProgressMiniChart({
 
   return (
     <div className="rounded-2xl bg-canvas/80 p-4">
-      <p className="mb-3 text-sm font-medium text-ink/70">개인 추이</p>
+      <p className="mb-1 text-sm font-medium text-ink/70">{resolvedTitle}</p>
+      {description ? <p className="mb-3 text-xs text-ink/60">{description}</p> : null}
       <svg viewBox="0 0 240 110" className="h-28 w-full" aria-label="개인 추이 차트">
         <polyline
           fill="none"
