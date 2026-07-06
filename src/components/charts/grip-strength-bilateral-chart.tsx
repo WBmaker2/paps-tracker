@@ -49,7 +49,12 @@ export function GripStrengthBilateralChart({
         <span>오른손</span>
         <span>왼손</span>
       </div>
-      <svg viewBox="0 0 240 110" className="h-28 w-full" aria-label="오른손·왼손 악력 추이">
+      <svg
+        viewBox="0 0 240 110"
+        className="h-28 w-full"
+        role="img"
+        aria-label="오른손·왼손 악력 추이 차트"
+      >
         {orderedAttempts.length > 1 ? (
           <>
             <polyline

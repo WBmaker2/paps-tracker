@@ -87,8 +87,12 @@ describe("student instant result card", () => {
     expect(screen.getByText("오른손·왼손 추이")).toBeInTheDocument();
     expect(screen.getByText("오른손")).toBeInTheDocument();
     expect(screen.getByText("왼손")).toBeInTheDocument();
-    expect(screen.getAllByText((content) => content.includes("3월")).length).toBeGreaterThan(0);
-    expect(screen.getAllByText((content) => content.includes("이번")).length).toBeGreaterThan(0);
+    const gripChart = screen.getByRole("img", {
+      name: "오른손·왼손 악력 추이 차트"
+    });
+    expect(within(gripChart).getByText("3월")).toBeInTheDocument();
+    expect(within(gripChart).getByText("4월")).toBeInTheDocument();
+    expect(within(gripChart).getByText("이번")).toBeInTheDocument();
     expect(screen.getByText("오른쪽 대표 19.8kg · 왼쪽 대표 18.6kg")).toBeInTheDocument();
 
     const rows = screen.getAllByRole("row").slice(1);
@@ -166,8 +170,11 @@ describe("student instant result card", () => {
     expect(screen.getByText("개인 누적 추이")).toBeInTheDocument();
     expect(screen.getByText("이번 기록 기준 등급: 4등급")).toBeInTheDocument();
     expect(screen.getByText("지난 세션까지 이어서 봅니다.")).toBeInTheDocument();
-    expect(screen.getAllByText((content) => content.includes("3월")).length).toBeGreaterThan(0);
-    expect(screen.getAllByText((content) => content.includes("4월")).length).toBeGreaterThan(0);
-    expect(screen.getAllByText((content) => content.includes("이번")).length).toBeGreaterThan(0);
+    const progressChart = screen.getByRole("img", {
+      name: "개인 누적 추이 차트"
+    });
+    expect(within(progressChart).getByText("3월")).toBeInTheDocument();
+    expect(within(progressChart).getByText("4월")).toBeInTheDocument();
+    expect(within(progressChart).getByText("이번")).toBeInTheDocument();
   });
 });
