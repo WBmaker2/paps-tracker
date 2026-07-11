@@ -236,7 +236,8 @@ const jsonRequest = (pathname: string, method: string, body?: unknown): NextRequ
   new NextRequest(`http://localhost${pathname}`, {
     method,
     headers: {
-      "content-type": "application/json"
+      "content-type": "application/json",
+      cookie: "paps-spreadsheet-id=sheet-123"
     },
     body: body === undefined ? undefined : JSON.stringify(body)
   });
@@ -559,6 +560,23 @@ describe("Google Sheet routes", () => {
     await expect(response.json()).resolves.toMatchObject({
       ok: false,
       error: expect.stringContaining("prototype")
+    });
+  });
+
+  it("rejects resync attempts targeting a sheet other than the connected sheet", async () => {
+    const route = await import("../../app/api/google-sheet/resync/route");
+    const response = await route.POST(
+      jsonRequest("/api/google-sheet/resync", "POST", {
+        spreadsheetUrl: "https://docs.google.com/spreadsheets/d/sheet-other/edit",
+        source: "file-store",
+        dryRun: true
+      })
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: "연결된 구글 시트만 동기화할 수 있습니다."
     });
   });
 });

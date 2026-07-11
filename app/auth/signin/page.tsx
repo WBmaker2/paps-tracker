@@ -20,7 +20,7 @@ const getMissingConfigKeys = (): string[] => {
 export default async function TeacherSignInPage() {
   const hasOAuthConfig = hasGoogleOAuthEnv();
   const hasAccessScope = hasTeacherAccessConfig();
-  const isReady = hasOAuthConfig;
+  const isReady = hasOAuthConfig && hasAccessScope;
   const missingKeys = getMissingConfigKeys();
   const setupHint =
     process.env.NODE_ENV === "production"
@@ -44,28 +44,13 @@ export default async function TeacherSignInPage() {
           </h1>
           <p className="text-base leading-7 text-ink/75">
             {isReady
-              ? hasAccessScope
-                ? "구글 계정으로 로그인한 뒤 교사 대시보드로 이동합니다."
-                : "구글 계정으로 로그인한 뒤 교사 대시보드로 이동합니다. 접근 범위는 아직 따로 제한되지 않았습니다."
+              ? "구글 계정으로 로그인한 뒤 교사 대시보드로 이동합니다."
               : "Google OAuth와 교사 접근 범위 설정이 있어야 교사 로그인을 시작할 수 있습니다."}
           </p>
         </div>
 
         {isReady ? (
           <div className="space-y-4">
-            {!hasAccessScope ? (
-              <section className="rounded-[1.5rem] border border-amber-200 bg-amber-50 p-5">
-                <h2 className="text-lg font-semibold">접근 범위 미설정</h2>
-                <p className="mt-3 text-sm leading-6 text-ink/80">
-                  Google 로그인은 가능하지만 접근 범위를 따로 설정하지 않으면 모든 Google 계정이
-                  교사 로그인 대상이 됩니다.
-                </p>
-                <p className="mt-3 text-sm text-ink/75">
-                  운영 시에는 `GOOGLE_HOSTED_DOMAIN` 또는 `TEACHER_EMAIL_ALLOWLIST`를 추가해
-                  접근 범위를 제한해 주세요.
-                </p>
-              </section>
-            ) : null}
             <form action={signInWithGoogle}>
               <button
                 type="submit"

@@ -89,12 +89,12 @@ describe("env helpers", () => {
     );
   });
 
-  it("treats teacher access config as optional at runtime when neither domain nor allowlist is set", () => {
+  it("denies teacher access when neither domain nor allowlist is configured", () => {
     delete process.env.GOOGLE_HOSTED_DOMAIN;
     delete process.env.TEACHER_EMAIL_ALLOWLIST;
 
     expect(hasTeacherAccessConfig()).toBe(false);
-    expect(isTeacherEmailAllowed("teacher@example.com")).toBe(true);
+    expect(isTeacherEmailAllowed("teacher@example.com")).toBe(false);
   });
 
   it("allows a teacher when the email matches the hosted domain", () => {

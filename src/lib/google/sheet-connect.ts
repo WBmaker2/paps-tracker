@@ -6,6 +6,7 @@ import {
 import type { GoogleSheetsClient } from "./sheets-client";
 import { validatePapsGoogleSheetTemplate } from "./sheets-schema";
 import { writeGoogleSheetSettingsSourceTab } from "./sheet-source-write";
+import { resolveTeacherSheetInviteToken } from "./teacher-sheet-invite";
 
 export interface ConnectTeacherGoogleSheetInput {
   spreadsheetId: string;
@@ -13,11 +14,12 @@ export interface ConnectTeacherGoogleSheetInput {
   teacherEmail: string;
   teacherName?: string | null;
   schoolName?: string | null;
-  claimExistingSheet?: boolean;
+  teacherInviteToken?: string | null;
+  now?: Date;
   client: GoogleSheetsClient;
 }
 
-const createTimestamp = (): string => new Date().toISOString();
+const createTimestamp = (now?: Date): string => (now ?? new Date()).toISOString();
 
 const createTeacherId = (email: string): string =>
   `teacher-${email.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
@@ -64,15 +66,28 @@ const buildConnectedTeachers = (
 ): PAPSTeacher[] => {
   const timestamp = createTimestamp();
   const normalizedTeacherEmail = input.teacherEmail.trim().toLowerCase();
+  const currentTeacherExists = currentState.teachers.some(
+    (teacher) => teacher.email.trim().toLowerCase() === normalizedTeacherEmail
+  );
 
-  if (
-    currentState.hasPersistedTeachers &&
-    !currentState.teachers.some(
-      (teacher) => teacher.email.trim().toLowerCase() === normalizedTeacherEmail
-    ) &&
-    !input.claimExistingSheet
-  ) {
-    throw new CurrentTeacherNotAuthorizedForSpreadsheetError();
+  if (currentState.hasPersistedTeachers && !currentTeacherExists) {
+    if (!input.teacherInviteToken) {
+      throw new CurrentTeacherNotAuthorizedForSpreadsheetError();
+    }
+
+    const invitation = resolveTeacherSheetInviteToken(input.teacherInviteToken, {
+      spreadsheetId: input.spreadsheetId,
+      targetEmail: normalizedTeacherEmail,
+      now: input.now
+    });
+    const inviterStillAuthorized = currentState.teachers.some(
+      (teacher) =>
+        teacher.email.trim().toLowerCase() === invitation.inviterEmail
+    );
+
+    if (!inviterStillAuthorized) {
+      throw new CurrentTeacherNotAuthorizedForSpreadsheetError();
+    }
   }
 
   return ensureTeacher(
@@ -111,7 +126,7 @@ export const connectGoogleSheetForTeacher = async (
     name: input.schoolName?.trim() || currentState.school.name,
     teacherIds: teachers.map((teacher) => teacher.id),
     sheetUrl: input.normalizedUrl,
-    updatedAt: createTimestamp()
+    updatedAt: createTimestamp(input.now)
   };
 
   await writeGoogleSheetSettingsSourceTab({

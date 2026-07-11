@@ -25,6 +25,7 @@ vi.mock("../../src/lib/google/sheets-bootstrap", () => ({
 }));
 
 import { connectGoogleSheetForTeacher } from "../../src/lib/google/sheet-connect";
+import { createTeacherSheetInviteToken } from "../../src/lib/google/teacher-sheet-invite";
 
 describe("Google Sheet connection persistence", () => {
   beforeEach(() => {
@@ -114,5 +115,55 @@ describe("Google Sheet connection persistence", () => {
         teacherEmail: "teacher@example.com"
       })
     ).rejects.toThrow("The current teacher is not authorized for this spreadsheet.");
+  });
+
+  it("adds a teacher to a persisted sheet only with a matching invitation", async () => {
+    buildStructuredStateFromSheet.mockResolvedValueOnce({
+      school: {
+        id: "school-1",
+        name: "Alpha Elementary",
+        teacherIds: ["teacher-1"],
+        sheetUrl: "https://docs.google.com/spreadsheets/d/sheet-123/edit",
+        createdAt: "2026-03-23T09:00:00.000Z",
+        updatedAt: "2026-03-23T09:00:00.000Z"
+      },
+      classes: [],
+      teachers: [
+        {
+          id: "teacher-1",
+          schoolId: "school-1",
+          name: "Another Teacher",
+          email: "another@example.com",
+          createdAt: "2026-03-23T09:00:00.000Z",
+          updatedAt: "2026-03-23T09:00:00.000Z"
+        }
+      ],
+      hasPersistedTeachers: true,
+      sessions: [],
+      allStudents: [],
+      attempts: [],
+      syncStatuses: [],
+      syncErrorLogs: [],
+      representativeSelectionAuditLogs: []
+    });
+    const teacherInviteToken = createTeacherSheetInviteToken({
+      spreadsheetId: "sheet-123",
+      inviterEmail: "another@example.com",
+      targetEmail: "teacher@example.com",
+      now: new Date("2026-07-12T00:00:00.000Z")
+    });
+
+    const result = await connectGoogleSheetForTeacher({
+      client: {} as never,
+      spreadsheetId: "sheet-123",
+      normalizedUrl: "https://docs.google.com/spreadsheets/d/sheet-123/edit",
+      teacherEmail: "teacher@example.com",
+      teacherName: "Teacher Kim",
+      teacherInviteToken,
+      now: new Date("2026-07-12T00:05:00.000Z")
+    });
+
+    expect(result.school.teacherIds).toContain("teacher-teacher-example-com");
+    expect(writeGoogleSheetSettingsSourceTab).toHaveBeenCalledTimes(1);
   });
 });

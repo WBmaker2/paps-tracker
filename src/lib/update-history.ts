@@ -1,13 +1,27 @@
 export type UpdateHistoryEntry = {
   version: string;
+  date?: string;
   title: string;
   summary: string;
   highlights: string[];
 };
 
-export const APP_VERSION = "v1.0.3";
+export const APP_VERSION = "v1.1.0";
 
 export const UPDATE_HISTORY: UpdateHistoryEntry[] = [
+  {
+    version: "v1.1.0",
+    date: "2026-07-12",
+    title: "보안과 운영 기반 강화",
+    summary:
+      "교사 접근과 기존 시트 승인 절차를 강화하고, 학생 제출 성능·접근성·CI·코드 구조를 함께 안정화했습니다.",
+    highlights: [
+      "교사 허용 범위가 없으면 로그인을 차단하고, 기존 시트는 담당교사가 발급한 15분 승인 코드로만 새 교사를 추가합니다.",
+      "학생 제출 후 2,000행 전체 요약 재계산 대신 해당 학생·종목의 요약 행만 갱신합니다.",
+      "Node.js 22, 자동 테스트·린트·타입 검사·빌드 CI와 접근성 공통 컴포넌트를 적용했습니다.",
+      "설정 화면과 시트 서비스를 역할별 모듈로 나누고 운영 문서를 현재 구조에 맞게 갱신했습니다."
+    ]
+  },
   {
     version: "v1.0.3",
     title: "악력 좌우 기록",
@@ -142,6 +156,7 @@ export const UPDATE_HISTORY: UpdateHistoryEntry[] = [
   },
   {
     version: "v0.1.0",
+    date: "2026-03-24",
     title: "초기 MVP",
     summary:
       "PAPS 학생 기록 시스템의 기본 진입점과 교사·학생 역할 구분, 세션 입력 흐름의 뼈대를 만들었습니다.",

@@ -607,11 +607,10 @@ describe("teacher settings management", () => {
       </AppShell>
     );
 
-    expect(screen.getByText("구글 시트 연결 안내")).toBeInTheDocument();
-    expect(screen.getByText("1단계. 템플릿 시트 복사본 만들기")).toBeInTheDocument();
-    expect(screen.getByText("2단계. 서비스 계정과 시트 공유")).toBeInTheDocument();
-    expect(screen.getByText("3단계. 복사한 시트 URL 붙여넣기")).toBeInTheDocument();
-    expect(screen.getByText("4단계. 연결 확인 후 저장")).toBeInTheDocument();
+    expect(screen.getByText("구글 시트 최초 연결 안내")).toBeInTheDocument();
+    expect(screen.getByText("1. 템플릿 시트 복사본 만들기")).toBeInTheDocument();
+    expect(screen.getByText("2. 서비스 계정을 편집자로 공유")).toBeInTheDocument();
+    expect(screen.getByText("3. 사본 URL 입력 후 학교 정보 저장")).toBeInTheDocument();
     expect(screen.getByText("배포 설정 확인 필요")).toBeInTheDocument();
     expect(screen.getByText(/GOOGLE_SERVICE_ACCOUNT_EMAIL/)).toBeInTheDocument();
     expect(screen.getByText(/GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY/)).toBeInTheDocument();
@@ -659,7 +658,7 @@ describe("teacher settings management", () => {
     ).toHaveLength(2);
   });
 
-  it("offers an explicit existing-sheet import flow when the current teacher is missing from the sheet", async () => {
+  it("requires an existing teacher approval code when the current teacher is missing from the sheet", async () => {
     const { TeacherSettingsManager } = await import(
       "../../src/components/teacher/settings-management"
     );
@@ -669,7 +668,7 @@ describe("teacher settings management", () => {
 
       requestBodies.push(body);
 
-      if (body.mode === "claim_existing_sheet") {
+      if (body.teacherInviteToken === "approved-invite") {
         return Response.json({
           ok: true,
           school: {
@@ -688,7 +687,7 @@ describe("teacher settings management", () => {
         {
           ok: false,
           code: "teacher_not_authorized",
-          action: "claim_existing_sheet",
+          action: "enter_teacher_invite",
           error: "The current teacher is not authorized for this spreadsheet."
         },
         { status: 409 }
@@ -726,15 +725,15 @@ describe("teacher settings management", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "학교 정보 저장" }));
 
-    await screen.findByText("기존 PAPS 시트 가져오기");
+    await screen.findByText("기존 PAPS 시트 승인 코드");
     await waitFor(() => expect(requestBodies).toHaveLength(1));
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "기존 시트 가져오기" })).not.toBeDisabled()
-    );
+    fireEvent.change(screen.getByLabelText("교사 추가 승인 코드"), {
+      target: { value: "approved-invite" }
+    });
 
-    fireEvent.click(screen.getByRole("button", { name: "기존 시트 가져오기" }));
+    fireEvent.click(screen.getByRole("button", { name: "승인 코드로 연결" }));
 
-    await screen.findByText("기존 시트를 가져오고 현재 교사를 담당교사로 추가했습니다.");
+    await screen.findByText("승인된 기존 시트를 연결하고 현재 교사를 추가했습니다.");
     expect(requestBodies).toEqual([
       {
         url: "https://docs.google.com/spreadsheets/d/sheet-owned/edit",
@@ -743,7 +742,7 @@ describe("teacher settings management", () => {
       {
         url: "https://docs.google.com/spreadsheets/d/sheet-owned/edit",
         schoolName: "도촌초등학교",
-        mode: "claim_existing_sheet"
+        teacherInviteToken: "approved-invite"
       }
     ]);
   });
@@ -829,6 +828,12 @@ describe("teacher settings management", () => {
     expect(screen.getByText("PIN 설정됨")).toBeInTheDocument();
     expect(screen.getByText("3-1")).toBeInTheDocument();
     expect(screen.getByText("4-1")).toBeInTheDocument();
+    const connectionGuide = screen
+      .getByText("구글 시트 연결 안내 다시 보기")
+      .closest("details");
+
+    expect(connectionGuide).not.toHaveAttribute("open");
+    expect(screen.getByText("담당교사 추가 승인 코드 만들기")).toBeInTheDocument();
   });
 
   it("rejects connect requests when the service account is not shared on the sheet", async () => {
@@ -961,14 +966,23 @@ describe("teacher settings management", () => {
 
     expect(response.status).toBe(409);
     expect(payload.code).toBe("teacher_not_authorized");
-    expect(payload.action).toBe("claim_existing_sheet");
+    expect(payload.action).toBe("enter_teacher_invite");
     expect(payload.error).toBe("The current teacher is not authorized for this spreadsheet.");
   });
 
-  it("claims an existing sheet by adding the current teacher when explicitly requested", async () => {
+  it("adds the current teacher only when an existing teacher issued a matching approval", async () => {
     const connectRoute = await import("../../app/api/google-sheet/connect/route");
     const sheetsClient = await import("../../src/lib/google/sheets-client");
+    const { createTeacherSheetInviteToken } = await import(
+      "../../src/lib/google/teacher-sheet-invite"
+    );
     const updateRange = vi.fn(async () => ({}));
+    process.env.NEXTAUTH_SECRET = "teacher-invite-route-secret";
+    const teacherInviteToken = createTeacherSheetInviteToken({
+      spreadsheetId: "sheet-owned",
+      inviterEmail: "other-teacher@example.com",
+      targetEmail: "demo-teacher@example.com"
+    });
 
     vi.mocked(sheetsClient.createGoogleSheetsClient).mockReturnValueOnce(
       createLockedSheetClient(updateRange)
@@ -978,7 +992,7 @@ describe("teacher settings management", () => {
       jsonRequest("/api/google-sheet/connect", "POST", {
         url: "https://docs.google.com/spreadsheets/d/sheet-owned/edit",
         schoolName: "Locked School",
-        mode: "claim_existing_sheet"
+        teacherInviteToken
       })
     );
     const payload = await response.json();

@@ -1,96 +1,114 @@
 # PAPS Tracker
 
-PAPS 학생 기록 시스템 MVP입니다. 교사용 관리 화면, 학생 세션 입력 화면, 대표값 선택, Google 로그인, Google Sheets 저장, 구글 시트 프로토타입 payload 생성까지 포함합니다.
+PAPS Tracker는 교사가 학교·학급·학생 명단과 측정 세션을 준비하고, 학생 기록 입력부터 누적 성장 확인, 대표값 검토, Google Sheets 동기화까지 운영하는 웹앱입니다.
 
-## Available Scripts
+현재 앱 버전은 `v1.1.0`이며 자세한 발전 과정은 [업데이트 기록](./docs/update-history.md)에서 확인할 수 있습니다.
+
+## Requirements
+
+- Node.js 22
+- npm 10 이상
+- Google OAuth 애플리케이션
+- Google Sheets API를 사용할 서비스 계정
+- PAPS Tracker 템플릿의 Google Sheets 사본
+
+Node 버전은 [`.nvmrc`](./.nvmrc)와 `package.json#engines`에 고정되어 있습니다.
+
+## Local Development
 
 ```bash
-npm install
+nvm use
+npm ci
+cp .env.example .env.local
 npm run dev
-npm run lint
-npm run test
-npm run migrate:demo-store -- --sheet <spreadsheetId>
 ```
 
-## Current Routes
+주요 명령:
 
-- `/`: 교사/학생 영역으로 이동하는 랜딩 페이지
-- `/teacher`: 교사 관리 대시보드
-- `/teacher/sessions`: 세션 생성 및 열림/닫힘 제어
-- `/teacher/results`: 대표값 선택, 결과 요약, 동기화 상태 확인
-- `/teacher/settings`: 학교 정보와 학급 설정
-- `/session/demo-session-practice`: 데모 학생 입력 세션
-- `/auth/signin`: 교사 로그인 안내 및 Google 로그인 진입
+```bash
+npm run test:ci
+npm run lint
+npm run typecheck
+npm run build
+```
 
-## Runtime Model
+## Routes
 
-- 운영 데이터 저장소는 Google Sheets입니다.
-- 학생 제출은 Google Sheets append가 성공해야만 완료됩니다.
-- 개발 환경에서 `NEXTAUTH_SECRET`이 없으면 로컬 스모크 테스트를 위해 개발용 fallback secret을 사용합니다.
-- legacy `demo-store.json`이 있다면 마이그레이션 스크립트로 시트에 옮긴 뒤 운영합니다.
+- `/`: 버전과 업데이트 내역을 포함한 교사 시작 랜딩 페이지
+- `/auth/signin`: Google 교사 로그인
+- `/teacher`: 세션 생성·수정·열기·닫기를 포함한 교사 홈
+- `/teacher/students`: 학급별 학생 명단 추가·수정·삭제
+- `/teacher/results`: 결과 필터, 학생별 성장 조회, 대표값 선택, 요약 내보내기
+- `/teacher/settings`: 학교 시트 연결, 교사 복귀 PIN, 학급 관리
+- `/teacher/sessions`: 호환성을 위해 `/teacher`로 이동
+- `/session/[sessionId]`: 단일 종목 학생 입력
+- `/session-group/[sessionGroupId]`: 여러 종목 학생 입력
+
+학생은 교사가 연 세션의 링크 또는 QR 코드로 접속합니다. 현장에서 교사가 직접 지도하는 운영 방식을 유지하므로 학생별 별도 인증이나 만료 링크는 적용하지 않습니다.
+
+## Security Model
+
+- Google 로그인이 성공해도 `GOOGLE_HOSTED_DOMAIN` 또는 `TEACHER_EMAIL_ALLOWLIST`에 포함된 이메일만 교사 화면에 들어갈 수 있습니다.
+- 두 환경변수가 모두 없으면 교사 로그인을 허용하지 않는 fail-closed 방식입니다.
+- 담당교사가 이미 저장된 기존 시트에는 현재 교사가 스스로 등록할 수 없습니다.
+- 기존 담당교사가 설정 화면에서 대상 이메일 전용 **교사 초대 승인 코드**를 발급해야 하며, 코드는 해당 시트에서 15분 동안만 유효합니다.
+- 수동 동기화는 현재 로그인 교사가 연결한 Google Sheet에만 쓸 수 있습니다.
+- 학생 화면에서 교사 화면으로 돌아갈 때는 시트에 해시로 저장된 교사용 PIN을 확인합니다.
+
+## Google Sheets Data Flow
+
+Google Sheets가 운영 데이터의 기준 저장소입니다.
+
+- 학생 제출은 `세션기록` 원본 행 저장이 성공해야 완료됩니다.
+- 제출 직후에는 해당 학생·종목의 `학생요약` 행만 갱신합니다.
+- 전체 `학생요약`·`공식평가요약` 재계산은 결과 화면의 수동 복구 기능에서만 실행합니다.
+- 교사 화면은 Smart Polling과 로컬 부분 반영으로 시트 변경을 다시 읽습니다.
+- 서비스 계정 이메일에는 연결할 시트의 편집자 권한이 필요합니다.
 
 ## Environment
 
-실제 Google 로그인과 Sheets 연동에 필요한 환경 변수 이름은 [`.env.example`](./.env.example)에 정리했습니다.
+전체 예시는 [`.env.example`](./.env.example)을 참고하세요.
 
 필수 항목:
 
-- 교사 로그인: `NEXTAUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
-- 교사 허용 범위: `GOOGLE_HOSTED_DOMAIN` 또는 `TEACHER_EMAIL_ALLOWLIST`
-- 시트 템플릿/연동: `GOOGLE_SHEETS_TEMPLATE_ID` 및 서비스 계정 값
+- 인증: `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
+- 교사 범위: `GOOGLE_HOSTED_DOMAIN` 또는 `TEACHER_EMAIL_ALLOWLIST`
+- Sheets: `GOOGLE_SHEETS_TEMPLATE_ID`, `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`
 
-## Deploy To Vercel
+Google OAuth 승인된 리디렉션 URI에는 다음 주소가 필요합니다.
 
-무료 운영 기준 권장 배포는 `Vercel Hobby + Google Sheets` 입니다.
+```text
+https://<your-domain>/api/auth/callback/google
+```
 
-1. 저장소를 Vercel에 연결합니다.
-2. `NEXTAUTH_URL`을 실제 배포 주소로 설정합니다.
-3. `NEXTAUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`를 설정합니다.
-4. `GOOGLE_HOSTED_DOMAIN` 또는 `TEACHER_EMAIL_ALLOWLIST`를 설정합니다.
-5. `GOOGLE_SHEETS_TEMPLATE_ID`, `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`를 설정합니다.
-6. Google OAuth 승인된 리디렉션 URI에 `https://<your-vercel-domain>/api/auth/callback/google`를 추가합니다.
+## CI And Deployment
 
-주의:
+[`.github/workflows/ci.yml`](./.github/workflows/ci.yml)은 push와 pull request마다 Node.js 22에서 다음 순서를 검증합니다.
 
-- 서버 로컬 파일 저장소를 운영 경로로 사용하지 않습니다.
-- 학생 입력 전에 반드시 교사 화면에서 Google Sheets 연결을 끝내야 합니다.
-- 서비스 계정 이메일을 교사가 사용하는 시트에 공유해야 합니다.
+1. `npm ci`
+2. `npm run test:ci`
+3. `npm run lint`
+4. `npm run typecheck`
+5. `npm run build`
+
+권장 운영 구성은 `Vercel + Google Sheets`입니다. Vercel 프로젝트에 위 환경변수를 등록하고, OAuth 리디렉션 URI와 서비스 계정 공유 권한을 함께 설정해야 합니다.
+
+## Architecture
+
+- `app/`: Next.js App Router 페이지와 API 경로
+- `src/components/teacher/`: 교사 화면 상태 컨테이너와 역할별 카드
+- `src/components/ui/`: 접근성 대화상자와 라이브 상태 알림
+- `src/lib/google/sheets-submit.ts`: 학생 제출 검증과 원본 기록 저장 조정
+- `src/lib/google/sheet-student-session-views.ts`: 학생 세션 화면과 누적 이력 조회
+- `src/lib/google/sheet-summary-row-persistence.ts`: 제출 후 요약 단일 행 갱신
+- `src/lib/google/sheets-rebuild.ts`: 수동 전체 요약 복구
 
 ## Legacy Migration
 
-legacy `demo-store.json`이 있으면 아래처럼 Google Sheets로 옮길 수 있습니다.
+기존 `.data/paps/demo-store.json`이 있을 때만 아래 명령으로 Google Sheets 이관을 준비할 수 있습니다.
 
 ```bash
 npm run migrate:demo-store -- --sheet <spreadsheetId>
 ```
 
-옵션:
-
-- `--input <path>`: legacy JSON 경로를 직접 지정합니다.
-- `--school <schoolId>`: 여러 학교가 있으면 특정 학교만 선택합니다.
-- `--write`: dry-run 대신 실제로 시트에 씁니다.
-
-기본 legacy 경로는 `.data/paps/demo-store.json` 이고, 이 파일이 있을 때만 자동으로 사용합니다.
-
-## MVP Limitations
-
-- Google OAuth와 Google Sheets 실연동은 실제 자격 증명이 있어야 동작합니다.
-- 교사 경로는 인증이 없으면 로그인 경로로 이동합니다.
-- 다중 교사/다중 학교 운영 전에 서비스 계정 공유 정책을 학교별로 정리해야 합니다.
-- 종목 표시 이름은 현재 앱 카탈로그 기준 문자열을 사용합니다.
-
-## Testing
-
-검증 명령:
-
-```bash
-npm run lint
-npm run test
-```
-
-현재 검증 범위:
-
-- PAPS 규칙/등급/요약 단위 테스트
-- 교사 관리 흐름 컴포넌트 테스트
-- 학생 세션 입력 흐름 테스트
-- Google Sheets URL/payload 직렬화 테스트
+`--write`를 추가하지 않으면 dry-run으로 실행됩니다.

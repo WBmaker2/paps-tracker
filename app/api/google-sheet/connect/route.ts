@@ -35,7 +35,7 @@ const teacherNotAuthorized = (error: CurrentTeacherNotAuthorizedForSpreadsheetEr
     {
       ok: false,
       code: error.code,
-      action: "claim_existing_sheet",
+      action: "enter_teacher_invite",
       error: error.message
     },
     {
@@ -68,14 +68,17 @@ export async function POST(request: NextRequest) {
       typeof body?.schoolName === "string" && body.schoolName.trim()
         ? body.schoolName.trim()
         : null;
-    const claimExistingSheet = body?.mode === "claim_existing_sheet";
+    const teacherInviteToken =
+      typeof body?.teacherInviteToken === "string" && body.teacherInviteToken.trim()
+        ? body.teacherInviteToken.trim()
+        : null;
     const connection = await connectTeacherGoogleSheet({
       spreadsheetId: parsed.spreadsheetId,
       normalizedUrl: parsed.normalizedUrl,
       teacherEmail: teacherSession.session.email,
       teacherName: teacherSession.session.name,
       schoolName: normalizedSchoolName,
-      claimExistingSheet,
+      teacherInviteToken,
       client
     });
     let school = connection.school;

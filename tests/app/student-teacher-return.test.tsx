@@ -54,6 +54,29 @@ describe("student teacher return access", () => {
     );
   });
 
+  it("moves focus into the modal, traps Tab, and restores the trigger on Escape", () => {
+    render(<TeacherReturnAccess enabled />);
+
+    const trigger = screen.getByRole("button", { name: "교사용 돌아가기" });
+    trigger.focus();
+    fireEvent.click(trigger);
+
+    const dialog = screen.getByRole("dialog", { name: "교사 확인" });
+    const pinInput = screen.getByLabelText("교사용 PIN");
+    const verifyButton = screen.getByRole("button", { name: "교사 확인" });
+
+    expect(dialog).toBeInTheDocument();
+    expect(pinInput).toHaveFocus();
+
+    verifyButton.focus();
+    fireEvent.keyDown(verifyButton, { key: "Tab" });
+    expect(pinInput).toHaveFocus();
+
+    fireEvent.keyDown(pinInput, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "교사 확인" })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
   it("shows an inline error after an invalid pin", async () => {
     vi.stubGlobal(
       "fetch",
@@ -76,6 +99,7 @@ describe("student teacher return access", () => {
     fireEvent.click(screen.getByRole("button", { name: "교사 확인" }));
 
     await screen.findByText(/교사용 PIN이 올바르지 않습니다\./);
+    expect(screen.getByRole("status")).toHaveTextContent(/교사용 PIN이 올바르지 않습니다\./);
   });
 
   it("keeps the teacher button visible but locked when the return PIN is not configured", () => {

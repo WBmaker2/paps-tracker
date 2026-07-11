@@ -74,7 +74,7 @@ export default async function TeacherSettingsPage() {
     <AppShell
       eyebrow="Settings"
       title="학교 및 학급 설정"
-      description="학교 정보 수정과 학급 추가를 바로 처리하는 MVP 관리 화면입니다."
+      description="학교 연결, 교사용 PIN, 학급 편성을 한 화면에서 관리합니다."
     >
       <TeacherDataRefresh initialVersion={initialVersion} pollIntervalMs={60000} />
       <TeacherSheetAutoLoader sheetStatus={sheetStatus} />
@@ -135,14 +135,14 @@ export default async function TeacherSettingsPage() {
           sheetSetupStatus={sheetSetupStatus}
         />
         {school ? (
-          <section className="rounded-[1.75rem] border border-ink/10 bg-white p-5 shadow-sm">
-            <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-              <div>
-                <h2 className="text-lg font-semibold">구글 시트 탭 미리보기</h2>
-                <p className="mt-1 text-sm text-ink/70">
-                  현재 학교 데이터를 프로토타입 워크북 구조에 맞춰 7개 탭으로 직렬화합니다.
-                </p>
-              </div>
+          <details className="rounded-[1.75rem] border border-ink/10 bg-white p-5 shadow-sm">
+            <summary className="cursor-pointer text-lg font-semibold">
+              고급 진단: 구글 시트 탭 미리보기
+            </summary>
+            <div className="mt-4 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+              <p className="text-sm text-ink/70">
+                현재 학교 데이터가 7개 탭으로 직렬화되는 상태를 점검합니다.
+              </p>
               <p className="text-sm text-ink/65">
                 연결 시트: {school.sheetUrl ?? "아직 연결되지 않음"}
               </p>
@@ -160,7 +160,7 @@ export default async function TeacherSettingsPage() {
                 </article>
               ))}
             </div>
-          </section>
+          </details>
         ) : null}
       </div>
     </AppShell>

@@ -33,6 +33,11 @@ a {
   text-decoration: none;
 }
 
+:where(a[href], button, input, select, textarea, [role="button"], [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 3px solid #b35c2e;
+  outline-offset: 3px;
+}
+
 ::selection {
   background: rgba(179, 92, 46, 0.22);
 }

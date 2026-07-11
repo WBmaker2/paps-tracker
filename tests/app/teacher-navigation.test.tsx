@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 const redirectError = new Error("NEXT_REDIRECT");
@@ -25,6 +25,7 @@ vi.mock("next/link", () => ({
 
 vi.mock("next/navigation", () => ({
   redirect: redirectMock,
+  usePathname: () => "/teacher/results",
   useRouter: () => ({
     refresh: vi.fn(),
     push: vi.fn(),
@@ -94,6 +95,23 @@ describe("teacher navigation", () => {
     expect(screen.getByRole("link", { name: "교사 홈" })).toHaveAttribute("href", "/teacher");
     expect(screen.queryByRole("link", { name: "대시보드" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "세션" })).not.toBeInTheDocument();
+  });
+
+  it("marks the current teacher page for assistive technology", async () => {
+    const { AppShell } = await import("../../src/components/layout/app-shell");
+    window.history.replaceState({}, "", "/teacher/results");
+
+    render(
+      <AppShell eyebrow="Teacher" title="결과" description="결과를 확인합니다.">
+        <p>teacher content</p>
+      </AppShell>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("link", { name: "결과" })).toHaveAttribute("aria-current", "page");
+    });
+    expect(screen.getByRole("link", { name: "교사 홈" })).not.toHaveAttribute("aria-current");
+    window.history.replaceState({}, "", "/");
   });
 
   it("redirects the old session management route to teacher home", async () => {

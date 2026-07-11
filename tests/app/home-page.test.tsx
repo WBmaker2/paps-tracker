@@ -68,16 +68,26 @@ describe("home page", () => {
 
     render(<HomePage />);
 
-    expect(screen.getByText("v1.0.3")).toBeInTheDocument();
+    expect(screen.getByText("v1.1.0")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /Update info/i }));
+    const trigger = screen.getByRole("button", { name: /Update info/i });
+    trigger.focus();
+    fireEvent.click(trigger);
 
-    expect(
-      screen.getByRole("dialog", {
-        name: /업데이트 기록/
-      })
-    ).toBeInTheDocument();
-    expect(screen.getAllByText("v1.0.3").length).toBeGreaterThanOrEqual(1);
+    const dialog = screen.getByRole("dialog", {
+      name: /업데이트 기록/
+    });
+
+    expect(dialog).toBeInTheDocument();
+    const closeButton = screen.getByRole("button", { name: "닫기" });
+    expect(closeButton).toHaveFocus();
+
+    fireEvent.keyDown(closeButton, { key: "Tab" });
+    expect(closeButton).toHaveFocus();
+    expect(screen.getAllByText("v1.1.0").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/보안과 운영 기반 강화/)).toBeInTheDocument();
+    expect(screen.getByText("2026-07-12")).toBeInTheDocument();
+    expect(screen.getByText("2026-03-24")).toBeInTheDocument();
     expect(screen.getByText(/악력 좌우 기록/)).toBeInTheDocument();
     expect(screen.getByText(/설정 저장 후 즉시 최신화/)).toBeInTheDocument();
     expect(screen.getByText(/즉시 결과 기록 순서 보정/)).toBeInTheDocument();
@@ -85,8 +95,9 @@ describe("home page", () => {
     expect(screen.getByText(/v0\.1\.0/)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "초기 MVP" })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "닫기" }));
+    fireEvent.keyDown(closeButton, { key: "Escape" });
 
     expect(screen.queryByRole("dialog", { name: /업데이트 기록/ })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
   });
 });

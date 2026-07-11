@@ -1,6 +1,9 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+
+import { AccessibleDialog } from "../ui/accessible-dialog";
+import { LiveStatus } from "../ui/live-status";
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCK_DURATION_MS = 30_000;
@@ -21,6 +24,7 @@ export function TeacherReturnAccess({
   const [lockUntil, setLockUntil] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const pinInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!lockUntil) {
@@ -140,15 +144,22 @@ export function TeacherReturnAccess({
         {buttonLabel}
       </button>
 
-      {isOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/35 px-4">
-          <div className="w-full max-w-md rounded-[1.75rem] border border-ink/10 bg-white p-6 shadow-panel">
+      <AccessibleDialog
+        open={isOpen}
+        onClose={closeModal}
+        titleId="teacher-return-title"
+        descriptionId="teacher-return-description"
+        initialFocusRef={enabled ? pinInputRef : undefined}
+        className="w-full max-w-md rounded-[1.75rem] border border-ink/10 bg-white p-6 shadow-panel"
+      >
             <div className="space-y-2">
               <p className="text-sm font-semibold uppercase tracking-[0.24em] text-accent">
                 Teacher Only
               </p>
-              <h2 className="text-2xl font-semibold">교사 확인</h2>
-              <p className="text-sm leading-6 text-ink/70">
+              <h2 id="teacher-return-title" className="text-2xl font-semibold">
+                교사 확인
+              </h2>
+              <p id="teacher-return-description" className="text-sm leading-6 text-ink/70">
                 {enabled
                   ? "학생 화면에서 교사 대시보드로 돌아가려면 교사용 PIN을 입력해 주세요."
                   : "교사 대시보드 이동은 교사용 PIN이 설정된 경우에만 사용할 수 있습니다."}
@@ -161,6 +172,7 @@ export function TeacherReturnAccess({
                   교사용 PIN
                   <input
                     type="password"
+                    ref={pinInputRef}
                     inputMode="numeric"
                     autoComplete="off"
                     className="rounded-2xl border border-ink/15 px-4 py-3"
@@ -175,12 +187,14 @@ export function TeacherReturnAccess({
               ) : null}
 
               {isLocked ? (
-                <p className="text-sm text-red-600">
+                <LiveStatus className="text-sm text-red-600">
                   다시 시도하려면 {remainingLockSeconds}초 기다려 주세요.
-                </p>
+                </LiveStatus>
               ) : null}
 
-              {errorMessage ? <p className="text-sm text-red-600">{errorMessage}</p> : null}
+              {errorMessage ? (
+                <LiveStatus className="text-sm text-red-600">{errorMessage}</LiveStatus>
+              ) : null}
             </div>
 
             <div className="mt-6 flex justify-end gap-3">
@@ -201,9 +215,7 @@ export function TeacherReturnAccess({
                 {isSubmitting ? "확인 중..." : "교사 확인"}
               </button>
             </div>
-          </div>
-        </div>
-      ) : null}
+      </AccessibleDialog>
     </>
   );
 }

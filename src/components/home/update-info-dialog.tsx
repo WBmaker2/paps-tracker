@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import type { UpdateHistoryEntry } from "../../lib/update-history";
+import { AccessibleDialog } from "../ui/accessible-dialog";
 
 type UpdateInfoDialogProps = {
   updates: UpdateHistoryEntry[];
@@ -10,6 +11,7 @@ type UpdateInfoDialogProps = {
 
 export function UpdateInfoDialog({ updates }: UpdateInfoDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   return (
     <>
@@ -21,20 +23,14 @@ export function UpdateInfoDialog({ updates }: UpdateInfoDialogProps) {
         Update info
       </button>
 
-      {isOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8">
-          <button
-            type="button"
-            aria-label="업데이트 기록 닫기"
-            className="absolute inset-0 bg-ink/35 backdrop-blur-sm"
-            onClick={() => setIsOpen(false)}
-          />
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="update-info-title"
-            className="relative max-h-[82vh] w-full max-w-3xl overflow-hidden rounded-[2rem] border border-white/70 bg-white shadow-2xl"
-          >
+      <AccessibleDialog
+        open={isOpen}
+        onClose={() => setIsOpen(false)}
+        titleId="update-info-title"
+        descriptionId="update-info-description"
+        initialFocusRef={closeButtonRef}
+        className="relative max-h-[82vh] w-full max-w-3xl overflow-hidden rounded-[2rem] border border-white/70 bg-white shadow-2xl"
+      >
             <div className="flex flex-col gap-4 border-b border-ink/10 bg-canvas/70 px-6 py-6 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.28em] text-accent">
@@ -43,13 +39,14 @@ export function UpdateInfoDialog({ updates }: UpdateInfoDialogProps) {
                 <h2 id="update-info-title" className="mt-3 text-2xl font-semibold">
                   업데이트 기록
                 </h2>
-                <p className="mt-2 text-sm leading-6 text-ink/65">
+                <p id="update-info-description" className="mt-2 text-sm leading-6 text-ink/65">
                   PAPS Tracker가 초기 MVP에서 현재 운영 가능한 흐름까지 발전한 과정을
                   최신순으로 정리했습니다.
                 </p>
               </div>
               <button
                 type="button"
+                ref={closeButtonRef}
                 className="w-fit rounded-full border border-ink/15 bg-white px-5 py-2 text-sm font-semibold text-ink/75 transition hover:border-accent/50 hover:text-accent"
                 onClick={() => setIsOpen(false)}
               >
@@ -64,6 +61,11 @@ export function UpdateInfoDialog({ updates }: UpdateInfoDialogProps) {
                     <span className="rounded-full bg-accent/10 px-3 py-1 text-xs font-semibold text-accent">
                       {entry.version}
                     </span>
+                    {entry.date ? (
+                      <time dateTime={entry.date} className="text-xs font-medium text-ink/55">
+                        {entry.date}
+                      </time>
+                    ) : null}
                     <h3 className="text-lg font-semibold">{entry.title}</h3>
                   </div>
                   <p className="mt-3 text-sm leading-6 text-ink/70">{entry.summary}</p>
@@ -78,9 +80,7 @@ export function UpdateInfoDialog({ updates }: UpdateInfoDialogProps) {
                 </li>
               ))}
             </ol>
-          </section>
-        </div>
-      ) : null}
+      </AccessibleDialog>
     </>
   );
 }

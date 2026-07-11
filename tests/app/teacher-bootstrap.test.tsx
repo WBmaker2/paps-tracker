@@ -155,7 +155,7 @@ describe("teacher bootstrap contract", () => {
       teacherEmail: "demo-teacher@example.com",
       spreadsheetId: "stale-sheet"
     });
-    expect(screen.getByText("구글 시트 연결 안내")).toBeInTheDocument();
+    expect(screen.getByText("구글 시트 최초 연결 안내")).toBeInTheDocument();
     expect(screen.getByText("배포 설정 확인 필요")).toBeInTheDocument();
   });
 

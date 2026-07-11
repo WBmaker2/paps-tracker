@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { parseGoogleSheetsUrl } from "../../../../src/lib/google/drive-link";
 import { resyncGoogleSheet, type GoogleSheetResyncInput } from "../../../../src/lib/google/resync";
-import { createTeacherRuntimeStoreForRequest } from "../../../../src/lib/google/sheets-store";
+import {
+  createTeacherRuntimeStoreForRequest,
+  PAPS_SPREADSHEET_ID_COOKIE
+} from "../../../../src/lib/google/sheets-store";
 import {
   assertGoogleSheetTabsMatchPrototype,
   createPapsGoogleSheetTabPayloads,
@@ -52,16 +55,36 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
 
   try {
+    const connectedSpreadsheetId =
+      request.cookies.get(PAPS_SPREADSHEET_ID_COOKIE)?.value?.trim() ?? "";
+
+    if (!connectedSpreadsheetId) {
+      return NextResponse.json(
+        { ok: false, error: "먼저 구글 시트를 연결해주세요." },
+        { status: 400 }
+      );
+    }
+
+    const requestedSpreadsheetId =
+      typeof body?.spreadsheetId === "string" && body.spreadsheetId.trim()
+        ? body.spreadsheetId.trim()
+        : typeof body?.spreadsheetUrl === "string" && body.spreadsheetUrl.trim()
+          ? parseGoogleSheetsUrl(body.spreadsheetUrl).spreadsheetId
+          : connectedSpreadsheetId;
+
+    if (requestedSpreadsheetId !== connectedSpreadsheetId) {
+      return NextResponse.json(
+        { ok: false, error: "연결된 구글 시트만 동기화할 수 있습니다." },
+        { status: 403 }
+      );
+    }
+
     const store = await createTeacherRuntimeStoreForRequest(request, teacherSession.session.email);
     const bootstrap = await store.getTeacherBootstrap({
       teacherEmail: teacherSession.session.email
     });
     const teacher = bootstrap.teacher;
-    const spreadsheetId =
-      typeof body?.spreadsheetId === "string" && body.spreadsheetId.trim()
-        ? body.spreadsheetId.trim()
-        : parseGoogleSheetsUrl(typeof body?.spreadsheetUrl === "string" ? body.spreadsheetUrl : "")
-            .spreadsheetId;
+    const spreadsheetId = connectedSpreadsheetId;
     const school = teacher?.schoolId ? bootstrap.school : bootstrap.schools[0] ?? null;
 
     if (!school) {

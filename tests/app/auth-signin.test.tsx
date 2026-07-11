@@ -56,7 +56,7 @@ describe("auth sign-in page", () => {
     expect(screen.queryByRole("link", { name: "Google로 교사 로그인" })).not.toBeInTheDocument();
   });
 
-  it("still shows a Google sign-in button when teacher access scope is not configured", async () => {
+  it("blocks Google sign-in when teacher access scope is not configured", async () => {
     process.env.GOOGLE_CLIENT_ID = "client-id";
     process.env.GOOGLE_CLIENT_SECRET = "client-secret";
     delete process.env.TEACHER_EMAIL_ALLOWLIST;
@@ -66,13 +66,8 @@ describe("auth sign-in page", () => {
 
     render(await pageModule.default());
 
-    expect(screen.getByText("교사 로그인")).toBeInTheDocument();
-    expect(
-      screen.getByText("접근 범위 미설정")
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Google 로그인은 가능하지만 접근 범위를 따로 설정하지 않으면 모든 Google 계정이 교사 로그인 대상이 됩니다.")
-    ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Google로 교사 로그인" })).toBeInTheDocument();
+    expect(screen.getByText("교사 로그인 설정 필요")).toBeInTheDocument();
+    expect(screen.getByText("GOOGLE_HOSTED_DOMAIN 또는 TEACHER_EMAIL_ALLOWLIST")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Google로 교사 로그인" })).not.toBeInTheDocument();
   });
 });

@@ -68,7 +68,7 @@ describe("teacher auth helpers", () => {
     expect(redirectMock).toHaveBeenCalledWith("/auth/signin");
   });
 
-  it("accepts any signed-in Google user when no access scope is configured", async () => {
+  it("redirects signed-in users when no access scope is configured", async () => {
     delete process.env.GOOGLE_HOSTED_DOMAIN;
     delete process.env.TEACHER_EMAIL_ALLOWLIST;
     authMock.mockResolvedValue({
@@ -81,9 +81,7 @@ describe("teacher auth helpers", () => {
 
     const teacherAuthModule = await import("../../src/lib/teacher-auth");
 
-    await expect(teacherAuthModule.requireTeacherSession()).resolves.toMatchObject({
-      email: "teacher@school.example.com",
-      name: "Teacher"
-    });
+    await expect(teacherAuthModule.requireTeacherSession()).rejects.toThrow("REDIRECT");
+    expect(redirectMock).toHaveBeenCalledWith("/auth/signin");
   });
 });

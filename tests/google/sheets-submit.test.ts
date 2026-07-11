@@ -103,15 +103,20 @@ describe("Google Sheets student submit", () => {
         measurement: 24
       })
     ]);
-    expect(successClient.updateRange).toHaveBeenCalledWith(
+    expect(successClient.updateRange).not.toHaveBeenCalledWith(
       "sheet-123",
       "'학생요약'!A1:L2000",
       expect.any(Array)
     );
-    expect(successClient.updateRange).toHaveBeenCalledWith(
+    expect(successClient.updateRange).not.toHaveBeenCalledWith(
       "sheet-123",
       "'공식평가요약'!A1:K2000",
       expect.any(Array)
+    );
+    expect(successClient.appendRows).toHaveBeenCalledWith(
+      "sheet-123",
+      "'학생요약'!A:L",
+      [expect.arrayContaining(["student-kim", "Kim"])]
     );
   });
 
@@ -299,7 +304,11 @@ describe("Google Sheets student submit", () => {
         ]
       }
     });
-    expect(updateClient.appendRows).not.toHaveBeenCalled();
+    expect(updateClient.appendRows).not.toHaveBeenCalledWith(
+      "sheet-123",
+      "'세션기록'!A:U",
+      expect.any(Array)
+    );
 
     const recordUpdateCall = vi
       .mocked(updateClient.updateRange)

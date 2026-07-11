@@ -18,14 +18,18 @@ import {
   assertMeasurementAllowed,
   assertMeasurementDetailAllowed
 } from "../paps/validation";
-import type { StudentSessionGroupView, StudentSessionView } from "../store/paps-store-types";
-import { buildStructuredStateFromSheet, type GoogleSheetStructuredState } from "./sheets-bootstrap";
+import { buildStructuredStateFromSheet } from "./sheets-bootstrap";
 import { createGoogleSheetClientFromEnv } from "./sheets-store";
 import { GoogleSheetsAccessError, type GoogleSheetsClient } from "./sheets-client";
 import { buildRecordNote } from "./sheets-record-note";
-import { rebuildGoogleSheetSummaries } from "./sheets-rebuild";
-import { isTeacherReturnPinEnabled } from "../teacher-return";
+import { persistStudentSubmissionSummaryRows } from "./sheet-summary-row-persistence";
 import { writeGoogleSheetRecordSourceTab } from "./sheet-source-write";
+import { buildStudentEventHistoryAttempts } from "./sheet-student-session-views";
+
+export {
+  loadStudentSessionGroupViewFromSheet,
+  loadStudentSessionViewFromSheet
+} from "./sheet-student-session-views";
 
 const STUDENT_RUNTIME_EMAIL = "student-session@paps.local";
 const RECORD_APPEND_RANGE = "'세션기록'!A:U";
@@ -57,166 +61,6 @@ const toStudentAttempt = (attempt: PAPSStoredAttempt): PAPSAttempt => ({
   clientSubmissionKey: attempt.clientSubmissionKey,
   detail: attempt.detail ?? null
 });
-
-const sortStudentEventHistoryAttempts = (
-  attempts: PAPSStudentEventHistoryAttempt[]
-): PAPSStudentEventHistoryAttempt[] =>
-  [...attempts].sort((left, right) => {
-    if (left.sessionId === right.sessionId) {
-      return (
-        left.attemptNumber - right.attemptNumber ||
-        left.createdAt.localeCompare(right.createdAt) ||
-        left.id.localeCompare(right.id)
-      );
-    }
-
-    return (
-      left.createdAt.localeCompare(right.createdAt) ||
-      left.sessionId.localeCompare(right.sessionId) ||
-      left.attemptNumber - right.attemptNumber ||
-      left.id.localeCompare(right.id)
-    );
-  });
-
-const dedupeStudentEventHistoryAttemptsByClientSubmissionKey = (
-  attempts: PAPSStudentEventHistoryAttempt[]
-): PAPSStudentEventHistoryAttempt[] => {
-  const seenKeys = new Set<string>();
-
-  return sortStudentEventHistoryAttempts(attempts).filter((attempt) => {
-    const key = attempt.clientSubmissionKey?.trim();
-
-    if (!key) {
-      return true;
-    }
-
-    if (seenKeys.has(key)) {
-      return false;
-    }
-
-    seenKeys.add(key);
-    return true;
-  });
-};
-
-const buildStudentEventHistoryAttempts = ({
-  state,
-  sessionId,
-  studentId
-}: {
-  state: GoogleSheetStructuredState;
-  sessionId: string;
-  studentId: string;
-}): PAPSStudentEventHistoryAttempt[] => {
-  const currentSession = state.sessions.find((entry) => entry.id === sessionId);
-
-  if (!currentSession) {
-    throw new Error(`Session ${sessionId} was not found.`);
-  }
-
-  return dedupeStudentEventHistoryAttemptsByClientSubmissionKey(
-    state.attempts.flatMap((attempt) => {
-      if (attempt.studentId !== studentId || attempt.eventId !== currentSession.eventId) {
-        return [];
-      }
-
-      const session = state.sessions.find((entry) => entry.id === attempt.sessionId);
-
-      if (!session) {
-        return [];
-      }
-
-      if (
-        currentSession.academicYear !== undefined &&
-        session.academicYear !== undefined &&
-        currentSession.academicYear !== session.academicYear
-      ) {
-        return [];
-      }
-
-      return [
-        {
-          ...toStudentAttempt(attempt),
-          sessionId: session.id,
-          sessionName: session.name ?? session.id,
-          sessionType: session.sessionType,
-          eventId: attempt.eventId,
-          academicYear: session.academicYear,
-          isCurrentSession: session.id === sessionId
-        }
-      ];
-    })
-  );
-};
-
-const buildStudentSessionViewFromState = (
-  state: Awaited<ReturnType<typeof buildStructuredStateFromSheet>>,
-  sessionId: string
-): StudentSessionView => {
-  const session = state.sessions.find((entry) => entry.id === sessionId);
-
-  if (!session) {
-    throw new Error(`Session ${sessionId} was not found.`);
-  }
-
-  const activeStudents = state.allStudents.filter((student) => student.active !== false);
-  const classSections = session.classTargets.map((classTarget) => {
-    const classroom = state.classes.find((entry) => entry.id === classTarget.classId);
-
-    if (!classroom) {
-      throw new Error(`Class ${classTarget.classId} was not found.`);
-    }
-
-    return {
-      classId: classroom.id,
-      label: classroom.label,
-      students: activeStudents
-        .filter((student) => student.classId === classroom.id)
-        .sort((left, right) => {
-          if (left.studentNumber !== undefined && right.studentNumber !== undefined) {
-            return left.studentNumber - right.studentNumber;
-          }
-
-          return left.name.localeCompare(right.name, "en");
-        })
-        .map((student) => ({
-          id: student.id,
-          name: student.name
-        }))
-    };
-  });
-
-  return {
-    session,
-    classSections,
-    teacherReturnPinConfigured: isTeacherReturnPinEnabled(state.school)
-  };
-};
-
-const buildStudentSessionGroupViewFromState = (
-  state: Awaited<ReturnType<typeof buildStructuredStateFromSheet>>,
-  sessionGroupId: string
-): StudentSessionGroupView => {
-  const sessions = state.sessions
-    .filter((session) => session.sessionGroupId === sessionGroupId)
-    .sort(
-      (left, right) =>
-        (left.sessionGroupOrder ?? 0) - (right.sessionGroupOrder ?? 0) ||
-        (left.createdAt ?? "").localeCompare(right.createdAt ?? "") ||
-        left.id.localeCompare(right.id)
-    );
-
-  if (sessions.length === 0) {
-    throw new Error(`Session group ${sessionGroupId} was not found.`);
-  }
-
-  return {
-    groupId: sessionGroupId,
-    groupName: sessions[0]?.sessionGroupName ?? sessions[0]?.name ?? sessionGroupId,
-    sessions: sessions.map((session) => buildStudentSessionViewFromState(state, session.id)),
-    teacherReturnPinConfigured: isTeacherReturnPinEnabled(state.school)
-  };
-};
 
 const buildAttemptRow = (input: {
   state: Awaited<ReturnType<typeof buildStructuredStateFromSheet>>;
@@ -274,7 +118,6 @@ const buildAttemptRow = (input: {
     })
   ];
 };
-
 export const dedupeAttemptsByClientSubmissionKey = (attempts: PAPSAttempt[]): PAPSAttempt[] => {
   const seenKeys = new Set<string>();
 
@@ -292,34 +135,6 @@ export const dedupeAttemptsByClientSubmissionKey = (attempts: PAPSAttempt[]): PA
     seenKeys.add(key);
     return true;
   });
-};
-
-export const loadStudentSessionViewFromSheet = async (input: {
-  spreadsheetId: string;
-  sessionId: string;
-  client?: GoogleSheetsClient;
-}): Promise<StudentSessionView> => {
-  const state = await buildStructuredStateFromSheet({
-    client: input.client ?? createGoogleSheetClientFromEnv(),
-    spreadsheetId: input.spreadsheetId,
-    teacherEmail: STUDENT_RUNTIME_EMAIL
-  });
-
-  return buildStudentSessionViewFromState(state, input.sessionId);
-};
-
-export const loadStudentSessionGroupViewFromSheet = async (input: {
-  spreadsheetId: string;
-  sessionGroupId: string;
-  client?: GoogleSheetsClient;
-}): Promise<StudentSessionGroupView> => {
-  const state = await buildStructuredStateFromSheet({
-    client: input.client ?? createGoogleSheetClientFromEnv(),
-    spreadsheetId: input.spreadsheetId,
-    teacherEmail: STUDENT_RUNTIME_EMAIL
-  });
-
-  return buildStudentSessionGroupViewFromState(state, input.sessionGroupId);
 };
 
 type StudentSubmissionSheetResult =
@@ -523,9 +338,11 @@ export const appendStudentSubmissionToSheet = async (input: {
         detail: resolvedSubmission.detail
       })
     ]);
-    const summaryRebuild = await rebuildGoogleSheetSummaries({
+    const summaryRebuild = await persistStudentSubmissionSummaryRows({
       spreadsheetId: input.spreadsheetId,
-      teacherEmail: STUDENT_RUNTIME_EMAIL,
+      state: nextState,
+      sessionId: input.sessionId,
+      studentId: input.studentId,
       client
     });
 
@@ -683,9 +500,11 @@ export const updateStudentSubmissionInSheet = async (input: {
       client,
       state: nextState
     });
-    const summaryRebuild = await rebuildGoogleSheetSummaries({
+    const summaryRebuild = await persistStudentSubmissionSummaryRows({
       spreadsheetId: input.spreadsheetId,
-      teacherEmail: STUDENT_RUNTIME_EMAIL,
+      state: nextState,
+      sessionId: input.sessionId,
+      studentId: input.studentId,
       client
     });
 
