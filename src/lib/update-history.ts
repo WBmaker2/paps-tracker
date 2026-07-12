@@ -6,9 +6,21 @@ export type UpdateHistoryEntry = {
   highlights: string[];
 };
 
-export const APP_VERSION = "v1.1.0";
+export const APP_VERSION = "v1.1.1";
 
 export const UPDATE_HISTORY: UpdateHistoryEntry[] = [
+  {
+    version: "v1.1.1",
+    date: "2026-07-12",
+    title: "악력 최신 기록 순서 보정",
+    summary:
+      "학생이 방금 제출한 악력 기록이 누적 그래프의 중간이 아니라 항상 가장 오른쪽에 표시되도록 순서를 보정했습니다.",
+    highlights: [
+      "과거 시트 기록의 시간값이 다르게 해석되어도 방금 제출한 기록을 최신 기준으로 유지합니다.",
+      "악력 좌우 꺾은선 그래프, 누적 기록 표, 직전 대비 계산이 동일한 기록 순서를 사용합니다.",
+      "최신 기록이 그래프 오른쪽 끝에 표시되는 회귀 테스트를 추가했습니다."
+    ]
+  },
   {
     version: "v1.1.0",
     date: "2026-07-12",

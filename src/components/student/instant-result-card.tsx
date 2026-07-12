@@ -68,8 +68,23 @@ const compareAttemptsForDisplay = (left: PAPSAttempt, right: PAPSAttempt): numbe
   );
 };
 
-const sortAttemptsForDisplay = (attempts: PAPSAttempt[]): PAPSAttempt[] =>
-  [...attempts].sort(compareAttemptsForDisplay);
+const sortAttemptsForDisplay = (
+  attempts: PAPSAttempt[],
+  latestAttemptId: string | null
+): PAPSAttempt[] =>
+  [...attempts].sort((left, right) => {
+    if (latestAttemptId !== null) {
+      if (left.id === latestAttemptId) {
+        return right.id === latestAttemptId ? 0 : 1;
+      }
+
+      if (right.id === latestAttemptId) {
+        return -1;
+      }
+    }
+
+    return compareAttemptsForDisplay(left, right);
+  });
 
 const formatDelta = (value: number): string =>
   new Intl.NumberFormat("ko-KR", {
@@ -111,7 +126,7 @@ export function InstantResultCard({
         ? [...historyAttempts, latestAttempt]
         : historyAttempts
       : attempts;
-  const displayAttempts = sortAttemptsForDisplay(rawDisplayAttempts);
+  const displayAttempts = sortAttemptsForDisplay(rawDisplayAttempts, latestAttempt?.id ?? null);
   const showHistory = historyAttempts !== undefined && historyAttempts.length > 0;
   const hasPastSessionHistory =
     showHistory && displayAttempts.some((attempt) => isHistoryAttempt(attempt) && !attempt.isCurrentSession);

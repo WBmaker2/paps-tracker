@@ -68,7 +68,7 @@ describe("home page", () => {
 
     render(<HomePage />);
 
-    expect(screen.getByText("v1.1.0")).toBeInTheDocument();
+    expect(screen.getByText("v1.1.1")).toBeInTheDocument();
 
     const trigger = screen.getByRole("button", { name: /Update info/i });
     trigger.focus();
@@ -84,9 +84,9 @@ describe("home page", () => {
 
     fireEvent.keyDown(closeButton, { key: "Tab" });
     expect(closeButton).toHaveFocus();
-    expect(screen.getAllByText("v1.1.0").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("v1.1.1").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/보안과 운영 기반 강화/)).toBeInTheDocument();
-    expect(screen.getByText("2026-07-12")).toBeInTheDocument();
+    expect(screen.getAllByText("2026-07-12").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("2026-03-24")).toBeInTheDocument();
     expect(screen.getByText(/악력 좌우 기록/)).toBeInTheDocument();
     expect(screen.getByText(/설정 저장 후 즉시 최신화/)).toBeInTheDocument();

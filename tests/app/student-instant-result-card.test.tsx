@@ -178,6 +178,83 @@ describe("student instant result card", () => {
     expect(within(progressChart).getByText("이번")).toBeInTheDocument();
   });
 
+  it("keeps the just-submitted grip attempt at the right edge when imported timestamps disagree", () => {
+    const historyAttempts: PAPSStudentEventHistoryAttempt[] = [
+      {
+        id: "attempt-march-grip",
+        attemptNumber: 1,
+        measurement: 18,
+        createdAt: "2026-03-05T09:00:00.000Z",
+        sessionId: "session-march",
+        sessionName: "3월 측정",
+        sessionType: "practice",
+        eventId: "grip-strength",
+        academicYear: 2026,
+        isCurrentSession: false,
+        detail: {
+          kind: "grip-strength",
+          right: 18,
+          left: 17.4
+        }
+      },
+      {
+        id: "attempt-current-grip",
+        attemptNumber: 1,
+        measurement: 20,
+        createdAt: "2026-07-12T00:30:00.000Z",
+        sessionId: "session-july",
+        sessionName: "7월 측정",
+        sessionType: "official",
+        eventId: "grip-strength",
+        academicYear: 2026,
+        isCurrentSession: true,
+        detail: {
+          kind: "grip-strength",
+          right: 20,
+          left: 19.2
+        }
+      },
+      {
+        id: "attempt-april-imported-grip",
+        attemptNumber: 1,
+        measurement: 19,
+        createdAt: "2026-07-12T09:00:00.000Z",
+        sessionId: "session-april",
+        sessionName: "4월 측정",
+        sessionType: "practice",
+        eventId: "grip-strength",
+        academicYear: 2026,
+        isCurrentSession: false,
+        detail: {
+          kind: "grip-strength",
+          right: 19,
+          left: 18.1
+        }
+      }
+    ];
+
+    render(
+      <InstantResultCard
+        studentName="김수진"
+        sessionType="official"
+        eventId="grip-strength"
+        eventLabel="악력"
+        unit="kg"
+        attempts={[historyAttempts[1]!]}
+        historyAttempts={historyAttempts}
+        betterDirection="higher"
+        latestOfficialGrade={3}
+      />
+    );
+
+    const gripChart = screen.getByRole("img", {
+      name: "오른손·왼손 악력 추이 차트"
+    });
+    const chartLabels = [...gripChart.querySelectorAll("text")].map((label) => label.textContent);
+
+    expect(chartLabels).toEqual(["3월", "4월", "이번"]);
+  });
+
   it("falls back to cumulative chart when grip detail is incomplete", () => {
     const historyAttempts: PAPSStudentEventHistoryAttempt[] = [
       {
