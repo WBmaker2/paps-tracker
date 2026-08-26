@@ -5,6 +5,9 @@ import { ResultTable, type TeacherResultRow } from "../../../src/components/teac
 import { TeacherDataRefresh } from "../../../src/components/teacher/teacher-data-refresh";
 import { TeacherResultsWorkspace } from "../../../src/components/teacher/teacher-results-workspace";
 import { TeacherSheetAutoLoader } from "../../../src/components/teacher/teacher-sheet-auto-loader";
+import { FourFactorRoundResultPanel } from "../../../src/components/teacher/four-factor-round-result-panel";
+import { adaptRoundResult } from "../../../src/components/teacher/four-factor-round-adapter";
+import type { PAPSAssessmentRound } from "../../../src/lib/paps/types";
 import { buildTeacherStateVersion } from "../../../src/lib/google/sheet-state-version";
 import { createPapsGoogleSheetTabPayloads } from "../../../src/lib/google/sheets";
 import { loadTeacherPageState, PAPS_SPREADSHEET_ID_COOKIE } from "../../../src/lib/google/sheets-store";
@@ -27,6 +30,8 @@ export default async function TeacherResultsPage() {
   const schoolId = bootstrap.teacher?.schoolId ?? null;
   const school = schoolId ? bootstrap.school : bootstrap.schools[0] ?? null;
   const sessions = bootstrap.sessions;
+  const assessmentRounds = bootstrap.assessmentRounds ?? [];
+  const studentRoundResults = bootstrap.studentRoundResults ?? [];
 
   if (!sheetConnected) {
     return (
@@ -102,6 +107,17 @@ export default async function TeacherResultsPage() {
     >
       <TeacherDataRefresh initialVersion={initialVersion} pollIntervalMs={30000} />
       <TeacherSheetAutoLoader sheetStatus={sheetStatus} />
+      {assessmentRounds.map((round: PAPSAssessmentRound) => (
+        <FourFactorRoundResultPanel
+          key={round.id}
+          roundId={round.id}
+          roundName={round.name}
+          roundRevision={round.revision}
+          results={studentRoundResults
+            .filter((result) => result.roundId === round.id)
+            .map(adaptRoundResult)}
+        />
+      ))}
       <TeacherResultsWorkspace
         rows={viewModel.rows}
         filterOptions={viewModel.filterOptions}

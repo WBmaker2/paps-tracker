@@ -98,6 +98,7 @@ export interface GoogleSheetsClient {
   readRanges(spreadsheetId: string, ranges: string[]): Promise<string[][][]>;
   appendRows(spreadsheetId: string, range: string, values: GoogleSheetsCellValue[][]): Promise<GoogleSheetsMutationResponse>;
   updateRange(spreadsheetId: string, range: string, values: GoogleSheetsCellValue[][]): Promise<GoogleSheetsMutationResponse>;
+  addSheet?(spreadsheetId: string, title: string): Promise<GoogleSheetsSheetMetadata>;
 }
 
 const API_BASE_URL = "https://sheets.googleapis.com/v4";
@@ -356,11 +357,29 @@ export const createGoogleSheetsClient = (
     );
   };
 
+  const addSheet = async (spreadsheetId: string, title: string): Promise<GoogleSheetsSheetMetadata> => {
+    const url = `${API_BASE_URL}/spreadsheets/${spreadsheetId}:batchUpdate`;
+    return request(
+      url,
+      {
+        method: "POST",
+        body: JSON.stringify({ requests: [{ addSheet: { properties: { title } } }] }),
+        headers: { "content-type": "application/json" }
+      },
+      spreadsheetId,
+      async (response) => {
+        const payload = (await response.json()) as { replies?: Array<{ addSheet?: { properties?: GoogleSheetsSheetMetadata["properties"] } }> };
+        return { properties: payload.replies?.[0]?.addSheet?.properties ?? { sheetId: -1, title } };
+      }
+    );
+  };
+
   return {
     getSpreadsheet,
     readRange,
     readRanges,
     appendRows,
-    updateRange
+    updateRange,
+    addSheet
   };
 };

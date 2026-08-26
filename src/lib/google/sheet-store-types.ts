@@ -4,8 +4,11 @@ import type {
   PAPSSchool,
   PAPSSession,
   PAPSSyncStatusRecord,
-  PAPSStudent
+  PAPSStudent,
+  PAPSAssessmentRound,
+  PAPSStudentRoundResult
 } from "../paps/types";
+import type { AssessmentRoundMemoryStore } from "../store/paps-memory-round-store";
 import { createSchoolStoreForRequest, createStoreForRequest } from "../store/paps-store";
 import type {
   RecordSelector,
@@ -40,6 +43,14 @@ export interface TeacherSheetsStore {
   getSyncStatus(selector: RecordSelector): MaybePromise<PAPSSyncStatusRecord | null>;
   setSyncStatus(input: SetSyncStatusInput): MaybePromise<PAPSSyncStatusRecord>;
   saveSchool(school: PAPSSchool): Promise<PAPSSchool>;
+  createAssessmentRound?: (input: Parameters<AssessmentRoundMemoryStore["createAssessmentRound"]>[0]) => Promise<ReturnType<AssessmentRoundMemoryStore["createAssessmentRound"]>>;
+  getAssessmentRound?: (roundId: string) => Promise<PAPSAssessmentRound>;
+  listAssessmentRounds?: () => Promise<PAPSAssessmentRound[]>;
+  listStudentRoundResults?: (roundId: string) => Promise<PAPSStudentRoundResult[]>;
+  getStudentRoundResult?: (input: { roundId: string; studentId: string }) => Promise<PAPSStudentRoundResult | null>;
+  previewAssessmentRound?: (input: Parameters<AssessmentRoundMemoryStore["previewAssessmentRound"]>[0]) => Promise<PAPSStudentRoundResult[]>;
+  finalizeStudentRound?: (input: Parameters<AssessmentRoundMemoryStore["finalizeStudentRound"]>[0]) => Promise<ReturnType<AssessmentRoundMemoryStore["finalizeStudentRound"]>>;
+  excludeStudentRound?: (input: Parameters<AssessmentRoundMemoryStore["excludeStudentRound"]>[0]) => Promise<ReturnType<AssessmentRoundMemoryStore["excludeStudentRound"]>>;
 }
 
 export type TeacherCrudStore = Awaited<ReturnType<typeof createStoreForRequest>> | TeacherSheetsStore;

@@ -42,7 +42,8 @@ export const saveGoogleSheetSchool = async ({
       school: nextSchool,
       classes: state.classes,
       teachers: state.teachers,
-      sessions: state.sessions
+      sessions: state.sessions,
+      assessmentRounds: state.assessmentRounds
     }
   });
 
@@ -69,7 +70,8 @@ export const saveGoogleSheetClass = async ({
       school: state.school,
       classes,
       teachers: state.teachers,
-      sessions: state.sessions
+      sessions: state.sessions,
+      assessmentRounds: state.assessmentRounds
     }
   });
   await writeGoogleSheetStudentsSourceTab({
@@ -108,7 +110,8 @@ export const deleteGoogleSheetClass = async ({
       school: state.school,
       classes,
       teachers: state.teachers,
-      sessions
+      sessions,
+      assessmentRounds: state.assessmentRounds
     }
   });
   await writeGoogleSheetStudentsSourceTab({
@@ -217,7 +220,8 @@ export const saveGoogleSheetSession = async ({
       school: state.school,
       classes: state.classes,
       teachers: state.teachers,
-      sessions
+      sessions,
+      assessmentRounds: state.assessmentRounds
     }
   });
 
@@ -248,7 +252,8 @@ export const saveGoogleSheetSessions = async ({
       school: state.school,
       classes: state.classes,
       teachers: state.teachers,
-      sessions
+      sessions,
+      assessmentRounds: state.assessmentRounds
     }
   });
 
@@ -273,7 +278,8 @@ export const deleteGoogleSheetSession = async ({
       school: state.school,
       classes: state.classes,
       teachers: state.teachers,
-      sessions: state.sessions.filter((entry) => entry.id !== sessionId)
+      sessions: state.sessions.filter((entry) => entry.id !== sessionId),
+      assessmentRounds: state.assessmentRounds
     }
   });
 };

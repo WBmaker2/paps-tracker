@@ -12,6 +12,7 @@ import {
 import { buildTeacherStateVersion } from "../../../../src/lib/google/sheet-state-version";
 import { isKnownEventId } from "../../../../src/lib/paps/catalog";
 import { validateSession } from "../../../../src/lib/paps/validation";
+import { hasRoundSessionStructureChange } from "../../../../src/lib/paps/assessment-round";
 import type { EventId, GradeLevel, PAPSSession, SessionType } from "../../../../src/lib/paps/types";
 
 const parseOptionalGradeLevel = (value: unknown, fallback: GradeLevel): GradeLevel => {
@@ -200,9 +201,10 @@ export async function PATCH(request: NextRequest, context: SessionRouteContext) 
       return forbiddenTeacherRouteResponse();
     }
 
-    const updatedSession = await store.saveSession(
-      await mergeSession(store, session, bodyRecord)
-    );
+    const mergedSession = await mergeSession(store, session, bodyRecord);
+    const structureChanged = hasRoundSessionStructureChange(session, mergedSession);
+    if (session.assessmentRoundId && structureChanged) throw new Error("ROUND_SESSION_STRUCTURE_LOCKED");
+    const updatedSession = await store.saveSession(mergedSession);
     const teacherStateVersion = buildTeacherStateVersion({
       ...bootstrap,
       sessions: bootstrap.sessions.map((entry) =>
@@ -234,7 +236,60 @@ export async function PATCH(request: NextRequest, context: SessionRouteContext) 
         error: message
       },
       {
-        status: message.includes("was not found") ? 404 : 400
+        status: message.includes("was not found") ? 404 : message === "ROUND_SESSION_STRUCTURE_LOCKED" ? 409 : 400
+      }
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest, context: SessionRouteContext) {
+  const teacherSession = await requireTeacherRouteSession();
+
+  if (!teacherSession.ok) {
+    return teacherSession.response;
+  }
+
+  const { sessionId } = await context.params;
+
+  try {
+    const { store, teacher, bootstrap, session } = await getOwnedSession(
+      request,
+      teacherSession.session.email,
+      sessionId
+    );
+
+    if (session.assessmentRoundId) {
+      throw new Error("ROUND_SESSION_STRUCTURE_LOCKED");
+    }
+
+    await store.deleteSession(session.id);
+    const teacherStateVersion = buildTeacherStateVersion({
+      ...bootstrap,
+      sessions: bootstrap.sessions.filter((entry) => entry.id !== session.id)
+    });
+
+    publishTeacherLiveUpdate({
+      teacherEmail: teacherSession.session.email,
+      source: "session",
+      originClientId: request.headers.get(TEACHER_LIVE_UPDATE_CLIENT_HEADER)
+    });
+
+    return NextResponse.json({ ok: true, teacherStateVersion });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Could not delete the session.";
+
+    if (message === "Forbidden") {
+      return forbiddenTeacherRouteResponse();
+    }
+
+    return NextResponse.json(
+      { error: message },
+      {
+        status: message.includes("was not found")
+          ? 404
+          : message === "ROUND_SESSION_STRUCTURE_LOCKED"
+            ? 409
+            : 400
       }
     );
   }

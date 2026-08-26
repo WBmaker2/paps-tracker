@@ -6,9 +6,35 @@ export type UpdateHistoryEntry = {
   highlights: string[];
 };
 
-export const APP_VERSION = "v1.1.1";
+export const APP_VERSION = "v1.2.1";
 
 export const UPDATE_HISTORY: UpdateHistoryEntry[] = [
+  {
+    version: "v1.2.1",
+    date: "2026-08-26",
+    title: "운영 의존성 보안 패치",
+    summary:
+      "Next.js, Auth.js, PostCSS, nanoid, sharp, SheetJS 운영 의존성을 보안 패치 버전으로 갱신하고 운영 의존성 감사 게이트를 추가했습니다.",
+    highlights: [
+      "Next.js 15.5.24와 Auth.js beta.32를 적용해 기존 인증 API와 교사 접근 경계를 유지합니다.",
+      "Next 하위 PostCSS·nanoid·sharp를 안전 버전으로 고정하고 SheetJS 공식 CDN 0.20.3 배포본을 사용합니다.",
+      "npm audit --omit=dev 0건을 CI에서 매번 확인하도록 해 운영 의존성 취약점의 재발을 막습니다.",
+      "실제 Google Sheets 제출 응답의 4요인 진행상태를 배열 계약으로 통일해 첫 기록 저장 뒤 화면이 중단되지 않게 했습니다.",
+      "서명된 회차 링크에서 선택한 학생 1명의 상태만 다시 읽어, 재접속 후에도 확정된 4요인 결과를 안전하게 복원합니다."
+    ]
+  },
+  {
+    version: "v1.2.0",
+    date: "2026-08-26",
+    title: "체지방 제외 4요인 평가 회차",
+    summary:
+      "체지방과 BMI를 제외하고 심폐지구력·유연성·근력·근지구력·순발력 네 요인을 한 회차로 진행하고 결과를 확정할 수 있게 개선했습니다.",
+    highlights: [
+      "교사 화면에서 4요인 평가 회차와 종목 기록·연습 모드를 분리했습니다.",
+      "학생 화면에 0/4~4/4 진행상태와 다음 미측정 종목을 표시합니다.",
+      "교사 확정 후에만 체지방 제외 4요인 합계·환산점수·등급을 보여주고 공식 PAPS 종합등급과 구분합니다."
+    ]
+  },
   {
     version: "v1.1.1",
     date: "2026-07-12",

@@ -6,6 +6,7 @@ import type {
   PAPSSession,
   PAPSSyncStatusRecord,
   PAPSStudent
+  , PAPSStudentRoundResult
 } from "../paps/types";
 import type {
   RecordSelector,
@@ -47,6 +48,9 @@ import type {
   TeacherSheetsStore
 } from "./sheet-store-types";
 import { createGoogleSheetsClient, type GoogleSheetsClient } from "./sheets-client";
+import { createAssessmentRoundMemoryStore } from "../store/paps-memory-round-store";
+import { appendFourFactorRoundResult, ensureFourFactorRoundSheet } from "./four-factor-round-sheet";
+import { writeGoogleSheetSettingsSourceTab } from "./sheet-source-write";
 
 export const createGoogleSheetClientFromEnv = (): GoogleSheetsClient => {
   const env = getGoogleSheetsEnv();
@@ -75,6 +79,7 @@ export const createGoogleSheetsStoreForRequest = async (
 ): Promise<TeacherSheetsStore> => {
   const client = input.client ?? createGoogleSheetClientFromEnv();
   let statePromise: Promise<GoogleSheetStructuredState> | null = null;
+  let roundStorePromise: ReturnType<typeof createAssessmentRoundMemoryStore> | null = null;
 
   const getState = async () => {
     statePromise ??= readGoogleSheetState({
@@ -85,11 +90,44 @@ export const createGoogleSheetsStoreForRequest = async (
     return statePromise;
   };
 
+  const getRoundStore = async () => {
+    if (roundStorePromise) return roundStorePromise;
+    const state = await getState();
+    roundStorePromise = createAssessmentRoundMemoryStore({
+      initialRounds: state.assessmentRounds,
+      initialResults: state.studentRoundResults,
+      listSessions: () => state.sessions,
+      listStudents: () => state.allStudents,
+      getClass: (classId) => getGoogleSheetClass(state, classId),
+      listSessionRecords: (sessionId) => buildAttemptRecordsForSession(state, sessionId),
+      saveSessions: (sessions) => {
+        const ids = new Set(sessions.map((session) => session.id));
+        state.sessions = [...state.sessions.filter((session) => !ids.has(session.id)), ...sessions];
+        return sessions;
+      },
+      onChange: (rounds, results) => {
+        state.assessmentRounds = rounds;
+        state.studentRoundResults = results;
+      }
+    });
+    return roundStorePromise;
+  };
+
   const getTeacherBootstrap = async ({
     teacherEmail
   }: {
     teacherEmail: string;
-  }): Promise<TeacherBootstrap> => toTeacherBootstrapFromStructuredState(await getState(), teacherEmail);
+  }): Promise<TeacherBootstrap> => {
+    const state = await getState();
+    const bootstrap = toTeacherBootstrapFromStructuredState(state, teacherEmail);
+    const roundStore = await getRoundStore();
+    const rounds = roundStore.listAssessmentRounds();
+    return {
+      ...bootstrap,
+      assessmentRounds: rounds,
+      studentRoundResults: rounds.flatMap((round) => roundStore.listStudentRoundResults(round.id))
+    };
+  };
 
   const saveSchool = async (school: PAPSSchool): Promise<PAPSSchool> => {
     return saveGoogleSheetSchool({
@@ -204,7 +242,10 @@ export const createGoogleSheetsStoreForRequest = async (
     return {
       groupId: sessionGroupId,
       groupName: sessions[0]?.sessionGroupName ?? sessions[0]?.name ?? sessionGroupId,
-      sessions: sessions.map((session) => buildStudentSessionView(state, session.id))
+      sessions: sessions.map((session) => buildStudentSessionView(state, session.id)),
+      ...(sessions[0]?.assessmentRoundId && state.assessmentRounds.find((round) => round.id === sessions[0]!.assessmentRoundId)
+        ? (() => { const round = state.assessmentRounds.find((entry) => entry.id === sessions[0]!.assessmentRoundId)!; return { assessmentRound: { roundId: round.id, roundName: round.name, status: round.status, selectedEventsByFactor: round.selectedEventsByFactor, factors: Object.entries(round.selectedEventsByFactor).map(([factorId, eventId]) => ({ factorId, eventId, complete: false })) } }; })()
+        : {})
     };
   };
 
@@ -260,6 +301,38 @@ export const createGoogleSheetsStoreForRequest = async (
       selection
     });
 
+  const createAssessmentRound = async (roundInput: Parameters<ReturnType<typeof createAssessmentRoundMemoryStore>["createAssessmentRound"]>[0]) => {
+    const roundStore = await getRoundStore();
+    const created = roundStore.createAssessmentRound(roundInput);
+    // Validate the whole round in memory first, then migrate the tab/header
+    // before writing v0.2 settings or linked sessions.
+    await ensureFourFactorRoundSheet({ client, spreadsheetId: input.spreadsheetId });
+    const state = await getState();
+    await writeGoogleSheetSettingsSourceTab({ client, spreadsheetId: input.spreadsheetId, state });
+    return created;
+  };
+
+  const saveRoundResultToSheet = async (result: PAPSStudentRoundResult) => {
+    const state = await getState();
+    const round = state.assessmentRounds.find((entry) => entry.id === result.roundId);
+    if (!round) return;
+    await appendFourFactorRoundResult({ client, spreadsheetId: input.spreadsheetId, round, result });
+  };
+
+  const finalizeStudentRound = async (roundInput: Parameters<ReturnType<typeof createAssessmentRoundMemoryStore>["finalizeStudentRound"]>[0]) => {
+    const roundStore = await getRoundStore();
+    const outcome = roundStore.finalizeStudentRound(roundInput);
+    await saveRoundResultToSheet(outcome.result);
+    return outcome;
+  };
+
+  const excludeStudentRound = async (roundInput: Parameters<ReturnType<typeof createAssessmentRoundMemoryStore>["excludeStudentRound"]>[0]) => {
+    const roundStore = await getRoundStore();
+    const outcome = roundStore.excludeStudentRound(roundInput);
+    await saveRoundResultToSheet(outcome.result);
+    return outcome;
+  };
+
   return {
     getTeacherBootstrap,
     getClass,
@@ -279,5 +352,14 @@ export const createGoogleSheetsStoreForRequest = async (
     getSyncStatus,
     setSyncStatus,
     saveSchool
+    ,
+    createAssessmentRound,
+    getAssessmentRound: async (roundId: string) => (await getRoundStore()).getAssessmentRound(roundId),
+    listAssessmentRounds: async () => (await getRoundStore()).listAssessmentRounds(),
+    listStudentRoundResults: async (roundId: string) => (await getRoundStore()).listStudentRoundResults(roundId),
+    getStudentRoundResult: async (roundInput: { roundId: string; studentId: string }) => (await getRoundStore()).getStudentRoundResult(roundInput),
+    previewAssessmentRound: async (roundInput: Parameters<ReturnType<typeof createAssessmentRoundMemoryStore>["previewAssessmentRound"]>[0]) => (await getRoundStore()).previewAssessmentRound(roundInput),
+    finalizeStudentRound,
+    excludeStudentRound
   };
 };

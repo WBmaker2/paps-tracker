@@ -60,6 +60,8 @@ const buildTeacherBootstrap = (
     : store.listSessions();
   const sessionIds = new Set(sessions.map((entry) => entry.id));
   const attempts = sessions.flatMap((session) => toPapsStoredAttempts(store.listSessionRecords(session.id)));
+  const assessmentRounds = store.listAssessmentRounds?.().filter((round) => !schoolId || round.schoolId === schoolId) ?? [];
+  const studentRoundResults = assessmentRounds.flatMap((round) => store.listStudentRoundResults?.(round.id) ?? []);
 
   return {
     teacher,
@@ -74,7 +76,9 @@ const buildTeacherBootstrap = (
     syncErrorLogs: store.listSyncErrorLogs().filter((entry) => sessionIds.has(entry.sessionId)),
     representativeSelectionAuditLogs: store
       .listRepresentativeSelectionAuditLogs()
-      .filter((entry) => sessionIds.has(entry.sessionId))
+      .filter((entry) => sessionIds.has(entry.sessionId)),
+    assessmentRounds,
+    studentRoundResults
   };
 };
 
@@ -133,7 +137,13 @@ const buildStudentSessionGroupView = (
   return {
     groupId: sessionGroupId,
     groupName: sessions[0]?.sessionGroupName ?? sessions[0]?.name ?? sessionGroupId,
-    sessions: sessions.map((session) => buildStudentSessionView(store, session.id))
+    sessions: sessions.map((session) => buildStudentSessionView(store, session.id)),
+    ...(sessions[0]?.assessmentRoundId && store.getAssessmentRound
+      ? (() => {
+          const round = store.getAssessmentRound!(sessions[0]!.assessmentRoundId!);
+          return { assessmentRound: { roundId: round.id, roundName: round.name, status: round.status, selectedEventsByFactor: round.selectedEventsByFactor, factors: Object.entries(round.selectedEventsByFactor).map(([factorId, eventId]) => ({ factorId, eventId, complete: false })) } };
+        })()
+      : {})
   };
 };
 
@@ -167,7 +177,18 @@ export const createStoreForRequest = async (): Promise<PapsStore> => {
     getStudentSessionGroupView,
     selectRepresentativeAttempt: demoStore.selectRepresentativeAttempt,
     getSyncStatus: demoStore.getSyncStatus,
-    setSyncStatus: demoStore.setSyncStatus
+    setSyncStatus: demoStore.setSyncStatus,
+    createAssessmentRound: demoStore.createAssessmentRound,
+    getAssessmentRound: demoStore.getAssessmentRound,
+    listAssessmentRounds: demoStore.listAssessmentRounds,
+    saveAssessmentRound: demoStore.saveAssessmentRound,
+    listStudentRoundResults: demoStore.listStudentRoundResults,
+    getStudentRoundResult: demoStore.getStudentRoundResult,
+    previewAssessmentRound: demoStore.previewAssessmentRound,
+    saveStudentRoundResult: demoStore.saveStudentRoundResult,
+    finalizeStudentRound: demoStore.finalizeStudentRound,
+    excludeStudentRound: demoStore.excludeStudentRound,
+    updateAssessmentRoundStatus: demoStore.updateAssessmentRoundStatus
   };
 };
 

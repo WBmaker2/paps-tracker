@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { NextRequest, NextResponse } from "next/server";
 
-import { hasOfficialGradeRule } from "../../../../../src/lib/paps/catalog";
+import { getEventDefinition, hasOfficialGradeRule } from "../../../../../src/lib/paps/catalog";
 import { calculateOfficialGrade } from "../../../../../src/lib/paps/grade";
 import {
   appendStudentSubmissionToSheet,
@@ -16,6 +16,9 @@ import {
 import { createStoreForRequest } from "../../../../../src/lib/store/paps-store";
 import { resolveStudentSessionAccessToken } from "../../../../../src/lib/student-session-access";
 import type { OfficialGrade } from "../../../../../src/lib/paps/types";
+import { FOUR_FACTOR_IDS } from "../../../../../src/lib/paps/four-factor-score";
+import { buildStudentFinalizedResultView } from "../../../../../src/lib/paps/student-round-submit-view";
+import type { PAPSAssessmentRound } from "../../../../../src/lib/paps/types";
 
 type SubmitRouteContext = {
   params: Promise<{
@@ -94,6 +97,18 @@ const toLocalSubmitStatus = (message: string): number => {
   }
 
   return 400;
+};
+
+const buildLocalRoundExtras = (store: Awaited<ReturnType<typeof createStoreForRequest>>, round: PAPSAssessmentRound, studentId: string, studentName: string) => {
+  const factors = FOUR_FACTOR_IDS.map((factorId) => {
+    const sessionId = round.sessionIdsByFactor[factorId];
+    const session = store.getSession(sessionId);
+    const record = store.listSessionRecords(sessionId).find((entry) => entry.studentId === studentId);
+    const event = getEventDefinition(session.eventId);
+    return { factorId, eventId: session.eventId, eventLabel: event.label, complete: (record?.attempts.length ?? 0) > 0 };
+  });
+  const current = store.getStudentRoundResult?.({ roundId: round.id, studentId });
+  return { roundProgress: { roundId: round.id, roundName: round.name, status: current?.status ?? "incomplete", factors, roundProgress: { completed: factors.filter((factor) => factor.complete).length, total: 4, nextFactorId: factors.find((factor) => !factor.complete)?.factorId ?? null, nextEventLabel: factors.find((factor) => !factor.complete)?.eventLabel ?? null } }, finalizedResult: current?.status === "finalized" ? buildStudentFinalizedResultView({ result: current, round, studentName }) : null };
 };
 
 export async function POST(request: NextRequest, context: SubmitRouteContext) {
@@ -208,6 +223,48 @@ export async function POST(request: NextRequest, context: SubmitRouteContext) {
       detail: resolvedSubmission.detail
     });
 
+    const assessmentRound = session.assessmentRoundId && store.getAssessmentRound
+      ? await store.getAssessmentRound(session.assessmentRoundId)
+      : null;
+    const roundPreview = assessmentRound && store.previewAssessmentRound
+      ? (await store.previewAssessmentRound({ roundId: assessmentRound.id, studentIds: [studentId] }))[0] ?? null
+      : null;
+    const finalizedResult = assessmentRound && store.getStudentRoundResult
+      ? await store.getStudentRoundResult({ roundId: assessmentRound.id, studentId })
+      : null;
+
+    const roundProgress = assessmentRound && roundPreview
+      ? {
+          roundId: assessmentRound.id,
+          roundName: assessmentRound.name,
+          status: roundPreview.status,
+          factors: FOUR_FACTOR_IDS.map((factorId) => {
+            const factor = roundPreview.factors[factorId];
+            const event = getEventDefinition(factor.eventId);
+            const factorSessionId = assessmentRound.sessionIdsByFactor[factorId];
+            const measured = store.listSessionRecords(factorSessionId).find((record) => record.studentId === studentId)?.attempts.length ?? 0;
+            return {
+              factorId,
+              eventId: factor.eventId,
+              eventLabel: event.label,
+              complete: measured > 0
+            };
+          }),
+          roundProgress: {
+            completed: FOUR_FACTOR_IDS.filter((factorId) => (store.listSessionRecords(assessmentRound.sessionIdsByFactor[factorId]).find((record) => record.studentId === studentId)?.attempts.length ?? 0) > 0).length,
+            total: 4,
+            nextFactorId: FOUR_FACTOR_IDS.find((factorId) => (store.listSessionRecords(assessmentRound.sessionIdsByFactor[factorId]).find((record) => record.studentId === studentId)?.attempts.length ?? 0) === 0) ?? null,
+            nextEventLabel: (() => {
+              const nextFactorId = FOUR_FACTOR_IDS.find((factorId) => (store.listSessionRecords(assessmentRound.sessionIdsByFactor[factorId]).find((record) => record.studentId === studentId)?.attempts.length ?? 0) === 0);
+              return nextFactorId ? getEventDefinition(roundPreview.factors[nextFactorId].eventId).label : null;
+            })()
+          }
+        }
+      : null;
+    const finalizedResultView = finalizedResult?.status === "finalized" && assessmentRound
+      ? buildStudentFinalizedResultView({ result: finalizedResult, round: assessmentRound, studentName: student.name })
+      : null;
+
     return NextResponse.json(
       {
         result: {
@@ -216,10 +273,17 @@ export async function POST(request: NextRequest, context: SubmitRouteContext) {
             name: student.name
           },
           attempts: record.attempts,
-          historyAttempts: store.listStudentEventHistory({
-            sessionId,
-            studentId
-          }),
+          ...(assessmentRound
+            ? {
+                roundProgress,
+                finalizedResult: finalizedResultView
+              }
+            : {
+                historyAttempts: store.listStudentEventHistory({
+                  sessionId,
+                  studentId
+                })
+              }),
           latestOfficialGrade
         }
       },
@@ -345,6 +409,11 @@ export async function PATCH(request: NextRequest, context: SubmitRouteContext) {
       detail: resolvedSubmission.detail
     });
 
+    const assessmentRound = session.assessmentRoundId && store.getAssessmentRound
+      ? store.getAssessmentRound(session.assessmentRoundId)
+      : null;
+    const roundExtras = assessmentRound ? buildLocalRoundExtras(store, assessmentRound, studentId, student.name) : null;
+
     return NextResponse.json({
       result: {
         student: {
@@ -352,10 +421,7 @@ export async function PATCH(request: NextRequest, context: SubmitRouteContext) {
           name: student.name
         },
         attempts: record.attempts,
-        historyAttempts: store.listStudentEventHistory({
-          sessionId,
-          studentId
-        }),
+        ...(roundExtras ? roundExtras : { historyAttempts: store.listStudentEventHistory({ sessionId, studentId }) }),
         latestOfficialGrade
       }
     });

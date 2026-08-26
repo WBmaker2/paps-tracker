@@ -18,17 +18,19 @@ describe("runtime docs", () => {
     expect(readme).not.toContain("PAPS_STORE_PATH");
     expect(envExample).not.toContain("PAPS_STORE_PATH");
     expect(packageJson.scripts?.["migrate:demo-store"]).toBeTruthy();
-    expect(packageJson.version).toBe("1.1.1");
+    expect(packageJson.version).toBe("1.2.1");
     expect(readme).toContain("Node.js 22");
     expect(readme).toContain("교사 초대 승인 코드");
     expect(readme).not.toContain("MVP Limitations");
   });
 
-  it("documents the public update history from MVP to v1.1.1", () => {
+  it("documents the public update history from MVP to v1.2.1", () => {
     const updateHistory = readFileSync(join(projectRoot, "docs", "update-history.md"), "utf8");
     const updateHistorySource = readFileSync(join(projectRoot, "src", "lib", "update-history.ts"), "utf8");
 
     expect(updateHistory).toContain("# PAPS Tracker Update History");
+    expect(updateHistory).toContain("v1.2.0");
+    expect(updateHistory).toContain("체지방 제외 4요인 평가 회차");
     expect(updateHistory).toContain("v1.1.1");
     expect(updateHistory).toContain("보안과 운영 기반 강화");
     expect(updateHistory).toContain("v1.0.2");
@@ -39,6 +41,8 @@ describe("runtime docs", () => {
     expect(updateHistory).toContain("완제품 운영 흐름");
     expect(updateHistory).toContain("v0.1.0");
     expect(updateHistory).toContain("초기 MVP");
-    expect(updateHistorySource).toContain('APP_VERSION = "v1.1.1"');
+    expect(updateHistory).toContain("v1.2.1");
+    expect(updateHistory).toContain("운영 의존성 보안 패치");
+    expect(updateHistorySource).toContain('APP_VERSION = "v1.2.1"');
   });
 });

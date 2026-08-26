@@ -3,6 +3,8 @@ import {
   PAPS_GOOGLE_SHEET_TEMPLATE_VERSION,
   PAPS_GOOGLE_SHEET_TEMPLATE_VERSION_ROW_LABEL
 } from "./template";
+import { FOUR_FACTOR_ROUND_HEADER, FOUR_FACTOR_ROUND_TAB_NAME } from "./four-factor-round-sheet";
+import { PAPS_GOOGLE_SHEET_FOUR_FACTOR_TEMPLATE_VERSION } from "./template";
 import type { GoogleSheetTabPayload } from "./sheets";
 import type { GoogleSheetsClient, GoogleSpreadsheetMetadata } from "./sheets-client";
 
@@ -63,10 +65,9 @@ export const validatePapsGoogleSheetTemplate = async (
   const expectedTabNames = PAPS_GOOGLE_SHEET_PROTOTYPE_TABS.map((tab) => tab.tabName);
   const actualTabNames = spreadsheet.sheets.map((sheet) => sheet.properties.title);
 
-  if (
-    actualTabNames.length !== expectedTabNames.length ||
-    actualTabNames.some((tabName, index) => tabName !== expectedTabNames[index])
-  ) {
+  const isLegacy = actualTabNames.length === expectedTabNames.length && actualTabNames.every((tabName, index) => tabName === expectedTabNames[index]);
+  const isCurrent = actualTabNames.length === expectedTabNames.length + 1 && actualTabNames.slice(0, expectedTabNames.length).every((tabName, index) => tabName === expectedTabNames[index]) && actualTabNames.at(-1) === FOUR_FACTOR_ROUND_TAB_NAME;
+  if (!isLegacy && !isCurrent) {
     throw new Error("Google Sheets spreadsheet tabs must match the PAPS prototype tabs.");
   }
 
@@ -87,6 +88,13 @@ export const validatePapsGoogleSheetTemplate = async (
 
   assertPapsGoogleSheetTabsMatchPrototype(tabPayloads);
 
+  if (isCurrent) {
+    const roundHeader = await client.readRange(spreadsheetId, `'${FOUR_FACTOR_ROUND_TAB_NAME}'!A1:AT1`);
+    if ((roundHeader[0] ?? []).join("\u0001") !== FOUR_FACTOR_ROUND_HEADER.join("\u0001")) {
+      throw new Error("Google Sheets four-factor round header does not match.");
+    }
+  }
+
   const settingsRows = await client.readRange(spreadsheetId, `'설정'!A1:C20`);
   const versionRow = getSettingsVersionRow(settingsRows);
 
@@ -94,10 +102,13 @@ export const validatePapsGoogleSheetTemplate = async (
     throw new Error("Google Sheets template version row was not found.");
   }
 
-  assertPapsGoogleSheetTemplateVersion(versionRow[1] ?? "");
+  const version = versionRow[1] ?? "";
+  if ((isLegacy && version !== PAPS_GOOGLE_SHEET_TEMPLATE_VERSION) || (isCurrent && version !== PAPS_GOOGLE_SHEET_FOUR_FACTOR_TEMPLATE_VERSION)) {
+    throw new Error(`Google Sheets template version ${version} does not match ${isCurrent ? PAPS_GOOGLE_SHEET_FOUR_FACTOR_TEMPLATE_VERSION : PAPS_GOOGLE_SHEET_TEMPLATE_VERSION}.`);
+  }
 
   return {
     spreadsheet,
-    templateVersion: versionRow[1] ?? ""
+    templateVersion: version
   };
 };

@@ -1,8 +1,9 @@
-import type { PAPSClassroom, PAPSSchool, PAPSSession, PAPSStudent, PAPSTeacher } from "../paps/types";
+import type { PAPSAssessmentRound, PAPSClassroom, PAPSSchool, PAPSSession, PAPSStudent, PAPSTeacher } from "../paps/types";
 import { createGoogleSheetsEditLink } from "./drive-link";
 import { SETTINGS_MACHINE_ROW_LABELS } from "./sheet-structured-settings";
 import {
   PAPS_GOOGLE_SHEET_PROTOTYPE_TABS,
+  PAPS_GOOGLE_SHEET_FOUR_FACTOR_TEMPLATE_VERSION,
   PAPS_GOOGLE_SHEET_TEMPLATE_VERSION,
   PAPS_GOOGLE_SHEET_TEMPLATE_VERSION_ROW_LABEL
 } from "./template";
@@ -55,6 +56,7 @@ const buildSettingsRows = (input: {
   classes: PAPSClassroom[];
   teachers: PAPSTeacher[];
   sessions: PAPSSession[];
+  assessmentRounds?: PAPSAssessmentRound[];
 }): string[][] => {
   const academicYears = new Set<number>();
 
@@ -107,7 +109,7 @@ const buildSettingsRows = (input: {
     ],
     [
       PAPS_GOOGLE_SHEET_TEMPLATE_VERSION_ROW_LABEL,
-      PAPS_GOOGLE_SHEET_TEMPLATE_VERSION,
+      input.assessmentRounds?.length ? PAPS_GOOGLE_SHEET_FOUR_FACTOR_TEMPLATE_VERSION : PAPS_GOOGLE_SHEET_TEMPLATE_VERSION,
       "프로토타입 예시",
       "",
       "설정",
@@ -150,6 +152,9 @@ const buildSettingsRows = (input: {
       "",
       ""
     ],
+    ...(input.assessmentRounds?.length
+      ? [[SETTINGS_MACHINE_ROW_LABELS.assessmentRound, JSON.stringify(input.assessmentRounds), "회차 메타데이터", "", "", ""]]
+      : []),
     ...input.teachers.flatMap((teacher) => [
       [
         SETTINGS_MACHINE_ROW_LABELS.teacher,
@@ -204,6 +209,12 @@ const buildSettingsRows = (input: {
         session.classScope,
         session.eventId
       ],
+      ...(session.assessmentRoundId && session.factorId
+        ? [
+            [SETTINGS_MACHINE_ROW_LABELS.assessmentRound, session.id, session.assessmentRoundId, "", "", ""],
+            [SETTINGS_MACHINE_ROW_LABELS.assessmentRoundFactor, session.id, session.factorId, "", "", ""]
+          ]
+        : []),
       [
         SETTINGS_MACHINE_ROW_LABELS.sessionStatus,
         session.id,
@@ -230,6 +241,7 @@ export const buildSettingsTabValues = (input: {
   classes: PAPSClassroom[];
   teachers: PAPSTeacher[];
   sessions: PAPSSession[];
+  assessmentRounds?: PAPSAssessmentRound[];
 }): string[][] => [PAPS_GOOGLE_SHEET_PROTOTYPE_TABS[0]!.header, ...buildSettingsRows(input)];
 
 export const buildStudentTabValues = (input: {

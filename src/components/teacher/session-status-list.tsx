@@ -169,13 +169,19 @@ export function SessionStatusList({
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     {onEdit ? (
-                      <button
-                        type="button"
-                        className="rounded-full border border-ink/15 px-4 py-2 text-sm font-medium"
-                        onClick={() => onEdit(item.sessions)}
-                      >
-                        {editingSessionKey === item.id ? `${item.name} 수정 중` : `${item.name} 수정`}
-                      </button>
+                      item.sessions.some((session) => session.assessmentRoundId) ? (
+                        <span className="rounded-full border border-accent/20 bg-accent/5 px-4 py-2 text-xs font-medium text-accent">
+                          회차 결과에서 관리
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          className="rounded-full border border-ink/15 px-4 py-2 text-sm font-medium"
+                          onClick={() => onEdit(item.sessions)}
+                        >
+                          {editingSessionKey === item.id ? `${item.name} 수정 중` : `${item.name} 수정`}
+                        </button>
+                      )
                     ) : null}
                     <button
                       type="button"
@@ -202,15 +208,21 @@ export function SessionStatusList({
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     {onEdit ? (
-                      <button
-                        type="button"
-                        className="rounded-full border border-ink/15 px-4 py-2 text-sm font-medium"
-                        onClick={() => onEdit([item.session])}
-                      >
-                        {editingSessionKey === item.id
-                          ? `${item.session.name ?? "세션"} 수정 중`
-                          : `${item.session.name ?? "세션"} 수정`}
-                      </button>
+                      item.session.assessmentRoundId ? (
+                        <span className="rounded-full border border-accent/20 bg-accent/5 px-4 py-2 text-xs font-medium text-accent">
+                          회차 결과에서 관리
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          className="rounded-full border border-ink/15 px-4 py-2 text-sm font-medium"
+                          onClick={() => onEdit([item.session])}
+                        >
+                          {editingSessionKey === item.id
+                            ? `${item.session.name ?? "세션"} 수정 중`
+                            : `${item.session.name ?? "세션"} 수정`}
+                        </button>
+                      )
                     ) : null}
                     <button
                       type="button"

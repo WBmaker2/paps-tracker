@@ -16,6 +16,7 @@ import type {
   PAPSStudentEventHistoryAttempt,
   PAPSStoredAttempt
 } from "../paps/types";
+import { createAssessmentRoundMemoryStore } from "./paps-memory-round-store";
 
 export interface AppendAttemptInput {
   id: string;
@@ -83,7 +84,9 @@ export const createEmptyPapsStoreData = (): PAPSDemoStoreData => ({
   attempts: [],
   syncStatuses: [],
   syncErrorLogs: [],
-  representativeSelectionAuditLogs: []
+  representativeSelectionAuditLogs: [],
+  assessmentRounds: [],
+  studentRoundResults: []
 });
 
 export const createDefaultPapsStoreSeed = (): PAPSDemoStoreData => ({
@@ -319,7 +322,11 @@ export const validatePapsStoreData = (value: unknown): PAPSDemoStoreData => {
     }
   }
 
-  return cloneValue(data as PAPSDemoStoreData);
+  return cloneValue({
+    ...(data as PAPSDemoStoreData),
+    assessmentRounds: Array.isArray(data.assessmentRounds) ? data.assessmentRounds : [],
+    studentRoundResults: Array.isArray(data.studentRoundResults) ? data.studentRoundResults : []
+  });
 };
 
 const createAttemptAuditId = (prefix: string, selector: RecordSelector, createdAt: string): string =>
@@ -777,6 +784,20 @@ export const createPapsMemoryStore = (seedData: PAPSDemoStoreData = createDefaul
     return students.map((student) => getAttemptRecord({ sessionId, studentId: student.id }));
   };
 
+  const roundStore = createAssessmentRoundMemoryStore({
+    initialRounds: ensureState().assessmentRounds,
+    initialResults: ensureState().studentRoundResults,
+    listSessions: () => ensureState().sessions,
+    listStudents: () => ensureState().students,
+    getClass,
+    listSessionRecords,
+    saveSessions,
+    onChange: (assessmentRounds, studentRoundResults) => {
+      const currentState = ensureState();
+      writeState({ ...currentState, assessmentRounds, studentRoundResults });
+    }
+  });
+
   return {
     listSchools: (): PAPSSchool[] => cloneValue(ensureState().schools),
     saveSchool,
@@ -831,8 +852,10 @@ export const createPapsMemoryStore = (seedData: PAPSDemoStoreData = createDefaul
     listSyncStatuses: (): PAPSSyncStatusRecord[] => cloneValue(ensureState().syncStatuses),
     listSyncErrorLogs,
     listRepresentativeSelectionAuditLogs,
+    ...roundStore,
     seed: (nextSeed: PAPSDemoStoreData) => {
       state = validatePapsStoreData(nextSeed);
+      roundStore.replaceAssessmentRoundData(state.assessmentRounds ?? [], state.studentRoundResults ?? []);
     }
   };
 };

@@ -12,6 +12,7 @@ import type {
   PAPSMeasurementDetail,
   PAPSStudentEventHistoryAttempt,
   PAPSStoredAttempt
+  , PAPSStudentRoundSubmitProgress, PAPSStudentRoundSubmitFinalizedResult
 } from "../paps/types";
 import {
   assertAttemptInputAllowed,
@@ -20,11 +21,13 @@ import {
 } from "../paps/validation";
 import { buildStructuredStateFromSheet } from "./sheets-bootstrap";
 import { createGoogleSheetClientFromEnv } from "./sheets-store";
-import { GoogleSheetsAccessError, type GoogleSheetsClient } from "./sheets-client";
+import { type GoogleSheetsClient } from "./sheets-client";
 import { buildRecordNote } from "./sheets-record-note";
 import { persistStudentSubmissionSummaryRows } from "./sheet-summary-row-persistence";
 import { writeGoogleSheetRecordSourceTab } from "./sheet-source-write";
 import { buildStudentEventHistoryAttempts } from "./sheet-student-session-views";
+import { buildRoundSubmitExtras } from "./sheet-round-submit-view";
+import { toStudentSubmissionSheetError } from "./sheet-submit-errors";
 
 export {
   loadStudentSessionGroupViewFromSheet,
@@ -146,8 +149,10 @@ type StudentSubmissionSheetResult =
           name: string;
         };
         attempts: PAPSAttempt[];
-        historyAttempts: PAPSStudentEventHistoryAttempt[];
+        historyAttempts?: PAPSStudentEventHistoryAttempt[];
         latestOfficialGrade: OfficialGrade | null;
+        roundProgress?: PAPSStudentRoundSubmitProgress;
+        finalizedResult?: PAPSStudentRoundSubmitFinalizedResult | null;
         summaryWarning?: string;
       };
     }
@@ -156,66 +161,6 @@ type StudentSubmissionSheetResult =
       error: string;
       status: number;
     };
-
-const toStudentSubmissionSheetError = (
-  error: unknown,
-  fallbackMessage = "Could not submit the attempt."
-): Extract<StudentSubmissionSheetResult, { ok: false }> => {
-  const message = error instanceof Error ? error.message : fallbackMessage;
-
-  if (message.includes("was not found")) {
-    return {
-      ok: false,
-      error: message,
-      status: 404
-    };
-  }
-
-  if (message === "Session is closed." || message === "Only the latest attempt can be edited.") {
-    return {
-      ok: false,
-      error: message,
-      status: 409
-    };
-  }
-
-  if (
-    message === "Inactive students cannot submit attempts." ||
-    message === "Student session access token does not match this session." ||
-    message === "Attempt edit token does not match this submission." ||
-    message.includes("must match") ||
-    message.includes("Students cannot") ||
-    message.includes("assigned to this session")
-  ) {
-    return {
-      ok: false,
-      error: message,
-      status: 400
-    };
-  }
-
-  if (error instanceof GoogleSheetsAccessError) {
-    return {
-      ok: false,
-      error: message,
-      status: 503
-    };
-  }
-
-  if (message.startsWith("Append") || message.startsWith("Update")) {
-    return {
-      ok: false,
-      error: message,
-      status: 409
-    };
-  }
-
-  return {
-    ok: false,
-    error: message,
-    status: 500
-  };
-};
 
 export const appendStudentSubmissionToSheet = async (input: {
   spreadsheetId: string;
@@ -345,6 +290,8 @@ export const appendStudentSubmissionToSheet = async (input: {
       studentId: input.studentId,
       client
     });
+    const roundExtras = buildRoundSubmitExtras({ state: nextState, sessionId: input.sessionId, studentId: input.studentId, studentName: student.name });
+    const roundSession = state.sessions.find((entry) => entry.id === input.sessionId)?.assessmentRoundId;
 
     return {
       ok: true,
@@ -354,11 +301,7 @@ export const appendStudentSubmissionToSheet = async (input: {
           name: student.name
         },
         attempts: dedupeAttemptsByClientSubmissionKey([...rawAttempts, appendedAttempt]),
-        historyAttempts: buildStudentEventHistoryAttempts({
-          state: nextState,
-          sessionId: input.sessionId,
-          studentId: input.studentId
-        }),
+        ...(roundSession ? roundExtras : { historyAttempts: buildStudentEventHistoryAttempts({ state: nextState, sessionId: input.sessionId, studentId: input.studentId }) }),
         latestOfficialGrade,
         ...(summaryRebuild.ok
           ? {}
@@ -507,6 +450,8 @@ export const updateStudentSubmissionInSheet = async (input: {
       studentId: input.studentId,
       client
     });
+    const roundExtras = buildRoundSubmitExtras({ state: nextState, sessionId: input.sessionId, studentId: input.studentId, studentName: student.name });
+    const roundSession = state.sessions.find((entry) => entry.id === input.sessionId)?.assessmentRoundId;
 
     return {
       ok: true,
@@ -525,11 +470,7 @@ export const updateStudentSubmissionInSheet = async (input: {
               .map(toStudentAttempt)
           )
         ),
-        historyAttempts: buildStudentEventHistoryAttempts({
-          state: nextState,
-          sessionId: input.sessionId,
-          studentId: input.studentId
-        }),
+        ...(roundSession ? roundExtras : { historyAttempts: buildStudentEventHistoryAttempts({ state: nextState, sessionId: input.sessionId, studentId: input.studentId }) }),
         latestOfficialGrade,
         ...(summaryRebuild.ok
           ? {}

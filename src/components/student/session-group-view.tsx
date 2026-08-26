@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 import { SplitSessionView } from "./split-session-view";
 import type {
@@ -9,6 +9,7 @@ import type {
   EventId,
   SessionType
 } from "../../lib/paps/types";
+import type { FourFactorProgressView } from "../four-factor-round-types";
 
 type SessionGroupEntry = {
   sessionId: string;
@@ -33,21 +34,45 @@ type SessionGroupEntry = {
       name: string;
     }>;
   }>;
+  factorId?: FourFactorProgressView["factors"][number]["factorId"];
 };
 
 export function SessionGroupView({
+  sessionGroupId,
   studentAccessToken,
   sessions,
-  teacherReturnEnabled = false
+  teacherReturnEnabled = false,
+  assessmentProgress = null
 }: {
+  sessionGroupId?: string | null;
   studentAccessToken?: string | null;
   sessions: SessionGroupEntry[];
   teacherReturnEnabled?: boolean;
+  assessmentProgress?: FourFactorProgressView | null;
 }) {
   const firstOpenSession = sessions.find((session) => session.isOpen) ?? sessions[0] ?? null;
   const [selectedSessionId, setSelectedSessionId] = useState(firstOpenSession?.sessionId ?? "");
+  const [currentAssessmentProgress, setCurrentAssessmentProgress] = useState(assessmentProgress);
+  const [currentStudentId, setCurrentStudentId] = useState<string | null>(null);
+  const [assessmentProgressResetKey, setAssessmentProgressResetKey] = useState(0);
+  useEffect(() => setCurrentAssessmentProgress(assessmentProgress), [assessmentProgress]);
   const selectedSession =
     sessions.find((session) => session.sessionId === selectedSessionId) ?? firstOpenSession;
+  const handleNextMeasurement = (factorId: NonNullable<SessionGroupEntry["factorId"]>) => {
+    const nextSession = sessions.find((session) => session.factorId === factorId && session.isOpen);
+
+    if (nextSession) {
+      setSelectedSessionId(nextSession.sessionId);
+    }
+  };
+  const handleStudentChange = (studentId: string) => {
+    if (currentStudentId !== null && currentStudentId !== studentId) {
+      setCurrentAssessmentProgress(assessmentProgress);
+      setAssessmentProgressResetKey((current) => current + 1);
+    }
+
+    setCurrentStudentId(studentId);
+  };
 
   return (
     <div className="grid gap-6">
@@ -87,6 +112,7 @@ export function SessionGroupView({
       {selectedSession?.isOpen ? (
         <SplitSessionView
           key={selectedSession.sessionId}
+          sessionGroupId={sessionGroupId}
           sessionId={selectedSession.sessionId}
           studentAccessToken={studentAccessToken}
           sessionType={selectedSession.sessionType}
@@ -98,6 +124,11 @@ export function SessionGroupView({
           measurementConstraints={selectedSession.measurementConstraints}
           classSections={selectedSession.classSections}
           teacherReturnEnabled={teacherReturnEnabled}
+          assessmentProgress={currentAssessmentProgress}
+          onNextMeasurement={handleNextMeasurement}
+          onAssessmentProgressChange={setCurrentAssessmentProgress}
+          assessmentProgressResetKey={assessmentProgressResetKey}
+          onStudentChange={handleStudentChange}
         />
       ) : (
         <section className="rounded-[1.75rem] border border-ink/10 bg-white p-5 text-sm text-ink/70 shadow-sm">

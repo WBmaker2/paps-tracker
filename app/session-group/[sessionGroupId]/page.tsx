@@ -5,6 +5,11 @@ import { SessionGroupView } from "../../../src/components/student/session-group-
 import { hasStudentTeacherPin } from "../../../src/lib/env";
 import { loadStudentSessionGroupViewFromSheet } from "../../../src/lib/google/sheets-submit";
 import { getEventDefinition } from "../../../src/lib/paps/catalog";
+import {
+  FOUR_FACTOR_IDS,
+  FOUR_FACTOR_LABELS,
+  type FourFactorProgressView
+} from "../../../src/components/four-factor-round-types";
 import { createStoreForRequest } from "../../../src/lib/store/paps-store";
 import { resolveStudentSessionAccessToken } from "../../../src/lib/student-session-access";
 
@@ -15,6 +20,16 @@ type StudentSessionGroupPageProps = {
   searchParams: Promise<{
     access?: string;
   }>;
+};
+
+type AssessmentMetadataPayload = {
+  roundId?: string;
+  name?: string;
+  roundName?: string;
+  selectedEventsByFactor?: Partial<Record<(typeof FOUR_FACTOR_IDS)[number], string>>;
+  roundProgress?: FourFactorProgressView["roundProgress"];
+  progress?: FourFactorProgressView["roundProgress"];
+  factors?: FourFactorProgressView["factors"];
 };
 
 export default async function StudentSessionGroupPage({
@@ -49,6 +64,22 @@ export default async function StudentSessionGroupPage({
             sessionGroupId
           })
         : await (await createStoreForRequest()).getStudentSessionGroupView(sessionGroupId);
+    const assessmentPayload = groupView as typeof groupView & {
+      assessmentRound?: AssessmentMetadataPayload | null;
+      assessment?: AssessmentMetadataPayload | null;
+    };
+    const linkedAssessmentSessions = groupView.sessions.filter(
+      ({ session }) => Boolean(session.assessmentRoundId && session.factorId)
+    );
+    const linkedAssessment: AssessmentMetadataPayload | null = linkedAssessmentSessions[0]?.session.assessmentRoundId
+      ? {
+          roundId: linkedAssessmentSessions[0].session.assessmentRoundId,
+          selectedEventsByFactor: Object.fromEntries(
+            linkedAssessmentSessions.map(({ session }) => [session.factorId, session.eventId])
+          ) as AssessmentMetadataPayload["selectedEventsByFactor"]
+        }
+      : null;
+    const assessment = assessmentPayload.assessmentRound ?? assessmentPayload.assessment ?? linkedAssessment;
     teacherReturnEnabled = groupView.teacherReturnPinConfigured ?? teacherReturnEnabled;
     const sessions = groupView.sessions.map(({ session, classSections }) => {
       const eventDefinition = getEventDefinition(session.eventId);
@@ -64,9 +95,27 @@ export default async function StudentSessionGroupPage({
         betterDirection: eventDefinition.betterDirection,
         isOpen: session.isOpen !== false,
         measurementConstraints: eventDefinition.measurementConstraints,
-        classSections
+        classSections,
+        factorId: (session as unknown as { factorId?: FourFactorProgressView["factors"][number]["factorId"] }).factorId
       };
     });
+    const assessmentProgress: FourFactorProgressView | null = assessment
+      ? {
+          roundId: assessment.roundId,
+          roundName: assessment.roundName ?? assessment.name,
+          factors:
+            assessment.factors ??
+            FOUR_FACTOR_IDS.map((factorId) => ({
+              factorId,
+              eventId: assessment.selectedEventsByFactor?.[factorId] ?? null,
+              eventLabel:
+                sessions.find((session) => session.factorId === factorId)?.eventLabel ??
+                FOUR_FACTOR_LABELS[factorId],
+              complete: false
+            })),
+          roundProgress: assessment.roundProgress ?? assessment.progress ?? null
+        }
+      : null;
 
     return (
       <main className="min-h-screen bg-canvas px-6 py-12 text-ink sm:px-10">
@@ -91,9 +140,11 @@ export default async function StudentSessionGroupPage({
             </div>
           </section>
           <SessionGroupView
+            sessionGroupId={sessionGroupId}
             studentAccessToken={typeof access === "string" ? access : null}
             sessions={sessions}
             teacherReturnEnabled={teacherReturnEnabled}
+            assessmentProgress={assessmentProgress}
           />
         </div>
       </main>

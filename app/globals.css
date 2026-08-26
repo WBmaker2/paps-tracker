@@ -41,3 +41,30 @@ a {
 ::selection {
   background: rgba(179, 92, 46, 0.22);
 }
+
+/* Important classroom actions keep a quiet, non-blocking glow so learners can
+ * spot the next step without adding another permanent banner. */
+@keyframes gi-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(179, 92, 46, 0.16);
+  }
+  50% {
+    box-shadow: 0 0 0 7px rgba(179, 92, 46, 0.1);
+  }
+}
+
+.gi-pulse {
+  animation: gi-pulse 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .gi-pulse {
+    animation: none;
+    box-shadow: 0 0 0 3px rgba(179, 92, 46, 0.14);
+  }
+}

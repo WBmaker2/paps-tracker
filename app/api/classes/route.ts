@@ -168,7 +168,7 @@ export async function DELETE(request: NextRequest) {
   }
 
   try {
-    const { store, teacher } = await getAuthorizedTeacherRouteContext({
+    const { store, teacher, bootstrap } = await getAuthorizedTeacherRouteContext({
       request,
       teacherEmail: teacherSession.session.email,
       createStore: createTeacherRuntimeStoreForRequest
@@ -176,6 +176,14 @@ export async function DELETE(request: NextRequest) {
 
     if ((await store.getClass(classId)).schoolId !== teacher.schoolId) {
       return forbiddenTeacherRouteResponse();
+    }
+
+    if (
+      bootstrap.assessmentRounds?.some((round) =>
+        round.classTargets.some((target) => target.classId === classId)
+      )
+    ) {
+      throw new Error("ROUND_CLASS_STRUCTURE_LOCKED");
     }
 
     await store.deleteClass(classId);
@@ -186,6 +194,13 @@ export async function DELETE(request: NextRequest) {
 
     if (error instanceof Error && error.message.includes("was not found")) {
       return notFoundTeacherRouteResponse(error.message);
+    }
+
+    if (error instanceof Error && error.message === "ROUND_CLASS_STRUCTURE_LOCKED") {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 409 }
+      );
     }
 
     throw error;

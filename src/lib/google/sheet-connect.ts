@@ -136,7 +136,8 @@ export const connectGoogleSheetForTeacher = async (
       school,
       classes: currentState.classes,
       teachers,
-      sessions: currentState.sessions
+      sessions: currentState.sessions,
+      assessmentRounds: currentState.assessmentRounds
     }
   });
 

@@ -77,7 +77,7 @@ const toTabValues = (state: GoogleSheetStructuredState, tabName: string): string
 
 export const writeGoogleSheetSettingsSourceTab = async (
   input: GoogleSheetSourceWriteInput & {
-    state: Pick<GoogleSheetStructuredState, "school" | "classes" | "teachers" | "sessions">;
+    state: Pick<GoogleSheetStructuredState, "school" | "classes" | "teachers" | "sessions"> & Partial<Pick<GoogleSheetStructuredState, "assessmentRounds">>;
   }
 ): Promise<void> => {
   await updateGoogleSheetSourceTab(input, "설정", buildSettingsTabValues({
@@ -85,7 +85,8 @@ export const writeGoogleSheetSettingsSourceTab = async (
     school: input.state.school,
     classes: input.state.classes,
     teachers: input.state.teachers,
-    sessions: input.state.sessions
+    sessions: input.state.sessions,
+    assessmentRounds: input.state.assessmentRounds
   }));
 };
 

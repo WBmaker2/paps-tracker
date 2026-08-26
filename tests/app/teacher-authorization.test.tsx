@@ -202,6 +202,109 @@ describe("teacher route authorization scoping", () => {
     expect(representativeResponse.status).toBe(403);
   });
 
+  it("does not allow deleting a session linked to an assessment round", async () => {
+    const sessionRoute = await import("../../app/api/sessions/[sessionId]/route");
+    const { getRequestStore } = await importRequestStore();
+    const store = getRequestStore();
+    const linkedSession = {
+      ...store.getSession("demo-session"),
+      id: "linked-round-session",
+      assessmentRoundId: "round-1",
+      factorId: "flexibility" as const
+    };
+    store.saveSession(linkedSession);
+
+    const response = await sessionRoute.DELETE(
+      jsonRequest("/api/sessions/linked-round-session", "DELETE"),
+      { params: Promise.resolve({ sessionId: "linked-round-session" }) }
+    );
+
+    expect(response.status).toBe(409);
+    expect(store.getSession("linked-round-session")).toMatchObject({
+      assessmentRoundId: "round-1"
+    });
+  });
+
+  it("does not allow deleting a class referenced by an assessment round", async () => {
+    const classesRoute = await import("../../app/api/classes/route");
+    const { getRequestStore } = await importRequestStore();
+    const store = getRequestStore();
+    const roundSessions = [
+      ["round-session-cardio", "cardiorespiratory-endurance", "shuttle-run"],
+      ["round-session-flexibility", "flexibility", "sit-and-reach"],
+      ["round-session-strength", "strength-endurance", "curl-up"],
+      ["round-session-power", "power", "standing-long-jump"]
+    ] as const;
+    for (const [id, factorId, eventId] of roundSessions) {
+      store.saveSession({
+        id,
+        schoolId: "demo-school",
+        teacherId: "demo-teacher",
+        academicYear: 2026,
+        name: `회차 ${factorId}`,
+        gradeLevel: 5,
+        sessionType: "official",
+        classScope: "single",
+        eventId,
+        classTargets: [{ classId: "demo-class-5-1", eventId }],
+        assessmentRoundId: "round-1",
+        factorId,
+        isOpen: true,
+        createdAt: "2026-08-26T00:00:00.000Z"
+      });
+    }
+    store.saveAssessmentRound?.({
+      id: "round-1",
+      name: "회차",
+      academicYear: 2026,
+      schoolId: "demo-school",
+      teacherId: "demo-teacher",
+      roundType: "regular",
+      roundNumber: 1,
+      status: "open",
+      classTargets: [{ classId: "demo-class-5-1", gradeLevel: 5 }],
+      selectedEventsByFactor: {
+        "cardiorespiratory-endurance": "shuttle-run",
+        flexibility: "sit-and-reach",
+        "strength-endurance": "curl-up",
+        power: "standing-long-jump"
+      },
+      sessionIdsByFactor: {
+        "cardiorespiratory-endurance": "round-session-cardio",
+        flexibility: "round-session-flexibility",
+        "strength-endurance": "round-session-strength",
+        power: "round-session-power"
+      },
+      ruleVersion: "paps-v1",
+      ruleSource: "score-rules.ts",
+      revision: 1,
+      createdAt: "2026-08-26T00:00:00.000Z",
+      openedAt: "2026-08-26T00:00:00.000Z",
+      finalizedAt: null,
+      archivedAt: null
+    });
+
+    const response = await classesRoute.DELETE(
+      new NextRequest("http://localhost/api/classes?classId=demo-class-5-1")
+    );
+
+    expect(response.status).toBe(409);
+    expect(store.getClass("demo-class-5-1").id).toBe("demo-class-5-1");
+  });
+
+  it("keeps deleting an unreferenced class available", async () => {
+    const classesRoute = await import("../../app/api/classes/route");
+    const { getRequestStore } = await importRequestStore();
+    const store = getRequestStore();
+
+    const response = await classesRoute.DELETE(
+      new NextRequest("http://localhost/api/classes?classId=demo-class-5-1")
+    );
+
+    expect(response.status).toBe(200);
+    expect(() => store.getClass("demo-class-5-1")).toThrow();
+  });
+
   it("denies cross-school school, class, and student access", async () => {
     const schoolsRoute = await import("../../app/api/schools/route");
     const classesRoute = await import("../../app/api/classes/route");

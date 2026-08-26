@@ -17,6 +17,13 @@ export type EventId =
   | "fifty-meter-run"
   | "standing-long-jump";
 
+/** 체지방을 제외하고 회차 점수에 포함하는 네 가지 체력요인. */
+export type PAPSFourFactorId =
+  | "cardiorespiratory-endurance"
+  | "flexibility"
+  | "strength-endurance"
+  | "power";
+
 export type EventUnit = "cm" | "laps" | "seconds" | "kg" | "reps" | "PEI" | "점";
 
 export type BetterDirection = "higher" | "lower";
@@ -55,6 +62,120 @@ export interface PAPSSession {
   name?: string;
   isOpen?: boolean;
   createdAt?: string;
+  /** Explicit link used only by four-factor assessment rounds. */
+  assessmentRoundId?: string;
+  factorId?: PAPSFourFactorId;
+}
+
+export type AssessmentRoundType = "regular" | "followUp";
+export type AssessmentRoundStatus = "draft" | "open" | "review" | "finalized" | "archived";
+export type StudentRoundResultStatus =
+  | "incomplete"
+  | "excluded"
+  | "ready"
+  | "finalized"
+  | "stale";
+
+export interface PAPSAssessmentRoundClassTarget {
+  classId: string;
+  gradeLevel: GradeLevel;
+}
+
+export interface PAPSAssessmentRound {
+  id: string;
+  name: string;
+  academicYear: number;
+  schoolId: string;
+  teacherId: string;
+  roundType: AssessmentRoundType;
+  roundNumber: number;
+  status: AssessmentRoundStatus;
+  classTargets: PAPSAssessmentRoundClassTarget[];
+  selectedEventsByFactor: Record<PAPSFourFactorId, EventId>;
+  sessionIdsByFactor: Record<PAPSFourFactorId, string>;
+  ruleVersion: string;
+  ruleSource: string;
+  revision: number;
+  createdAt: string;
+  openedAt: string | null;
+  finalizedAt: string | null;
+  archivedAt: string | null;
+  /** Server-only replay key; omitted from learner-facing responses when desired. */
+  creationIdempotencyKey?: string;
+}
+
+export interface PAPSFactorResultSnapshot {
+  factorId: PAPSFourFactorId;
+  eventId: EventId;
+  sessionId: string;
+  representativeAttemptId: string | null;
+  measurement: number | null;
+  factorScore: number | null;
+}
+
+export interface PAPSStudentRoundResult {
+  roundId: string;
+  studentId: string;
+  revision: number;
+  previousRevision: number | null;
+  status: StudentRoundResultStatus;
+  studentSnapshot: {
+    name: string;
+    sex: StudentSex;
+    gradeLevel: GradeLevel;
+    classId: string;
+    classNumber: number | null;
+    studentNumber: number | null;
+  };
+  factors: Record<PAPSFourFactorId, PAPSFactorResultSnapshot>;
+  fourFactorSubtotal: number | null;
+  normalizedScore: number | null;
+  fourFactorGrade: OfficialGrade | null;
+  ruleVersion: string;
+  ruleSource: string;
+  sourceFingerprint: string | null;
+  calculatedAt: string | null;
+  finalizedAt: string | null;
+  finalizedBy: string | null;
+}
+
+export interface PAPSStudentRoundSubmitFactorView {
+  factorId: PAPSFourFactorId;
+  eventId: EventId;
+  eventLabel: string;
+  unit: EventUnit;
+  representativeAttemptId: string | null;
+  measurement: number | null;
+  factorScore: number | null;
+}
+
+export type PAPSStudentRoundSubmitFactors = Record<PAPSFourFactorId, PAPSStudentRoundSubmitFactorView>;
+
+export interface PAPSStudentRoundSubmitFinalizedResult {
+  roundId: string;
+  roundName: string;
+  studentName: string;
+  status: "finalized";
+  factors: PAPSStudentRoundSubmitFactors;
+  fourFactorSubtotal: number | null;
+  normalizedScore: number | null;
+  fourFactorGrade: OfficialGrade | null;
+  ruleVersion: string;
+  calculatedAt: string | null;
+  finalizedAt: string | null;
+}
+
+export interface PAPSStudentRoundSubmitProgress {
+  roundId: string;
+  roundName: string;
+  status: StudentRoundResultStatus;
+  factors: Array<{
+    factorId: PAPSFourFactorId;
+    eventId: EventId;
+    eventLabel: string;
+    complete: boolean;
+  }>;
+  roundProgress: { completed: number; total: 4; nextFactorId: PAPSFourFactorId | null; nextEventLabel: string | null };
 }
 
 export interface PAPSSubmissionInput {
@@ -129,6 +250,7 @@ export interface PAPSAttemptDraft {
 
 export interface PAPSEventDefinition {
   id: EventId;
+  factorId: PAPSFourFactorId;
   label: string;
   unit: EventUnit;
   betterDirection: BetterDirection;
@@ -260,4 +382,6 @@ export interface PAPSDemoStoreData {
   syncStatuses: PAPSSyncStatusRecord[];
   syncErrorLogs: PAPSSyncErrorLog[];
   representativeSelectionAuditLogs: PAPSRepresentativeSelectionAuditLog[];
+  assessmentRounds?: PAPSAssessmentRound[];
+  studentRoundResults?: PAPSStudentRoundResult[];
 }

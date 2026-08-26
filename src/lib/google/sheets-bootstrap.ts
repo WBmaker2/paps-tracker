@@ -9,6 +9,7 @@ import type {
   PAPSSyncStatusRecord,
   PAPSStoredAttempt,
   PAPSStudent
+  , PAPSAssessmentRound, PAPSStudentRoundResult
 } from "../paps/types";
 import { parseGoogleSheetRecordArtifacts } from "./sheet-record-artifacts";
 import {
@@ -17,6 +18,8 @@ import {
   parseGoogleSheetStructuredSettings,
 } from "./sheet-structured-settings";
 import type { GoogleSheetsClient } from "./sheets-client";
+import { FOUR_FACTOR_ROUND_HEADER } from "./four-factor-round-sheet";
+import { FOUR_FACTOR_IDS } from "../paps/four-factor-score";
 
 export interface GoogleSheetStructuredState {
   school: PAPSSchool;
@@ -29,6 +32,8 @@ export interface GoogleSheetStructuredState {
   syncStatuses: PAPSSyncStatusRecord[];
   syncErrorLogs: PAPSSyncErrorLog[];
   representativeSelectionAuditLogs: PAPSRepresentativeSelectionAuditLog[];
+  assessmentRounds: PAPSAssessmentRound[];
+  studentRoundResults: PAPSStudentRoundResult[];
 }
 
 export interface BuildTeacherBootstrapFromSheetInput {
@@ -42,6 +47,7 @@ const STUDENTS_RANGE = "'학생명단'!A2:I1000";
 const RECORDS_RANGE = "'세션기록'!A2:U5000";
 const ERRORS_RANGE = "'오류로그'!A2:G2000";
 const AUDITS_RANGE = "'수정로그'!A2:I2000";
+const ROUND_RESULTS_RANGE = "'4요인회차결과'!A2:AU10000";
 
 const parseSex = (value: string): PAPSStudent["sex"] => (value === "남" ? "male" : "female");
 
@@ -103,6 +109,16 @@ export const buildStructuredStateFromSheet = async ({
     spreadsheetId,
     [SETTINGS_RANGE, STUDENTS_RANGE, RECORDS_RANGE, ERRORS_RANGE, AUDITS_RANGE]
   );
+  // v0.1 sheets do not have the optional tab. Keep all legacy reads usable;
+  // schema migration is performed only when a round is first persisted.
+  let roundRows: string[][] = [];
+  try {
+    roundRows = (await readSheetRanges(client, spreadsheetId, [ROUND_RESULTS_RANGE]))[0] ?? [];
+  } catch (error) {
+    const configuredVersion = settingsRows.find((row) => row[0] === "시트 템플릿 버전")?.[1] ?? "";
+    if (configuredVersion === "v0.2-four-factor-round") throw error;
+    roundRows = [];
+  }
   const structuredSettings = parseGoogleSheetStructuredSettings({
     settingsRows,
     spreadsheetId,
@@ -131,6 +147,21 @@ export const buildStructuredStateFromSheet = async ({
     syncStatuses: recordArtifacts.syncStatuses,
     syncErrorLogs: recordArtifacts.syncErrorLogs,
     representativeSelectionAuditLogs: recordArtifacts.representativeSelectionAuditLogs
+    ,
+    assessmentRounds: structuredSettings.assessmentRounds,
+    studentRoundResults: roundRows
+      .filter((row) => row.length >= FOUR_FACTOR_ROUND_HEADER.length && row[0] && row[1] && Number(row[2]) > 0)
+      .map((row) => ({
+        roundId: row[0]!, studentId: row[1]!, revision: Number(row[2]), previousRevision: row[44] ? Number(row[44]) : null,
+        status: row[3] as PAPSStudentRoundResult["status"], studentSnapshot: {
+          name: row[13] ?? "", sex: row[14] === "male" ? "male" : "female", gradeLevel: Number(row[9]) as PAPSStudentRoundResult["studentSnapshot"]["gradeLevel"], classId: row[10] ?? "", classNumber: row[11] ? Number(row[11]) : null, studentNumber: row[12] ? Number(row[12]) : null
+        },
+        factors: Object.fromEntries(FOUR_FACTOR_IDS.map((factorId, factorIndex) => {
+          const offset = 15 + factorIndex * 5;
+          return [factorId, { factorId, eventId: row[offset] as PAPSStudentRoundResult["factors"][typeof factorId]["eventId"], sessionId: row[offset + 1] ?? "", representativeAttemptId: row[offset + 2] || null, measurement: row[offset + 3] ? Number(row[offset + 3]) : null, factorScore: row[offset + 4] ? Number(row[offset + 4]) : null }];
+        })) as PAPSStudentRoundResult["factors"], fourFactorSubtotal: row[35] ? Number(row[35]) : null, normalizedScore: row[36] ? Number(row[36]) : null, fourFactorGrade: row[37] ? Number(row[37]) as PAPSStudentRoundResult["fourFactorGrade"] : null,
+        ruleVersion: row[38] ?? "", ruleSource: row[39] ?? "", sourceFingerprint: row[40] ?? null, calculatedAt: row[41] ?? null, finalizedAt: row[42] ?? null, finalizedBy: row[43] ?? null
+      }))
   };
 };
 
@@ -157,6 +188,7 @@ export const toTeacherBootstrapFromStructuredState = (
       syncStatuses: [],
       syncErrorLogs: [],
       representativeSelectionAuditLogs: []
+      , assessmentRounds: [], studentRoundResults: []
     };
   }
 
@@ -172,6 +204,8 @@ export const toTeacherBootstrapFromStructuredState = (
     syncStatuses: structuredState.syncStatuses,
     syncErrorLogs: structuredState.syncErrorLogs,
     representativeSelectionAuditLogs: structuredState.representativeSelectionAuditLogs
+    , assessmentRounds: structuredState.assessmentRounds,
+    studentRoundResults: structuredState.studentRoundResults
   };
 };
 

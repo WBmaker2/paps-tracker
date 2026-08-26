@@ -97,7 +97,11 @@ describe("Google Sheet store factory", () => {
   it("wires store queries and persistence through the provided client", async () => {
     const client = { kind: "google-client" };
     const state = { marker: "state" };
-    const bootstrap = { teacher: { id: "teacher-1" } };
+    const bootstrap = {
+      teacher: { id: "teacher-1" },
+      assessmentRounds: [],
+      studentRoundResults: []
+    };
     const classroom = { id: "class-1" };
     const school = { id: "school-1" };
 
@@ -112,7 +116,7 @@ describe("Google Sheet store factory", () => {
       client: client as never
     });
 
-    await expect(store.getTeacherBootstrap({ teacherEmail: "other@example.com" })).resolves.toBe(
+    await expect(store.getTeacherBootstrap({ teacherEmail: "other@example.com" })).resolves.toEqual(
       bootstrap
     );
     await expect(store.getClass("class-1")).resolves.toBe(classroom);

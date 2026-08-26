@@ -3,6 +3,7 @@
 import React, { useMemo, useState, useTransition } from "react";
 
 import { InstantResultCard } from "./instant-result-card";
+import { FourFactorProgressCard } from "./four-factor-progress-card";
 import { NamePicker } from "./name-picker";
 import { RecordForm, type RecordFormSubmission } from "./record-form";
 import { StudentSessionNavigation } from "./student-session-navigation";
@@ -15,6 +16,10 @@ import type {
   PAPSStudentEventHistoryAttempt,
   SessionType
 } from "../../lib/paps/types";
+import type {
+  FourFactorProgressView,
+  FourFactorStudentResultView
+} from "../four-factor-round-types";
 
 type ClassSection = {
   classId: string;
@@ -33,6 +38,8 @@ type SubmissionResult = {
   attempts: PAPSAttempt[];
   historyAttempts?: PAPSStudentEventHistoryAttempt[];
   latestOfficialGrade: OfficialGrade | null;
+  roundProgress?: FourFactorProgressView | null;
+  finalizedResult?: FourFactorStudentResultView | null;
 };
 
 const createClientSubmissionKey = (): string => {
@@ -44,6 +51,7 @@ const createClientSubmissionKey = (): string => {
 };
 
 export function SplitSessionView({
+  sessionGroupId,
   sessionId,
   studentAccessToken,
   sessionType,
@@ -54,8 +62,14 @@ export function SplitSessionView({
   betterDirection,
   measurementConstraints,
   classSections,
-  teacherReturnEnabled = false
+  teacherReturnEnabled = false,
+  assessmentProgress = null,
+  onNextMeasurement,
+  onAssessmentProgressChange,
+  assessmentProgressResetKey = 0,
+  onStudentChange
 }: {
+  sessionGroupId?: string | null;
   sessionId: string;
   studentAccessToken?: string | null;
   sessionType: SessionType;
@@ -71,11 +85,21 @@ export function SplitSessionView({
   };
   classSections: ClassSection[];
   teacherReturnEnabled?: boolean;
+  assessmentProgress?: FourFactorProgressView | null;
+  onNextMeasurement?: (factorId: FourFactorProgressView["factors"][number]["factorId"]) => void;
+  onAssessmentProgressChange?: (progress: FourFactorProgressView | null) => void;
+  assessmentProgressResetKey?: number;
+  onStudentChange?: (studentId: string) => void;
 }) {
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [submitResult, setSubmitResult] = useState<SubmissionResult | null>(null);
   const [editingAttempt, setEditingAttempt] = useState<PAPSAttempt | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [roundProgress, setRoundProgress] = useState<FourFactorProgressView | null>(assessmentProgress);
+  const [finalizedResult, setFinalizedResult] = useState<FourFactorStudentResultView | null>(null);
+  const studentStatusRequestRef = React.useRef(0);
+  const assessmentProgressRef = React.useRef(assessmentProgress);
+  assessmentProgressRef.current = assessmentProgress;
   const [isPending, startTransition] = useTransition();
   const studentLookup = useMemo(
     () =>
@@ -90,6 +114,14 @@ export function SplitSessionView({
     (selectedStudentId ? studentLookup.get(selectedStudentId) ?? null : null) ??
     submitResult?.student ??
     null;
+  // A new reset key means a different student; progress updates for the same
+  // student intentionally do not clear the local finalized state.
+  React.useEffect(() => {
+    setRoundProgress(assessmentProgressRef.current);
+    setFinalizedResult(null);
+    setSubmitResult(null);
+    setEditingAttempt(null);
+  }, [assessmentProgressResetKey]);
   const editingInitialSubmission = useMemo(
     () =>
       editingAttempt
@@ -107,9 +139,58 @@ export function SplitSessionView({
     }
 
     setSelectedStudentId(studentId);
+    onStudentChange?.(studentId);
     setSubmitResult(null);
     setEditingAttempt(null);
     setErrorMessage(null);
+    setFinalizedResult(null);
+
+    if (!assessmentProgress || !sessionGroupId || !studentAccessToken) {
+      return;
+    }
+
+    const requestId = studentStatusRequestRef.current + 1;
+    studentStatusRequestRef.current = requestId;
+
+    startTransition(async () => {
+      try {
+        const response = await fetch(
+          `/api/session-groups/${encodeURIComponent(sessionGroupId)}/students/${encodeURIComponent(studentId)}/round-status`,
+          {
+            method: "GET",
+            headers: {
+              "x-paps-student-access-token": studentAccessToken
+            },
+            cache: "no-store"
+          }
+        );
+        const payload = (await response.json()) as {
+          error?: string;
+          result?: {
+            roundProgress: FourFactorProgressView;
+            finalizedResult?: FourFactorStudentResultView | null;
+          };
+        };
+
+        if (!response.ok || !payload.result) {
+          throw new Error(payload.error ?? "회차 진행 상태를 불러오지 못했습니다.");
+        }
+
+        if (studentStatusRequestRef.current !== requestId) {
+          return;
+        }
+
+        setRoundProgress(payload.result.roundProgress);
+        onAssessmentProgressChange?.(payload.result.roundProgress);
+        setFinalizedResult(payload.result.finalizedResult ?? null);
+      } catch (error) {
+        if (studentStatusRequestRef.current === requestId) {
+          setErrorMessage(
+            error instanceof Error ? error.message : "회차 진행 상태를 불러오지 못했습니다."
+          );
+        }
+      }
+    });
   };
 
   const handleSubmit = async (submission: RecordFormSubmission) => {
@@ -146,6 +227,10 @@ export function SplitSessionView({
           }
 
           setSubmitResult(payload.result);
+          const nextRoundProgress = payload.result.roundProgress ?? roundProgress;
+          setRoundProgress(nextRoundProgress);
+          onAssessmentProgressChange?.(nextRoundProgress);
+          setFinalizedResult(payload.result.finalizedResult ?? null);
           setEditingAttempt(null);
         } catch (error) {
           setErrorMessage(error instanceof Error ? error.message : "기록을 제출하지 못했습니다.");
@@ -190,6 +275,10 @@ export function SplitSessionView({
           }
 
           setSubmitResult(payload.result);
+          const nextRoundProgress = payload.result.roundProgress ?? roundProgress;
+          setRoundProgress(nextRoundProgress);
+          onAssessmentProgressChange?.(nextRoundProgress);
+          setFinalizedResult(payload.result.finalizedResult ?? null);
           setEditingAttempt(null);
         } catch (error) {
           setErrorMessage(error instanceof Error ? error.message : "기록을 수정하지 못했습니다.");
@@ -201,10 +290,12 @@ export function SplitSessionView({
   };
 
   const handleReset = () => {
+    studentStatusRequestRef.current += 1;
     setSelectedStudentId(null);
     setSubmitResult(null);
     setEditingAttempt(null);
     setErrorMessage(null);
+    setFinalizedResult(null);
   };
 
   return (
@@ -246,6 +337,14 @@ export function SplitSessionView({
         />
       ) : null}
 
+      {roundProgress ? (
+        <FourFactorProgressCard
+          progress={roundProgress}
+          finalizedResult={finalizedResult}
+          onNextMeasurement={onNextMeasurement}
+        />
+      ) : null}
+
       {submitResult ? (
         <div className="grid gap-4">
           <InstantResultCard
@@ -255,7 +354,7 @@ export function SplitSessionView({
             eventLabel={eventLabel}
             unit={unit}
             attempts={submitResult.attempts}
-            historyAttempts={submitResult.historyAttempts}
+            historyAttempts={roundProgress ? undefined : submitResult.historyAttempts}
             betterDirection={betterDirection}
             latestOfficialGrade={submitResult.latestOfficialGrade}
             onEditLatestAttempt={(attempt) => {

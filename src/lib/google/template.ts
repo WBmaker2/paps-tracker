@@ -2,6 +2,8 @@ import { getGoogleSheetsEnv } from "../env";
 import { createGoogleSheetsCopyLink, parseGoogleSheetsSpreadsheetId } from "./drive-link";
 
 export const PAPS_GOOGLE_SHEET_TEMPLATE_VERSION = "v0.1-prototype";
+/** Added without changing the legacy template constant so v0.1 consumers keep reading. */
+export const PAPS_GOOGLE_SHEET_FOUR_FACTOR_TEMPLATE_VERSION = "v0.2-four-factor-round";
 export const PAPS_GOOGLE_SHEET_TEMPLATE_VERSION_ROW_LABEL = "시트 템플릿 버전";
 
 export interface GoogleSheetsPrototypeTab {

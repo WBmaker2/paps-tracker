@@ -150,6 +150,10 @@ const assertEditableSessionStructure = async ({
     return;
   }
 
+  if (existingSessions.some((session) => session.assessmentRoundId)) {
+    throw new Error("ROUND_SESSION_STRUCTURE_LOCKED");
+  }
+
   const hasRecordedAttempts = await Promise.all(
     existingSessions.map((session) => sessionHasRecordedAttempts(store, session.id))
   );
@@ -285,6 +289,9 @@ const toSessionSavePlan = async (
               sessionGroupName: baseName,
               sessionGroupOrder: index
             }
+          : {}),
+        ...(reusableSession?.assessmentRoundId && reusableSession.factorId
+          ? { assessmentRoundId: reusableSession.assessmentRoundId, factorId: reusableSession.factorId }
           : {}),
         isOpen:
           typeof body.isOpen === "boolean"
@@ -433,7 +440,7 @@ export async function POST(request: NextRequest) {
         error: message
       },
       {
-        status: message.includes("was not found") ? 404 : 400
+        status: message.includes("was not found") ? 404 : message === "ROUND_SESSION_STRUCTURE_LOCKED" ? 409 : 400
       }
     );
   }

@@ -10,8 +10,11 @@ import type {
   PAPSSyncStatusRecord,
   PAPSStoredAttempt,
   PAPSStudentEventHistoryAttempt,
-  PAPSStudent
+  PAPSStudent,
+  PAPSAssessmentRound,
+  PAPSStudentRoundResult
 } from "../paps/types";
+import type { AssessmentRoundMemoryStore } from "./paps-memory-round-store";
 
 export interface AppendAttemptInput {
   id: string;
@@ -60,6 +63,8 @@ export interface TeacherBootstrap {
   syncStatuses: PAPSSyncStatusRecord[];
   syncErrorLogs: PAPSSyncErrorLog[];
   representativeSelectionAuditLogs: PAPSRepresentativeSelectionAuditLog[];
+  assessmentRounds?: PAPSAssessmentRound[];
+  studentRoundResults?: PAPSStudentRoundResult[];
 }
 
 export interface StudentSessionClassSection {
@@ -79,6 +84,13 @@ export interface StudentSessionGroupView {
   groupName: string;
   sessions: StudentSessionView[];
   teacherReturnPinConfigured?: boolean;
+  assessmentRound?: {
+    roundId: string;
+    roundName: string;
+    status: string;
+    selectedEventsByFactor: Record<string, string>;
+    factors: Array<{ factorId: string; eventId: string; complete: boolean }>;
+  };
 }
 
 export interface SetSyncStatusInput extends RecordSelector {
@@ -110,6 +122,18 @@ export interface PapsStore {
   selectRepresentativeAttempt(input: SelectRepresentativeAttemptInput): PAPSAttemptRecord;
   getSyncStatus(selector: RecordSelector): PAPSSyncStatusRecord | null;
   setSyncStatus(input: SetSyncStatusInput): PAPSSyncStatusRecord;
+  /** Four-factor assessment-round operations are present on the runtime store. */
+  createAssessmentRound?: AssessmentRoundMemoryStore["createAssessmentRound"];
+  getAssessmentRound?: AssessmentRoundMemoryStore["getAssessmentRound"];
+  listAssessmentRounds?: AssessmentRoundMemoryStore["listAssessmentRounds"];
+  saveAssessmentRound?: AssessmentRoundMemoryStore["saveAssessmentRound"];
+  listStudentRoundResults?: AssessmentRoundMemoryStore["listStudentRoundResults"];
+  getStudentRoundResult?: AssessmentRoundMemoryStore["getStudentRoundResult"];
+  previewAssessmentRound?: AssessmentRoundMemoryStore["previewAssessmentRound"];
+  saveStudentRoundResult?: AssessmentRoundMemoryStore["saveStudentRoundResult"];
+  finalizeStudentRound?: AssessmentRoundMemoryStore["finalizeStudentRound"];
+  excludeStudentRound?: AssessmentRoundMemoryStore["excludeStudentRound"];
+  updateAssessmentRoundStatus?: AssessmentRoundMemoryStore["updateAssessmentRoundStatus"];
 }
 
 export interface SchoolStore {

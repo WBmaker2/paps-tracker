@@ -3,7 +3,8 @@ import type {
   PAPSSchool,
   PAPSSession,
   PAPSTeacher,
-  PAPSTeacherReturnPin
+  PAPSTeacherReturnPin,
+  PAPSAssessmentRound
 } from "../paps/types";
 import { createGoogleSheetsEditLink } from "./drive-link";
 
@@ -21,6 +22,8 @@ export const SETTINGS_MACHINE_ROW_LABELS = {
   sessionMeta: "__PAPS_SESSION_META",
   sessionStatus: "__PAPS_SESSION_STATUS",
   sessionTarget: "__PAPS_SESSION_TARGET",
+  assessmentRound: "__PAPS_ASSESSMENT_ROUND",
+  assessmentRoundFactor: "__PAPS_ASSESSMENT_ROUND_FACTOR",
   legacySchool: "__PAPS_MACHINE_SCHOOL",
   legacyClasses: "__PAPS_MACHINE_CLASSES",
   legacyTeachers: "__PAPS_MACHINE_TEACHERS",
@@ -35,6 +38,7 @@ export interface GoogleSheetStructuredSettings {
   hasPersistedTeachers: boolean;
   classes: PAPSClassroom[];
   sessions: PAPSSession[];
+  assessmentRounds: PAPSAssessmentRound[];
 }
 
 export interface ParseGoogleSheetStructuredSettingsInput {
@@ -340,6 +344,12 @@ const buildStructuredSessions = (rowsByLabel: Map<string, string[][]>): PAPSSess
     (rowsByLabel.get(SETTINGS_MACHINE_ROW_LABELS.sessionStatus) ?? []).map((row) => [row[1], row])
   );
   const sessionTargetsById = new Map<string, PAPSSession["classTargets"]>();
+  const roundBySessionId = new Map(
+    (rowsByLabel.get(SETTINGS_MACHINE_ROW_LABELS.assessmentRound) ?? []).map((row) => [row[1], row[2]])
+  );
+  const factorBySessionId = new Map(
+    (rowsByLabel.get(SETTINGS_MACHINE_ROW_LABELS.assessmentRoundFactor) ?? []).map((row) => [row[1], row[2]])
+  );
 
   for (const row of rowsByLabel.get(SETTINGS_MACHINE_ROW_LABELS.sessionTarget) ?? []) {
     const sessionId = row[1];
@@ -381,6 +391,12 @@ const buildStructuredSessions = (rowsByLabel: Map<string, string[][]>): PAPSSess
               sessionGroupOrder: Number(groupItem.order) || 0
             }
           : {}),
+        ...(roundBySessionId.get(row[1]!) && factorBySessionId.get(row[1]!)
+          ? {
+              assessmentRoundId: roundBySessionId.get(row[1]!),
+              factorId: factorBySessionId.get(row[1]!) as PAPSSession["factorId"]
+            }
+          : {}),
         isOpen: (statusRow?.[2] ?? "Y") !== "N",
         createdAt: normalizeIsoValue(statusRow?.[3])
       } satisfies PAPSSession;
@@ -401,6 +417,11 @@ export const parseGoogleSheetStructuredSettings = ({
   const teacherState = buildStructuredTeachers(rowsByLabel, school.id, teacherEmail);
   const classes = buildStructuredClasses(rowsByLabel, school.id);
   const sessions = buildStructuredSessions(rowsByLabel);
+  const assessmentRounds = parseJsonCell<PAPSAssessmentRound[]>(
+    rowsByLabel,
+    SETTINGS_MACHINE_ROW_LABELS.assessmentRound,
+    []
+  );
   const connectedSpreadsheetId =
     rowsByLabel.get(SETTINGS_MACHINE_ROW_LABELS.connection)?.[0]?.[1] ??
     parseJsonCell<string | null>(rowsByLabel, SETTINGS_MACHINE_ROW_LABELS.legacySpreadsheetId, null) ??
@@ -415,6 +436,7 @@ export const parseGoogleSheetStructuredSettings = ({
     teachers: teacherState.teachers,
     hasPersistedTeachers: teacherState.hasPersistedTeachers,
     classes,
-    sessions
+    sessions,
+    assessmentRounds
   };
 };

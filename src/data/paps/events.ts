@@ -3,6 +3,7 @@ import type { PAPSEventDefinition } from "../../lib/paps/types";
 export const PAPS_EVENT_DEFINITIONS: Record<PAPSEventDefinition["id"], PAPSEventDefinition> = {
   "sit-and-reach": {
     id: "sit-and-reach",
+    factorId: "flexibility",
     label: "앉아윗몸앞으로굽히기",
     unit: "cm",
     betterDirection: "higher",
@@ -16,6 +17,7 @@ export const PAPS_EVENT_DEFINITIONS: Record<PAPSEventDefinition["id"], PAPSEvent
   },
   "shuttle-run": {
     id: "shuttle-run",
+    factorId: "cardiorespiratory-endurance",
     label: "왕복오래달리기",
     unit: "laps",
     betterDirection: "higher",
@@ -29,6 +31,7 @@ export const PAPS_EVENT_DEFINITIONS: Record<PAPSEventDefinition["id"], PAPSEvent
   },
   "long-run-walk": {
     id: "long-run-walk",
+    factorId: "cardiorespiratory-endurance",
     label: "오래달리기-걷기",
     unit: "seconds",
     betterDirection: "lower",
@@ -42,6 +45,7 @@ export const PAPS_EVENT_DEFINITIONS: Record<PAPSEventDefinition["id"], PAPSEvent
   },
   "step-test": {
     id: "step-test",
+    factorId: "cardiorespiratory-endurance",
     label: "스텝검사",
     unit: "PEI",
     betterDirection: "higher",
@@ -55,6 +59,7 @@ export const PAPS_EVENT_DEFINITIONS: Record<PAPSEventDefinition["id"], PAPSEvent
   },
   "comprehensive-flexibility": {
     id: "comprehensive-flexibility",
+    factorId: "flexibility",
     label: "종합유연성",
     unit: "점",
     betterDirection: "higher",
@@ -68,6 +73,7 @@ export const PAPS_EVENT_DEFINITIONS: Record<PAPSEventDefinition["id"], PAPSEvent
   },
   "curl-up": {
     id: "curl-up",
+    factorId: "strength-endurance",
     label: "윗몸말아올리기",
     unit: "reps",
     betterDirection: "higher",
@@ -81,6 +87,7 @@ export const PAPS_EVENT_DEFINITIONS: Record<PAPSEventDefinition["id"], PAPSEvent
   },
   "grip-strength": {
     id: "grip-strength",
+    factorId: "strength-endurance",
     label: "악력",
     unit: "kg",
     betterDirection: "higher",
@@ -94,6 +101,7 @@ export const PAPS_EVENT_DEFINITIONS: Record<PAPSEventDefinition["id"], PAPSEvent
   },
   "fifty-meter-run": {
     id: "fifty-meter-run",
+    factorId: "power",
     label: "50m달리기",
     unit: "seconds",
     betterDirection: "lower",
@@ -107,6 +115,7 @@ export const PAPS_EVENT_DEFINITIONS: Record<PAPSEventDefinition["id"], PAPSEvent
   },
   "standing-long-jump": {
     id: "standing-long-jump",
+    factorId: "power",
     label: "제자리멀리뛰기",
     unit: "cm",
     betterDirection: "higher",
