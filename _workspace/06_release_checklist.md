@@ -16,13 +16,15 @@
 - [x] `PROJECT_CONTEXT.md` 기존 상태 보존
 - [x] Vercel Production 환경변수 이름·대상 환경 확인
 - [x] `.env.local` Git 제외와 비밀값 비출력 확인
-- [ ] GitHub Actions Node 22 실런 확인
+- [x] GitHub Actions Node 22 실런 확인 — run `32980675572`
 - [x] 격리 전용 실제 Google Sheets에서 4요인 생성→제출→대표값→확정→학생 재조회 확인
 - [x] 임시 테스트 시트 Google Drive 휴지통 이동 확인
 - [x] 신규 임시 서비스 계정 키 폐기 및 기존 키 보존 확인
-- [ ] Production 자격증명·템플릿 공유 상태 확인
-- [ ] 실제 Google OAuth 로그인 확인
-- [ ] 배포 후 공개 URL 확인
+- [x] Production 필수 환경변수 이름과 `/api/health` `ready: true` 확인
+- [ ] Production 템플릿 파일 존재·서비스 계정 공유 상태 복구
+- [x] Google OAuth가 `redirect_uri_mismatch` 없이 Google 계정 로그인 화면까지 이동
+- [ ] 실제 허용 교사 계정 로그인 완료와 대시보드 진입 확인
+- [x] 배포 후 공개 URL·버전·접근 경계·모바일·콘솔 확인
 
 ## 운영 환경변수
 
@@ -49,8 +51,8 @@
 - 결과 명칭은 항상 `체지방 제외 4요인`으로 유지하고 공식 PAPS 종합점수·종합등급으로 안내하지 않습니다.
 - 실제 시트에 `4요인회차결과` 탭과 v0.2 설정이 생성된 뒤 재접속해 round/result가 복원되는지 확인합니다.
 - 격리 E2E 기준 결과는 요인 점수 `19/20/16/20`, 합계 `75/80`, 환산점수 `93.75/100`, `1등급`이며 체지방·BMI 측정 열은 0개입니다.
-- Production 템플릿 ID는 현재 계정에서 404이므로 배포 전에 파일 존재 여부와 서비스 계정 공유 권한을 복구합니다.
-- 이번 작업에서는 커밋, 푸시, 배포를 수행하지 않았습니다.
+- Production 템플릿 ID는 현재 계정에서 404이므로 신규 학교 연결 전에 파일 존재 여부와 서비스 계정 공유 권한을 복구합니다.
+- 최종 앱 커밋 `f043526`, deployment `dpl_G387R4VUYXkTiUTcEfn7GDUrgBvs`, Production alias `https://paps-tracker.vercel.app`을 확인했습니다.
 
 ## 롤백 포인트
 

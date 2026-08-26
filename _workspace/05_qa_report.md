@@ -28,6 +28,7 @@
 - TypeScript: `npm run typecheck`, 통과.
 - Next.js 프로덕션 빌드: `NEXTAUTH_SECRET=ci-only-secret npm run build`, 신규 학생별 회차 상태 API를 포함한 페이지와 API route 생성 통과.
 - `git diff --check`: 통과.
+- GitHub Actions: 최종 공개 배포 SHA `f043526`의 run `32980675572`에서 Node 22 설치, `npm ci`, 운영 감사, 전체 테스트, 린트, 타입 검사, 프로덕션 빌드 통과.
 
 ## 핵심 기능 결과
 
@@ -63,14 +64,26 @@
 - `output/playwright/home-mobile-390x812.png`
 - `output/playwright/paps-e2e-student-finalized.png`
 - `output/playwright/paps-e2e-teacher-finalized.png`
+- `output/playwright/paps-production-home-desktop.png`
+- `output/playwright/paps-production-home-mobile-390x812.png`
+- `output/playwright/paps-production-update-info.png`
+
+### Production 배포 후 공개 검증
+
+- 최종 커밋 `f043526ea39f38407a0a7ec7ed1920ed4d613a40`을 Vercel deployment `dpl_G387R4VUYXkTiUTcEfn7GDUrgBvs`로 배포했고 `READY`, `production`, Node `22.x`, aliasAssigned `true`를 API로 확인했습니다.
+- 공개 주소 `https://paps-tracker.vercel.app`은 HTTP 200이며 랜딩에서 `v1.2.1`, 4요인 회차, Sheets 응답·재조회 보정, favicon 개선 내역을 확인했습니다.
+- `/api/health`는 HTTP 200, `ready: true`이고 Google OAuth·교사 접근 정책·Google Sheets 필수 환경변수 이름이 준비된 상태입니다.
+- 비로그인 `/teacher`와 `/teacher/results`는 `/auth/signin`으로 307 리다이렉트되고, 비로그인 회차 생성 API는 401을 반환했습니다.
+- Google 로그인 버튼은 `redirect_uri_mismatch` 없이 Google 계정 로그인 화면으로 이동했고 Production callback은 `https://paps-tracker.vercel.app/api/auth/callback/google`로 전달됐습니다. 실제 교사 계정의 인증 완료는 수행하지 않았습니다.
+- 신규 `/icon.svg`는 HTTP 200·`image/svg+xml`이며, 새 브라우저 세션의 앱 콘솔 오류·경고는 0건입니다.
+- 390×812 브라우저에서 가로 넘침이 없고 데스크톱·모바일·업데이트 대화상자를 육안으로 확인했습니다.
 
 ## 남은 위험과 권장 우선순위
 
-### P0 — 배포 전
+### P0 — 운영 후속
 
-- 실제 운영 OAuth 로그인과 교사 허용 범위를 검증해야 합니다.
-- Production의 서비스 계정·템플릿 환경변수와 템플릿 공유 상태를 확인해야 합니다. Vercel Sensitive 값은 로컬로 복구할 수 없습니다.
-- CI의 Node 22 환경에서 새 lockfile 설치·감사·빌드가 실행되는지 Actions 한 회를 확인해야 합니다.
+- 실제 허용 도메인의 교사 계정으로 로그인을 완료하고 교사 대시보드 진입을 확인해야 합니다.
+- Production 템플릿 ID는 현재 계정에서 404이므로 파일 존재·서비스 계정 공유 상태를 복구한 뒤 신규 학교 연결을 확인해야 합니다. Vercel Sensitive 값은 로컬로 복구할 수 없습니다.
 
 ### P1 — 의존성 유지보수
 
@@ -80,11 +93,12 @@
 ### P2 — 기존 운영 위험
 
 - Google Sheets 결과 revision 중복 방지는 읽기 후 append 방식이므로 완전한 원자적 잠금은 아닙니다.
-- 운영 OAuth·Production 템플릿 검증 전에는 배포 승인을 확정하지 않습니다.
+- Production 템플릿 공유 상태가 복구되기 전에는 신규 학교의 템플릿 사본 생성 흐름에 위험이 남습니다.
 
 ## 결론
 
 - 의존성 보안 게이트와 로컬 품질 게이트: 통과
 - 격리 Google Sheets 4요인 E2E: 통과
-- 운영 OAuth·Production 템플릿: 미검증
-- 커밋·푸시·배포: 수행하지 않음
+- Production OAuth redirect·접근 경계·공개 UI: 통과
+- 실제 교사 로그인 완료·Production 템플릿: 미검증
+- 커밋·푸시·Production 배포: 완료

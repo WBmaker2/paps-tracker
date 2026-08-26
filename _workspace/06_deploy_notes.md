@@ -5,12 +5,14 @@
 - GitHub: `WBmaker2/paps-tracker`
 - 브랜치: `codex/student-growth-ui-improvements`
 - 기능 커밋: `e52e06c1ca5a04c81deed0c5f686970ed814a835`
+- 최종 공개 앱 커밋: `f043526ea39f38407a0a7ec7ed1920ed4d613a40`
 - Vercel 팀/프로젝트: `wbmaker2s-projects/paps-tracker`
 - Production 공개 주소: `https://paps-tracker.vercel.app`
 
 ## 배포 전 근거
 
 - GitHub Actions run `32979216162`: Node 22 설치, `npm ci`, 운영 의존성 감사, 72개 파일·326개 테스트, 린트, 타입 검사, 프로덕션 빌드 통과
+- 최종 GitHub Actions run `32980675572`: favicon 보정 포함 동일 전체 게이트 통과
 - Vercel 필수 Production 환경변수 이름 7개와 적용 환경 확인. 값은 문서와 로그에 기록하지 않음
 - Vercel 배포 메타데이터의 Node.js 버전이 `22.x`로 해석되는 것을 확인
 - 사용자 파일 `PROJECT_CONTEXT.md`, 로컬 `.env.local`, Playwright 증거 이미지는 릴리스 커밋과 배포 소스에서 제외
@@ -21,15 +23,25 @@
 - 원인: 자동 생성된 로컬 Git 작성자 이메일이 Vercel 팀 구성원으로 인식되지 않음
 - 조치: GitHub 계정 `WBmaker2`의 noreply 이메일로 저장소 로컬 작성자 설정을 고정하고 후속 릴리스 메타데이터 커밋을 사용
 - 차단된 배포는 alias가 할당되지 않았고 기존 Production 트래픽을 변경하지 않음
+- 최종 배포 `dpl_G387R4VUYXkTiUTcEfn7GDUrgBvs`가 `READY`가 되었고 `https://paps-tracker.vercel.app` alias가 할당됨
+- Vercel API에서 source SHA `f043526`, target `production`, Node `22.x`, aliasAssigned `true`, 차단 사유 없음 확인
 
-## 배포 후 검증 예정
+## 배포 후 검증
 
-- [ ] 최종 deployment ID와 `READY` 상태
-- [ ] `https://paps-tracker.vercel.app` HTTP 200
-- [ ] 랜딩의 `v1.2.1` 및 업데이트 내역
-- [ ] `/api/health` HTTP 200과 환경 준비 상태
-- [ ] `/auth/signin`, `/teacher`, `/teacher/results` 접근 경계
-- [ ] 데스크톱·390px 모바일 가로 넘침 및 콘솔 오류
+- [x] 최종 deployment ID와 `READY` 상태
+- [x] `https://paps-tracker.vercel.app` HTTP 200
+- [x] 랜딩의 `v1.2.1` 및 업데이트 내역
+- [x] `/api/health` HTTP 200과 `ready: true`
+- [x] `/auth/signin`, `/teacher`, `/teacher/results` 접근 경계
+- [x] 비로그인 회차 생성 API 401
+- [x] Google OAuth가 Google 계정 로그인 화면까지 이동하고 Production callback을 사용
+- [x] `/icon.svg` HTTP 200·`image/svg+xml`
+- [x] 데스크톱·390px 모바일 가로 넘침 없음 및 앱 콘솔 오류·경고 0건
+
+## 남은 운영 확인
+
+- 실제 허용 도메인의 교사 계정 로그인 완료와 대시보드 진입은 수행하지 않았습니다.
+- Production 템플릿 ID가 현재 계정에서 404이므로 파일 존재와 서비스 계정 공유 권한을 복구해야 합니다.
 
 ## 롤백
 

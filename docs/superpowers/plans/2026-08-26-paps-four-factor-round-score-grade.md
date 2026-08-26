@@ -1,7 +1,7 @@
 # PAPS 체지방 제외 4요인 회차 점수·등급 구현계획
 
 - 작성일: 2026-08-26
-- 상태: 사용자 승인안 구현 및 격리 Google Sheets E2E 완료
+- 상태: 사용자 승인안 구현, 격리 Google Sheets E2E 및 Production 배포 완료
 - 규정 경계: 학교건강검사규칙의 공식 5요인 종합점수·등급이 아닌 프로젝트 자체 4요인 환산 결과
 
 ## 1. 승인된 목표
@@ -247,3 +247,10 @@ type PAPSFourFactorId =
 - 결과 저장 열에 체지방·BMI 측정 항목이 없고, 결과 문구는 공식 PAPS 종합등급과 구분된다.
 - 전체 테스트 72개 파일·326개, 린트, 타입 검사, 프로덕션 빌드가 통과했다.
 - 검증 후 테스트 시트는 Google Drive 휴지통으로 이동하고 신규 임시 서비스 계정 키는 폐기했으며 기존 키는 보존했다.
+
+## 15. Production 배포 결과
+
+- 최종 공개 앱 커밋 `f043526`과 Vercel deployment `dpl_G387R4VUYXkTiUTcEfn7GDUrgBvs`를 Production에 배포했다.
+- `https://paps-tracker.vercel.app`에서 `v1.2.1`, 업데이트 내역, 로그인 접근 경계, Google OAuth 진입, health 준비 상태를 확인했다.
+- 데스크톱과 390×812 모바일에서 가로 넘침이 없고 앱 콘솔 오류·경고 0건을 확인했다.
+- 실제 허용 교사 계정 로그인 완료와 404 상태의 Production 템플릿 복구는 후속 운영 확인으로 남긴다.
