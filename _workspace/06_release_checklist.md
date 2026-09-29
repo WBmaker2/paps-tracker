@@ -1,31 +1,31 @@
-# 릴리스 체크리스트: v1.2.6 세션 설정 행 복구 준비
+# 릴리스 체크리스트: v1.2.6 세션 설정 행 복구 및 Production 확인
 
-## 로컬 게이트 — 2026-09-29
+## 릴리스·운영 게이트 — 2026-09-29
 
-- [x] 설정 탭 저장 후 실제 행 재조회 및 저장 payload 비교
-- [x] 삭제·축소 시 Sheets의 trailing 빈 행 생략을 허용하고 필수 행 손실은 차단
-- [x] 재조회 검증은 설정 탭으로 한정하고 학생 명단 저장은 기존 읽기 횟수 유지
-- [x] 격리 recovery planner가 복구 대상 상태, 온전한 같은 묶음 세션, 매니페스트의 공통값과 group item 순서를 확인
-- [x] 실제 검토용 매니페스트에서 정확히 8개 행 생성 — 악력 3행, 제자리멀리뛰기 5행
-- [x] 기본 preview, 고정 운영 시트 ID·묶음 확인, 설정 전용 백업(0600·gitignore), 재확인·재조회 구현
-- [x] 운영 측정 기록 탭 무쓰기 원칙 확인
-- [x] `npm run test:ci` 통과 — 86개 파일·358개 테스트
-- [x] `npm run typecheck`, `npm run lint`, `npm run audit:prod` 통과 — 운영 취약점 0건
-- [x] `NEXTAUTH_SECRET=local-build-placeholder npm run build` 통과
-- [x] `git diff --check` 통과
-- [x] 이번 범위 파일만 앱 커밋·브랜치 푸시 — `876a28f676d06e39990ad93130c4bbe3ff026858`, `codex/session-row-recovery`
-- [ ] Vercel Production 배포 및 READY 확인 — CLI의 `.vercel` 쓰기 권한 오류 후 권한 상승 요청이 자동 승인 검토에서 “Production 배포에 대한 명시 승인이 없음”으로 거부되어 보류
-- [ ] Production URL 및 deployment 식별 기록
-- [ ] 별도 승인된 운영 시트 복구 단계에서만 8행 반영 및 데이터 재조회
+- [x] 설정 저장 후 read-back 검증 및 200→208행·부분 손상 회귀 테스트
+- [x] recovery planner가 운영 스냅샷·형제 세션·매니페스트와 대조해 정확히 8행 계획
+- [x] 운영 전 읽기 확인: 설정 200행, 대상 묶음 4 group item/3 session, 대상 측정기록 0건
+- [x] 설정 전용 백업 생성 — `work/backups/september-session-recovery-settings.json`, 권한 `0600`, gitignore 적용
+- [x] connector batchUpdate 두 번의 403 거부 후 변경 없음을 재확인
+- [x] 승인된 로그인 Ego Browser TaskSpace 3 / Page p1에서 A201부터 8×6 TSV 한 번 붙여넣고 저장 완료 확인
+- [x] 복구 후 `설정!A201:F208` 정확히 8행, `설정!A1:F200` 백업과 일치
+- [x] 복구 후 group item 4개 및 두 대상 세션의 학급 target 각 2개 확인
+- [x] 측정기록 318개 행 유지, 대상 세션 측정기록 0건 유지
+- [x] Production teacher/student HVC — 네 종목·두 반 확인, 악력 및 제자리멀리뛰기 각 15개 이름 버튼, 새로고침 후 지속 확인
+- [x] Production 배포 READY — `dpl_5zgXawpGA2R6eFBmfv2sCba7QC8t`
+- [x] 후속 변경 범위는 QA/릴리스 문서 2개만; 앱 코드·매니페스트·백업 미포함 및 재배포 없음
 
-### 매니페스트
+### 매니페스트·운영 상태
 
-- 파일: `work/september-session-recovery-manifest.json`
-- 복구할 항목: 악력 `2e4124e3-a6b1-4cd1-b53a-dccdf4a0072d`, 제자리멀리뛰기 `e594181b-1632-4c2f-bfe3-1033f5b3b392`
-- 이름 근거: 제자리멀리뛰기 세션 이름은 원래 설정 행이 없어 제안된 추론값이며, 적용 전 교사가 확인해야 합니다.
-- 배포 전 현재 Production: [https://paps-tracker.vercel.app](https://paps-tracker.vercel.app), deployment `dpl_D77vMsvjcziazKSBVQRZW6BxPYXe`, `READY`
-- 최신 읽기 전용 시트 상태: 설정 sheetId=0, grid 992행·값 200행, A201:F208 비어 있음; 세션기록 318개 데이터 행, 대상 ID 기록 0건
-- 배포 전 롤백 지점: [https://paps-tracker.vercel.app](https://paps-tracker.vercel.app), deployment `dpl_D77vMsvjcziazKSBVQRZW6BxPYXe` (`READY`)
+- 매니페스트: `work/september-session-recovery-manifest.json`
+- 복구 대상: 악력 `2e4124e3-a6b1-4cd1-b53a-dccdf4a0072d`, 제자리멀리뛰기 `e594181b-1632-4c2f-bfe3-1033f5b3b392`
+- 대상 묶음: `77bd0c26-2fe1-42c8-934f-5373d96a5b2a`
+- 앱 커밋 SHA: `876a28f676d06e39990ad93130c4bbe3ff026858`, 브랜치 `codex/session-row-recovery`
+- Vercel Production: [https://paps-tracker.vercel.app](https://paps-tracker.vercel.app), deployment `dpl_5zgXawpGA2R6eFBmfv2sCba7QC8t`, 상태 `READY`
+- 추가 alias: [https://paps-tracker-wbmaker2s-projects.vercel.app](https://paps-tracker-wbmaker2s-projects.vercel.app)
+- 배포 빌드 URL: [https://paps-tracker-edcp2934o-wbmaker2s-projects.vercel.app](https://paps-tracker-edcp2934o-wbmaker2s-projects.vercel.app)
+- 복구 후 HVC: [교사 화면](https://paps-tracker.vercel.app/teacher), [대상 학생 묶음](https://paps-tracker.vercel.app/session-group/77bd0c26-2fe1-42c8-934f-5373d96a5b2a)
+- 배포된 앱 수정 없음 — 이 문서 후속 커밋은 재배포하지 않음
 
 ---
 
