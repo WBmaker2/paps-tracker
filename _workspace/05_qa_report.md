@@ -1,3 +1,19 @@
+# QA 보고서: v1.2.6 세션 설정 행 무결성 및 복구 준비
+
+## v1.2.6 세션 설정 행 복구 릴리스 (2026-09-29)
+
+- 재현 절차: 최신 대상 설정 시트 읽기 전용 스냅샷에서 `설정` sheetId=0, grid rowCount=992, 값이 있는 행 200개, 대상 묶음 4개 group item, 세션 3행을 확인했습니다. 199행은 악력 SESSION, 200행은 악력 META이며 A201:F208은 비어 있고 인접 행에 dataValidation/userEnteredFormat이 없습니다. 악력에는 status/target이 없고 제자리멀리뛰기는 group item만 있습니다. `세션기록` A1:C340은 데이터 318행이며 대상 두 세션의 측정 기록은 0건이었습니다.
+- 수정: 설정 탭 저장 뒤 실제 `A:F`를 다시 읽어 요청 행을 대조합니다. 필수 행이 사라지면 저장 성공을 반환하지 않습니다. Google Sheets가 반환하지 않는 trailing 빈 행은 허용하며, 필수 중간 행 누락은 오류 처리합니다. 추가 readback은 설정 탭에만 적용합니다.
+- 복구 도구: 기본 실행은 읽기 전용 preview이며 허용된 시트·묶음·세션·학급에만 적용됩니다. 악력 status+2 target, 점프 session+meta+status+2 target의 총 8행을 계획합니다. 같은 묶음의 온전한 세션에 매니페스트 메타데이터와 순서를 대조하고, 설정 백업 후 재확인·쓰기 후 전체 행 재조회 검증을 요구합니다. 측정기록 탭에는 쓰지 않습니다.
+- 이름 근거: 악력 이름은 기존 설정 행에서 확인했습니다. 제자리멀리뛰기 이름 `9월 5, 6학년 - 제자리멀리뛰기`는 원래 세션 행이 없어 묶음명과 종목 이름 생성 규칙에서 추론한 제안값입니다. 세부는 `work/september-session-recovery-manifest-notes.md`에 기록했습니다.
+- 실행 명령과 결과: `npm run test:ci -- --reporter=dot` 통과 (86개 파일·358개 테스트), `npm run typecheck`, `npm run lint`, `npm run audit:prod` (운영 취약점 0건), `NEXTAUTH_SECRET=local-build-placeholder npm run build`, `git diff --check` 통과.
+- 검증 세부: 200→208행 설정 왕복, 축소 저장 시 trailing 빈 행 누락 허용, 중간 target 행 손상 시 저장 실패, roster 탭은 기존 사전 읽기 1회만 하는 경계를 테스트했습니다. 실측 200행 구조와 실제 JSON 매니페스트를 recovery planner에 넣어 정확히 8행 계획을 검증했습니다.
+- 수정 필요 여부: 없음. 변경 코드 파일은 모두 500줄 미만입니다.
+- 운영 경계: 이 QA/릴리스 단계에서 운영 Google Sheet에 쓰지 않았고, 매니페스트 기반 8행 복구는 별도 적용 단계로 남아 있습니다. 운영 기록 보존과 복구 후 네 종목·학급 이름판 확인은 실제 복구 뒤 검증해야 합니다.
+- Production 기준 상태: 배포 전 alias [https://paps-tracker.vercel.app](https://paps-tracker.vercel.app)은 Vercel CLI에서 `READY`, deployment `dpl_D77vMsvjcziazKSBVQRZW6BxPYXe`로 확인했습니다.
+- 배포 후 확인: 진행 중.
+- 롤백 포인트: 이번 코드 배포 직전 Production deployment `dpl_D77vMsvjcziazKSBVQRZW6BxPYXe`.
+
 # QA 보고서: v1.2.5 교사 세션 생성의 4요인 회차 항목 제거
 
 ## v1.2.5 교사 세션 생성 항목 정리 (2026-09-29)

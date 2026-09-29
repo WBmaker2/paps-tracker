@@ -46,5 +46,7 @@ describe("runtime docs", () => {
     expect(updateHistory).toContain("v1.2.1");
     expect(updateHistory).toContain("운영 의존성 보안 패치");
     expect(updateHistorySource).toContain('APP_VERSION = "v1.2.6"');
+    expect(updateHistorySource).toContain("요청한 세션·묶음·학급 설정을 저장 후 다시 읽어");
+    expect(updateHistorySource).toContain("기존 묶음 데이터 손상 확인과 복구 준비 도구");
   });
 });

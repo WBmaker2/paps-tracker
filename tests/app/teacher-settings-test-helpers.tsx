@@ -45,7 +45,13 @@ vi.mock("../../src/lib/google/sheets-client", async (importOriginal) => {
 
   return {
     ...actual,
-    createGoogleSheetsClient: vi.fn(() => ({
+    createGoogleSheetsClient: vi.fn(() => {
+      let writtenSettings: string[][] | null = null;
+      const updateRange = vi.fn(async (_spreadsheetId: string, range: string, values: string[][]) => {
+        if (range === "'설정'!A:F") writtenSettings = values.map((row) => [...row]);
+        return {};
+      });
+      return ({
       getSpreadsheet: vi.fn(async () => ({
         spreadsheetId: "sheet-verified",
         sheets: [
@@ -64,6 +70,7 @@ vi.mock("../../src/lib/google/sheets-client", async (importOriginal) => {
         }))
       })),
       readRange: vi.fn(async (_spreadsheetId: string, range: string) => {
+        if (range === "'설정'!A:F" && writtenSettings) return writtenSettings;
         if (range === "'설정'!A1:C20") {
           return [
             ["항목", "값", "설명"],
@@ -120,8 +127,9 @@ vi.mock("../../src/lib/google/sheets-client", async (importOriginal) => {
         return [headers[tabName] ?? []];
       }),
       appendRows: vi.fn(async () => ({})),
-      updateRange: vi.fn(async () => ({}))
-    }))
+      updateRange
+      });
+    })
   };
 });
 
@@ -227,7 +235,19 @@ const prototypeHeaders: Record<string, string[]> = {
   수정로그: ["시간", "교사계정", "세션ID", "학생ID", "종목", "작업", "이전기록ID", "선택기록ID", "사유"]
 };
 
-export const createLockedSheetClient = (updateRange = vi.fn(async () => ({}))) => ({
+export const createLockedSheetClient = (updateRange = vi.fn(async () => ({}))) => {
+  let persistedSettings: string[][] | null = null;
+  const originalUpdate = updateRange as unknown as (
+    spreadsheetId: string,
+    range: string,
+    values: string[][]
+  ) => Promise<unknown>;
+  const trackedUpdate = vi.fn(async (spreadsheetId: string, range: string, values: string[][]) => {
+    if (range === "'설정'!A:F") persistedSettings = values.map((row) => [...row]);
+    await originalUpdate(spreadsheetId, range, values);
+    return {};
+  });
+  return ({
   getSpreadsheet: vi.fn(async () => ({
     spreadsheetId: "sheet-owned",
     sheets: Object.keys(prototypeHeaders).map((title, index) => ({
@@ -238,6 +258,7 @@ export const createLockedSheetClient = (updateRange = vi.fn(async () => ({}))) =
     }))
   })),
   readRange: vi.fn(async (_spreadsheetId: string, range: string) => {
+    if (range === "'설정'!A:F" && persistedSettings) return persistedSettings;
     if (range === "'설정'!A1:C20") {
       return [
         ["항목", "값", "설명"],
@@ -279,5 +300,6 @@ export const createLockedSheetClient = (updateRange = vi.fn(async () => ({}))) =
     return [];
   }),
   appendRows: vi.fn(async () => ({})),
-  updateRange
-});
+  updateRange: trackedUpdate
+  });
+};

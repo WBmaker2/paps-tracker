@@ -64,6 +64,28 @@ const updateGoogleSheetSourceTab = async (
     spec.range,
     padRows(values, rowsToWrite, spec.columnCount)
   );
+
+  if (tabName === "설정") {
+    const persistedRows = await input.client.readRange(input.spreadsheetId, spec.range);
+    const expectedRows = padRows(values, rowsToWrite, spec.columnCount);
+    const normalizeRow = (row: string[]) =>
+      Array.from({ length: spec.columnCount }, (_, index) => String(row[index] ?? ""));
+    const mismatchedRow = expectedRows.findIndex((expected, index) => {
+      const persisted = persistedRows[index];
+      if (!persisted) {
+        const isTrailingBlank = expected.every((value) => value === "") &&
+          expectedRows.slice(index).every((row) => row.every((value) => value === ""));
+        return !isTrailingBlank;
+      }
+      return normalizeRow(persisted).some((value, column) => value !== expected[column]);
+    });
+
+    if (mismatchedRow >= 0) {
+      throw new Error(
+        `Google Sheets ${tabName} write verification failed at row ${mismatchedRow + 1}; the save was not confirmed.`
+      );
+    }
+  }
 };
 
 const createSourcePayloadMap = (state: GoogleSheetStructuredState) =>

@@ -1,3 +1,33 @@
+# 릴리스 체크리스트: v1.2.6 세션 설정 행 복구 준비
+
+## 로컬 게이트 — 2026-09-29
+
+- [x] 설정 탭 저장 후 실제 행 재조회 및 저장 payload 비교
+- [x] 삭제·축소 시 Sheets의 trailing 빈 행 생략을 허용하고 필수 행 손실은 차단
+- [x] 재조회 검증은 설정 탭으로 한정하고 학생 명단 저장은 기존 읽기 횟수 유지
+- [x] 격리 recovery planner가 복구 대상 상태, 온전한 같은 묶음 세션, 매니페스트의 공통값과 group item 순서를 확인
+- [x] 실제 검토용 매니페스트에서 정확히 8개 행 생성 — 악력 3행, 제자리멀리뛰기 5행
+- [x] 기본 preview, 고정 운영 시트 ID·묶음 확인, 설정 전용 백업(0600·gitignore), 재확인·재조회 구현
+- [x] 운영 측정 기록 탭 무쓰기 원칙 확인
+- [x] `npm run test:ci` 통과 — 86개 파일·358개 테스트
+- [x] `npm run typecheck`, `npm run lint`, `npm run audit:prod` 통과 — 운영 취약점 0건
+- [x] `NEXTAUTH_SECRET=local-build-placeholder npm run build` 통과
+- [x] `git diff --check` 통과
+- [ ] 이번 범위 파일만 앱 커밋·브랜치 푸시
+- [ ] Vercel Production 배포 및 READY 확인
+- [ ] Production URL 및 deployment 식별 기록
+- [ ] 별도 승인된 운영 시트 복구 단계에서만 8행 반영 및 데이터 재조회
+
+### 매니페스트
+
+- 파일: `work/september-session-recovery-manifest.json`
+- 복구할 항목: 악력 `2e4124e3-a6b1-4cd1-b53a-dccdf4a0072d`, 제자리멀리뛰기 `e594181b-1632-4c2f-bfe3-1033f5b3b392`
+- 이름 근거: 제자리멀리뛰기 세션 이름은 원래 설정 행이 없어 제안된 추론값이며, 적용 전 교사가 확인해야 합니다.
+- 배포 전 현재 Production: [https://paps-tracker.vercel.app](https://paps-tracker.vercel.app), deployment `dpl_D77vMsvjcziazKSBVQRZW6BxPYXe`, `READY`
+- 최신 읽기 전용 시트 상태: 설정 sheetId=0, grid 992행·값 200행, A201:F208 비어 있음; 세션기록 318개 데이터 행, 대상 ID 기록 0건
+
+---
+
 # 릴리스 체크리스트: v1.2.5
 
 ## v1.2.5 — 교사 세션 생성에서 4요인 회차 제거 (2026-09-29)

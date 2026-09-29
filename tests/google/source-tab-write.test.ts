@@ -2,13 +2,19 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   writeGoogleSheetRecordSourceTab,
-  writeGoogleSheetSettingsSourceTab
+  writeGoogleSheetSettingsSourceTab,
+  writeGoogleSheetStudentsSourceTab
 } from "../../src/lib/google/sheet-source-write";
 
 describe("Google Sheet source-tab writes", () => {
   it("writes the complete settings payload to an open-ended range", async () => {
     const updateRange = vi.fn(async () => ({}));
-    const readRange = vi.fn(async () => [] as string[][]);
+    let persistedRows: string[][] = [];
+    const readRange = vi.fn(async () => persistedRows);
+    updateRange.mockImplementation(async (_spreadsheetId, _range, values) => {
+      persistedRows = values;
+      return {};
+    });
 
     await writeGoogleSheetSettingsSourceTab({
       spreadsheetId: "sheet-123",
@@ -49,6 +55,24 @@ describe("Google Sheet source-tab writes", () => {
     const values = updateRange.mock.calls[0]?.[2] as string[][];
     expect(values.length).toBeGreaterThan(0);
     expect(values[0]?.slice(0, 3)).toEqual(["항목", "값", "설명"]);
+  });
+
+  it("keeps the existing single-read write contract for student roster tabs", async () => {
+    const readRange = vi.fn(async () => [] as string[][]);
+    const updateRange = vi.fn(async () => ({}));
+
+    await writeGoogleSheetStudentsSourceTab({
+      spreadsheetId: "sheet-123",
+      client: { readRange, updateRange } as never,
+      state: {
+        classes: [],
+        allStudents: []
+      }
+    });
+
+    expect(readRange).toHaveBeenCalledTimes(1);
+    expect(readRange).toHaveBeenCalledWith("sheet-123", "'학생명단'!A:I");
+    expect(updateRange).toHaveBeenCalledTimes(1);
   });
 
   it("appends missing record rows while preserving rows absent from the snapshot", async () => {
@@ -160,23 +184,130 @@ describe("Google Sheet source-tab writes", () => {
     expect(existingRows[1]?.[12]).toBe("Kim");
   });
 
-  it("reads and preserves rows beyond the former fixed source limit before clearing stale tails", async () => {
-    const existingRows = Array.from({ length: 1001 }, (_, index) => [`student-${index}`]);
+  it("extends a 200-row settings sheet without truncating the requested rows", async () => {
+    const existingRows = Array.from({ length: 200 }, (_, index) => [`legacy-${index}`, "", "", "", "", ""]);
     const updateRange = vi.fn(async () => ({}));
-    const readRange = vi.fn(async () => existingRows);
+    let writtenRows: string[][] = [];
+    const readRange = vi.fn(async () => readRange.mock.calls.length > 1 ? writtenRows : existingRows);
+    updateRange.mockImplementation(async (_spreadsheetId, _range, values) => {
+      writtenRows = values;
+      return {};
+    });
+    const sessions = Array.from({ length: 38 }, (_, index) => ({
+      id: `session-${index}`,
+      schoolId: "school-1",
+      teacherId: "teacher-1",
+      academicYear: 2026,
+      name: `세션 ${index}`,
+      gradeLevel: 5,
+      sessionType: "practice",
+      classScope: "single",
+      eventId: "grip-strength",
+      classTargets: [],
+      isOpen: true,
+      createdAt: "2026-09-29T00:00:00.000Z",
+      sessionGroupId: `group-${index}`,
+      sessionGroupName: `묶음 ${index}`
+    }));
 
     await writeGoogleSheetSettingsSourceTab({
       spreadsheetId: "sheet-123",
       client: { updateRange, readRange } as never,
       state: {
         school: { id: "school-1", name: "학교", teacherIds: [], sheetUrl: "", createdAt: "", updatedAt: "" },
-        classes: [], teachers: [], sessions: []
+        classes: ["A", "B"].map((suffix, index) => ({
+          id: `class-${suffix}`, schoolId: "school-1", academicYear: 2026, gradeLevel: 5,
+          classNumber: index + 1, label: `5-${index + 1}`, active: true
+        })), teachers: [], sessions
       }
     });
 
     expect(readRange).toHaveBeenCalledWith("sheet-123", "'설정'!A:F");
-    const writtenRows = updateRange.mock.calls[0]?.[2] as string[][];
-    expect(writtenRows).toHaveLength(1001);
-    expect(writtenRows.at(-1)).toEqual(Array(6).fill(""));
+    expect(writtenRows).toHaveLength(208);
+  });
+
+  it("round-trips all 208 settings rows after extending the former 200-row boundary", async () => {
+    const existingRows = Array.from({ length: 200 }, (_, index) => [`legacy-${index}`, "", "", "", "", ""]);
+    let persistedRows: string[][] = [];
+    const updateRange = vi.fn(async (_spreadsheetId: string, _range: string, rows: string[][]) => {
+      persistedRows = rows.map((row) => [...row]);
+      return {};
+    });
+    const readRange = vi.fn(async () => readRange.mock.calls.length > 1 ? persistedRows : existingRows);
+    const sessions = Array.from({ length: 38 }, (_, index) => ({
+      id: `session-${index}`, schoolId: "school-1", teacherId: "teacher-1", academicYear: 2026,
+      name: `세션 ${index}`, gradeLevel: 5, sessionType: "practice", classScope: "single",
+      eventId: "grip-strength", classTargets: [], isOpen: true, createdAt: "2026-09-29T00:00:00.000Z",
+      sessionGroupId: `group-${index}`, sessionGroupName: `묶음 ${index}`
+    }));
+
+    await writeGoogleSheetSettingsSourceTab({
+      spreadsheetId: "sheet-123", client: { updateRange, readRange } as never,
+      state: {
+        school: { id: "school-1", name: "학교", teacherIds: [], sheetUrl: "", createdAt: "", updatedAt: "" },
+        classes: ["A", "B"].map((suffix, index) => ({
+          id: `class-${suffix}`, schoolId: "school-1", academicYear: 2026, gradeLevel: 5,
+          classNumber: index + 1, label: `5-${index + 1}`, active: true
+        })), teachers: [], sessions
+      } as never
+    });
+
+    expect(persistedRows).toHaveLength(208);
+    expect(persistedRows.filter((row) => row[0] === "__PAPS_SESSION")).toHaveLength(38);
+    expect(persistedRows.filter((row) => row[0] === "__PAPS_SESSION_GROUP_ITEM")).toHaveLength(38);
+  });
+
+  it("accepts omitted trailing blank rows after a normal settings shrink", async () => {
+    const existingRows = Array.from({ length: 208 }, (_, index) => [`old-${index}`, "", "", "", "", ""]);
+    let persistedRows: string[][] = [];
+    let responseRows: string[][] = [];
+    const updateRange = vi.fn(async (_spreadsheetId: string, _range: string, rows: string[][]) => {
+      persistedRows = rows;
+      return {};
+    });
+    const readRange = vi.fn(async () => {
+      if (readRange.mock.calls.length === 1) return existingRows;
+      responseRows = persistedRows.slice(0, persistedRows.findLastIndex((row) => row.some(Boolean)) + 1);
+      return responseRows;
+    });
+
+    await expect(writeGoogleSheetSettingsSourceTab({
+      spreadsheetId: "sheet-123",
+      client: { updateRange, readRange } as never,
+      state: {
+        school: { id: "school-1", name: "학교", teacherIds: [], sheetUrl: "", createdAt: "", updatedAt: "" },
+        classes: [], teachers: [], sessions: []
+      }
+    })).resolves.toBeUndefined();
+    expect(persistedRows).toHaveLength(208);
+    expect(responseRows).toHaveLength(persistedRows.findLastIndex((row) => row.some(Boolean)) + 1);
+  });
+
+  it("rejects a successful API write when the session target rows are missing on read-back", async () => {
+    let reads = 0;
+    let persistedRows: string[][] = [];
+    const updateRange = vi.fn(async (_spreadsheetId: string, _range: string, rows: string[][]) => {
+      persistedRows = rows;
+      return {};
+    });
+    const readRange = vi.fn(async () => {
+      reads += 1;
+      if (reads === 1) return [];
+      return persistedRows.filter((row) => row[0] !== "__PAPS_SESSION_TARGET");
+    });
+
+    await expect(writeGoogleSheetSettingsSourceTab({
+      spreadsheetId: "sheet-123",
+      client: { updateRange, readRange } as never,
+      state: {
+        school: { id: "school-1", name: "학교", teacherIds: [], sheetUrl: "", createdAt: "", updatedAt: "" },
+        classes: [], teachers: [],
+        sessions: [{
+          id: "wanted-session", schoolId: "school-1", teacherId: "teacher-1", academicYear: 2026,
+          name: "악력", gradeLevel: 5, sessionType: "practice", classScope: "single", eventId: "grip-strength",
+          classTargets: [{ classId: "class-5", eventId: "grip-strength" }], isOpen: false, createdAt: ""
+        }]
+      } as never
+    })).rejects.toThrow("Google Sheets 설정 write verification failed at row");
   });
 });

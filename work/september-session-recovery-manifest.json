@@ -1,0 +1,48 @@
+[
+  {
+    "id": "2e4124e3-a6b1-4cd1-b53a-dccdf4a0072d",
+    "name": "9월 5, 6학년 - 악력",
+    "schoolId": "school-1zOhvYPyJEtiM3s5i3-tsYOqUA0AX8S2EJBW0dsqSYNQ",
+    "teacherId": "teacher-ketarou85-dc-es-kr",
+    "academicYear": 2026,
+    "gradeLevel": 5,
+    "sessionType": "official",
+    "classScope": "split",
+    "eventId": "grip-strength",
+    "sessionGroupOrder": 2,
+    "createdAt": "2026-09-29T06:20:47.778Z",
+    "classTargets": [
+      {
+        "classId": "8582148a-9efe-434d-a3f9-64d8800c07b3",
+        "eventId": "grip-strength"
+      },
+      {
+        "classId": "6b536ba9-6a07-4289-972f-f2661e8967ee",
+        "eventId": "grip-strength"
+      }
+    ]
+  },
+  {
+    "id": "e594181b-1632-4c2f-bfe3-1033f5b3b392",
+    "name": "9월 5, 6학년 - 제자리멀리뛰기",
+    "schoolId": "school-1zOhvYPyJEtiM3s5i3-tsYOqUA0AX8S2EJBW0dsqSYNQ",
+    "teacherId": "teacher-ketarou85-dc-es-kr",
+    "academicYear": 2026,
+    "gradeLevel": 5,
+    "sessionType": "official",
+    "classScope": "split",
+    "eventId": "standing-long-jump",
+    "sessionGroupOrder": 3,
+    "createdAt": "2026-09-29T06:20:47.778Z",
+    "classTargets": [
+      {
+        "classId": "8582148a-9efe-434d-a3f9-64d8800c07b3",
+        "eventId": "standing-long-jump"
+      },
+      {
+        "classId": "6b536ba9-6a07-4289-972f-f2661e8967ee",
+        "eventId": "standing-long-jump"
+      }
+    ]
+  }
+]
