@@ -13,8 +13,8 @@
 - [x] `npm run typecheck`, `npm run lint`, `npm run audit:prod` 통과 — 운영 취약점 0건
 - [x] `NEXTAUTH_SECRET=local-build-placeholder npm run build` 통과
 - [x] `git diff --check` 통과
-- [ ] 이번 범위 파일만 앱 커밋·브랜치 푸시
-- [ ] Vercel Production 배포 및 READY 확인
+- [x] 이번 범위 파일만 앱 커밋·브랜치 푸시 — `876a28f676d06e39990ad93130c4bbe3ff026858`, `codex/session-row-recovery`
+- [ ] Vercel Production 배포 및 READY 확인 — CLI의 `.vercel` 쓰기 권한 오류 후 권한 상승 요청이 자동 승인 검토에서 “Production 배포에 대한 명시 승인이 없음”으로 거부되어 보류
 - [ ] Production URL 및 deployment 식별 기록
 - [ ] 별도 승인된 운영 시트 복구 단계에서만 8행 반영 및 데이터 재조회
 
@@ -25,6 +25,7 @@
 - 이름 근거: 제자리멀리뛰기 세션 이름은 원래 설정 행이 없어 제안된 추론값이며, 적용 전 교사가 확인해야 합니다.
 - 배포 전 현재 Production: [https://paps-tracker.vercel.app](https://paps-tracker.vercel.app), deployment `dpl_D77vMsvjcziazKSBVQRZW6BxPYXe`, `READY`
 - 최신 읽기 전용 시트 상태: 설정 sheetId=0, grid 992행·값 200행, A201:F208 비어 있음; 세션기록 318개 데이터 행, 대상 ID 기록 0건
+- 배포 전 롤백 지점: [https://paps-tracker.vercel.app](https://paps-tracker.vercel.app), deployment `dpl_D77vMsvjcziazKSBVQRZW6BxPYXe` (`READY`)
 
 ---
 
