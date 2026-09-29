@@ -306,7 +306,7 @@ describe("teacher settings management", () => {
           return [headers[tabName] ?? []];
         }
 
-        if (range === "'설정'!A2:F200") {
+        if (range === "'설정'!A2:F") {
           return [
             ["학교명", "Locked School", "교사가 관리 페이지에서 설정", "", "", ""],
             ["__PAPS_SCHOOL", "locked-school", "Locked School", "https://docs.google.com/spreadsheets/d/sheet-owned/edit", "2026-03-24T09:00:00.000Z", "2026-03-24T09:00:00.000Z"],
@@ -362,7 +362,7 @@ describe("teacher settings management", () => {
     );
     const payload = await response.json();
     const settingsUpdate = updateRange.mock.calls.find(
-      ([, range]) => range === "'설정'!A1:F200"
+      ([, range]) => range === "'설정'!A:F"
     );
     const settingsRows = settingsUpdate?.[2] as string[][] | undefined;
 

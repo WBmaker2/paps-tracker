@@ -42,12 +42,12 @@ export interface BuildTeacherBootstrapFromSheetInput {
   teacherEmail: string;
 }
 
-const SETTINGS_RANGE = "'설정'!A2:F200";
-const STUDENTS_RANGE = "'학생명단'!A2:I1000";
-const RECORDS_RANGE = "'세션기록'!A2:U5000";
-const ERRORS_RANGE = "'오류로그'!A2:G2000";
-const AUDITS_RANGE = "'수정로그'!A2:I2000";
-const ROUND_RESULTS_RANGE = "'4요인회차결과'!A2:AU10000";
+const SETTINGS_RANGE = "'설정'!A2:F";
+const STUDENTS_RANGE = "'학생명단'!A2:I";
+const RECORDS_RANGE = "'세션기록'!A2:U";
+const ERRORS_RANGE = "'오류로그'!A2:G";
+const AUDITS_RANGE = "'수정로그'!A2:I";
+const ROUND_RESULTS_RANGE = "'4요인회차결과'!A2:AU";
 
 const parseSex = (value: string): PAPSStudent["sex"] => (value === "남" ? "male" : "female");
 

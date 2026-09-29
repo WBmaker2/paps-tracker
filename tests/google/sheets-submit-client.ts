@@ -9,7 +9,7 @@ export const createClient = (overrides?: Partial<GoogleSheetsClient>): GoogleShe
       sheets: []
     })),
     readRange: vi.fn(async (_spreadsheetId: string, range: string) => {
-      if (range === "'설정'!A2:F200") {
+      if (range === "'설정'!A2:F") {
         return [
           ["학교명", "Demo Elementary", "교사가 관리 페이지에서 설정", "", "", ""],
           ["__PAPS_SCHOOL", "demo-school", "Demo Elementary", "https://docs.google.com/spreadsheets/d/sheet-123/edit", "2026-03-24T09:00:00.000Z", "2026-03-24T09:00:00.000Z"],
@@ -24,11 +24,11 @@ export const createClient = (overrides?: Partial<GoogleSheetsClient>): GoogleShe
         ];
       }
 
-      if (range === "'학생명단'!A2:I1000") {
+      if (range === "'학생명단'!A2:I") {
         return [["student-kim", "2026", "5", "1", "1", "Kim", "여", "Y", ""]];
       }
 
-      if (range === "'세션기록'!A2:U5000" || range === "'오류로그'!A2:G2000" || range === "'수정로그'!A2:I2000") {
+      if (range === "'세션기록'!A2:U" || range === "'오류로그'!A2:G" || range === "'수정로그'!A2:I") {
         return [];
       }
 
@@ -44,7 +44,7 @@ export const createClient = (overrides?: Partial<GoogleSheetsClient>): GoogleShe
     appendRows: vi.fn(async () => ({
       spreadsheetId: "sheet-123",
       updates: {
-        updatedRange: "'세션기록'!A2:U2"
+        updatedRange: "'세션기록'!A2:U"
       }
     })),
     updateRange: vi.fn(async () => ({

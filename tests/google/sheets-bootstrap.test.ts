@@ -17,7 +17,7 @@ const createSpreadsheet = () => ({
 const createClient = (): GoogleSheetsClient => ({
   getSpreadsheet: vi.fn(async () => createSpreadsheet()),
   readRange: vi.fn(async (_spreadsheetId: string, range: string) => {
-    if (range === "'설정'!A2:F200") {
+    if (range === "'설정'!A2:F") {
       return [
         ["학교명", "Demo Elementary", "교사가 관리 페이지에서 설정", "", "", ""],
         ["담당교사 이메일", "demo-teacher@example.com", "구글 로그인 계정", "", "", ""],
@@ -96,7 +96,7 @@ const createClient = (): GoogleSheetsClient => ({
       ];
     }
 
-    if (range === "'학생명단'!A2:I1000") {
+    if (range === "'학생명단'!A2:I") {
       return [
         ["student-1", "2026", "5", "1", "1", "Kim", "여", "Y", ""],
         ["student-2", "2026", "5", "1", "2", "Lee", "남", "N", ""]

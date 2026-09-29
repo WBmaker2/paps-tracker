@@ -6,11 +6,11 @@ import type { GoogleSheetsClient } from "./sheets-client";
 import type { TeacherBootstrap } from "../store/paps-store-types";
 
 export const TEACHER_STATE_VERSION_RANGES = [
-  "'설정'!A2:F200",
-  "'학생명단'!A2:I1000",
-  "'세션기록'!A2:U5000",
-  "'오류로그'!A2:G2000",
-  "'수정로그'!A2:I2000"
+  "'설정'!A2:F",
+  "'학생명단'!A2:I",
+  "'세션기록'!A2:U",
+  "'오류로그'!A2:G",
+  "'수정로그'!A2:I"
 ] as const;
 
 const normalizeStateValue = (value: unknown): unknown => {

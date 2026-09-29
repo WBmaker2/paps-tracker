@@ -49,7 +49,7 @@ export const ensureFourFactorRoundSheet = async (input: { client: GoogleSheetsCl
 
 export const appendFourFactorRoundResult = async (input: { client: GoogleSheetsClient; spreadsheetId: string; round: PAPSAssessmentRound; result: PAPSStudentRoundResult }): Promise<void> => {
   await ensureFourFactorRoundSheet(input);
-  const existing = await input.client.readRange(input.spreadsheetId, `'${FOUR_FACTOR_ROUND_TAB_NAME}'!A2:C10000`);
+  const existing = await input.client.readRange(input.spreadsheetId, `'${FOUR_FACTOR_ROUND_TAB_NAME}'!A2:C`);
   const key = `${input.round.id}|${input.result.studentId}|${input.result.revision}`;
   if (existing.some((row) => `${row[0] ?? ""}|${row[1] ?? ""}|${row[2] ?? ""}` === key)) return;
   await input.client.appendRows(input.spreadsheetId, `'${FOUR_FACTOR_ROUND_TAB_NAME}'!A:AT`, [buildFourFactorRoundResultRow(input.round, input.result)]);

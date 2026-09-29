@@ -79,8 +79,8 @@ describe("teacher sync and Sheets representative flows", () => {
     });
 
     expect(sheetOperations.map((entry) => entry.range)).toEqual([
-      "'설정'!A1:F200",
-      "'학생명단'!A1:I1000"
+      "'설정'!A:F",
+      "'학생명단'!A:I"
     ]);
 
     sheetOperations.length = 0;
@@ -96,7 +96,7 @@ describe("teacher sync and Sheets representative flows", () => {
       active: true
     });
 
-    expect(sheetOperations.map((entry) => entry.range)).toEqual(["'학생명단'!A1:I1000"]);
+    expect(sheetOperations.map((entry) => entry.range)).toEqual(["'학생명단'!A:I"]);
   });
 
   it("routes representative updates and results reads through the same sheet-backed store", async () => {
@@ -137,7 +137,7 @@ describe("teacher sync and Sheets representative flows", () => {
     expect(response.status).toBe(200);
     expect(payload.record?.representativeAttemptId).toBe("attempt-2");
     expect(sheetOperations.map((entry) => entry.range)).toEqual([
-      "'수정로그'!A1:I2000",
+      "'수정로그'!A:I",
       "'세션기록'!U2",
       "'세션기록'!P3",
       "'세션기록'!Q3",

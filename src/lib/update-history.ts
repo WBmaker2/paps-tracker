@@ -6,9 +6,19 @@ export type UpdateHistoryEntry = {
   highlights: string[];
 };
 
-export const APP_VERSION = "v1.2.5";
+export const APP_VERSION = "v1.2.6";
 
 export const UPDATE_HISTORY: UpdateHistoryEntry[] = [
+  {
+    version: "v1.2.6",
+    date: "2026-09-29",
+    title: "측정 기록 저장 범위 보호",
+    summary: "Google Sheets 저장 범위가 끝나도 기존 측정 기록을 조용히 잘라내지 않도록 수정했습니다.",
+    highlights: [
+      "시트 전체 열을 읽고 써서 저장 범위 상한으로 인한 행 누락을 막습니다.",
+      "동시 제출의 서버 간 중복 저장 방지는 아직 해결되지 않았으며, 독립 QA 시트 검증 후 별도로 다룰 예정입니다."
+    ]
+  },
   {
     version: "v1.2.5",
     date: "2026-09-29",

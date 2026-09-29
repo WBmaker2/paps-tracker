@@ -6,13 +6,15 @@ import {
 } from "../../src/lib/google/sheet-source-write";
 
 describe("Google Sheet source-tab writes", () => {
-  it("pads the settings tab to the fixed source range", async () => {
+  it("writes the complete settings payload to an open-ended range", async () => {
     const updateRange = vi.fn(async () => ({}));
+    const readRange = vi.fn(async () => [] as string[][]);
 
     await writeGoogleSheetSettingsSourceTab({
       spreadsheetId: "sheet-123",
       client: {
-        updateRange
+        updateRange,
+        readRange
       } as never,
       state: {
         school: {
@@ -41,11 +43,11 @@ describe("Google Sheet source-tab writes", () => {
     expect(updateRange).toHaveBeenCalledTimes(1);
     expect(updateRange).toHaveBeenCalledWith(
       "sheet-123",
-      "'설정'!A1:F200",
+      "'설정'!A:F",
       expect.any(Array)
     );
     const values = updateRange.mock.calls[0]?.[2] as string[][];
-    expect(values).toHaveLength(200);
+    expect(values.length).toBeGreaterThan(0);
     expect(values[0]?.slice(0, 3)).toEqual(["항목", "값", "설명"]);
   });
 
@@ -142,7 +144,7 @@ describe("Google Sheet source-tab writes", () => {
       } as never
     });
 
-    expect(readRange).toHaveBeenCalledWith("sheet-123", "'세션기록'!A2:U5000");
+    expect(readRange).toHaveBeenCalledWith("sheet-123", "'세션기록'!A2:U");
     expect(updateRange).not.toHaveBeenCalledWith(
       "sheet-123",
       "'세션기록'!A1:U5000",
@@ -156,5 +158,25 @@ describe("Google Sheet source-tab writes", () => {
     expect(existingRows[0]).toEqual(preservedRow);
     expect(existingRows).toHaveLength(2);
     expect(existingRows[1]?.[12]).toBe("Kim");
+  });
+
+  it("reads and preserves rows beyond the former fixed source limit before clearing stale tails", async () => {
+    const existingRows = Array.from({ length: 1001 }, (_, index) => [`student-${index}`]);
+    const updateRange = vi.fn(async () => ({}));
+    const readRange = vi.fn(async () => existingRows);
+
+    await writeGoogleSheetSettingsSourceTab({
+      spreadsheetId: "sheet-123",
+      client: { updateRange, readRange } as never,
+      state: {
+        school: { id: "school-1", name: "학교", teacherIds: [], sheetUrl: "", createdAt: "", updatedAt: "" },
+        classes: [], teachers: [], sessions: []
+      }
+    });
+
+    expect(readRange).toHaveBeenCalledWith("sheet-123", "'설정'!A:F");
+    const writtenRows = updateRange.mock.calls[0]?.[2] as string[][];
+    expect(writtenRows).toHaveLength(1001);
+    expect(writtenRows.at(-1)).toEqual(Array(6).fill(""));
   });
 });

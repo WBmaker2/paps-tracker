@@ -7,16 +7,16 @@ import type { GoogleSheetStructuredState } from "./sheets-bootstrap";
 import type { GoogleSheetsClient } from "./sheets-client";
 import { createTeacherId, normalizeIsoValue } from "./sheet-structured-settings";
 
-const RECORDS_RANGE = "'세션기록'!A2:U5000";
+const RECORDS_RANGE = "'세션기록'!A2:U";
 const STUDENT_RUNTIME_EMAIL = "student-session@paps.local";
 const SUMMARY_ROW_SPECS = {
   학생요약: {
-    keyRange: "'학생요약'!A2:E2000",
+    keyRange: "'학생요약'!A2:E",
     appendRange: "'학생요약'!A:L",
     lastColumn: "L"
   },
   공식평가요약: {
-    keyRange: "'공식평가요약'!A2:E2000",
+    keyRange: "'공식평가요약'!A2:E",
     appendRange: "'공식평가요약'!A:K",
     lastColumn: "K"
   }

@@ -9,7 +9,7 @@ const createClient = (overrides?: Partial<GoogleSheetsClient>): GoogleSheetsClie
     sheets: []
   })),
   readRange: vi.fn(async (_spreadsheetId: string, range: string) => {
-    if (range === "'설정'!A2:F200") {
+    if (range === "'설정'!A2:F") {
       return [
         ["학교명", "Demo Elementary", "교사가 관리 페이지에서 설정", "", "", ""],
         ["__PAPS_SCHOOL", "demo-school", "Demo Elementary", "https://docs.google.com/spreadsheets/d/sheet-123/edit", "2026-03-24T09:00:00.000Z", "2026-03-24T09:00:00.000Z"],
@@ -32,11 +32,11 @@ const createClient = (overrides?: Partial<GoogleSheetsClient>): GoogleSheetsClie
       ];
     }
 
-    if (range === "'학생명단'!A2:I1000") {
+    if (range === "'학생명단'!A2:I") {
       return [["student-kim", "2026", "5", "1", "1", "Kim", "여", "Y", ""]];
     }
 
-    if (range === "'세션기록'!A2:U5000") {
+    if (range === "'세션기록'!A2:U") {
       return [
         [
           "attempt-1",
@@ -133,7 +133,7 @@ const createClient = (overrides?: Partial<GoogleSheetsClient>): GoogleSheetsClie
       ];
     }
 
-    if (range === "'오류로그'!A2:G2000" || range === "'수정로그'!A2:I2000") {
+    if (range === "'오류로그'!A2:G" || range === "'수정로그'!A2:I") {
       return [];
     }
 
@@ -165,10 +165,10 @@ describe("Google Sheets rebuild", () => {
     expect(updateRange).toHaveBeenCalledTimes(2);
 
     const studentSummaryWrite = updateRange.mock.calls.find(
-      ([, range]) => range === "'학생요약'!A1:L2000"
+      ([, range]) => range === "'학생요약'!A:L"
     );
     const officialSummaryWrite = updateRange.mock.calls.find(
-      ([, range]) => range === "'공식평가요약'!A1:K2000"
+      ([, range]) => range === "'공식평가요약'!A:K"
     );
 
     expect(studentSummaryWrite?.[2][1]?.slice(0, 12)).toEqual([
@@ -203,7 +203,7 @@ describe("Google Sheets rebuild", () => {
   it("marks rebuildNeeded when one summary tab update fails", async () => {
     const client = createClient({
       updateRange: vi.fn(async (_spreadsheetId, range) => {
-        if (range === "'공식평가요약'!A1:K2000") {
+        if (range === "'공식평가요약'!A:K") {
           throw new Error("write failed");
         }
 

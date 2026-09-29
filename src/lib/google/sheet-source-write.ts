@@ -8,16 +8,16 @@ import { formatAttemptDetailSummary } from "../paps/composite-measurements";
 import { buildRecordNote, parseRecordNote } from "./sheets-record-note";
 
 const GOOGLE_SHEET_SOURCE_WRITE_SPECS = {
-  설정: { range: "'설정'!A1:F200", rowCount: 200, columnCount: 6 },
-  학생명단: { range: "'학생명단'!A1:I1000", rowCount: 1000, columnCount: 9 },
-  세션기록: { range: "'세션기록'!A1:U5000", rowCount: 5000, columnCount: 21 },
-  오류로그: { range: "'오류로그'!A1:G2000", rowCount: 2000, columnCount: 7 },
-  수정로그: { range: "'수정로그'!A1:I2000", rowCount: 2000, columnCount: 9 }
+  설정: { range: "'설정'!A:F", columnCount: 6 },
+  학생명단: { range: "'학생명단'!A:I", columnCount: 9 },
+  세션기록: { range: "'세션기록'!A:U", columnCount: 21 },
+  오류로그: { range: "'오류로그'!A:G", columnCount: 7 },
+  수정로그: { range: "'수정로그'!A:I", columnCount: 9 }
 } as const;
 
 interface GoogleSheetSourceWriteInput {
   spreadsheetId: string;
-  client: Pick<GoogleSheetsClient, "updateRange">;
+  client: Pick<GoogleSheetsClient, "updateRange"> & Partial<Pick<GoogleSheetsClient, "readRange">>;
 }
 
 interface GoogleSheetRecordWriteInput {
@@ -28,20 +28,23 @@ interface GoogleSheetRecordWriteInput {
 
 const padRows = (rows: string[][], rowCount: number, columnCount: number): string[][] => {
   const normalizedRows = rows.map((row) => {
+    if (row.length > columnCount) {
+      throw new Error(`Google Sheets row has ${row.length} columns; expected at most ${columnCount}.`);
+    }
     const nextRow = [...row];
 
     while (nextRow.length < columnCount) {
       nextRow.push("");
     }
 
-    return nextRow.slice(0, columnCount);
+    return nextRow;
   });
 
   while (normalizedRows.length < rowCount) {
     normalizedRows.push(Array.from({ length: columnCount }, () => ""));
   }
 
-  return normalizedRows.slice(0, rowCount);
+  return normalizedRows;
 };
 
 const updateGoogleSheetSourceTab = async (
@@ -50,11 +53,16 @@ const updateGoogleSheetSourceTab = async (
   values: string[][]
 ): Promise<void> => {
   const spec = GOOGLE_SHEET_SOURCE_WRITE_SPECS[tabName];
+  if (!input.client.readRange) {
+    throw new Error(`Google Sheets read support is required to safely update ${tabName}.`);
+  }
+  const existingRows = await input.client.readRange(input.spreadsheetId, spec.range);
+  const rowsToWrite = Math.max(values.length, existingRows.length, 1);
 
   await input.client.updateRange(
     input.spreadsheetId,
     spec.range,
-    padRows(values, spec.rowCount, spec.columnCount)
+    padRows(values, rowsToWrite, spec.columnCount)
   );
 };
 
@@ -125,7 +133,7 @@ export const writeGoogleSheetRecordSourceTab = async (
   }
 
   const spec = GOOGLE_SHEET_SOURCE_WRITE_SPECS["세션기록"];
-  const existingRows = await input.client.readRange(input.spreadsheetId, "'세션기록'!A2:U5000");
+  const existingRows = await input.client.readRange(input.spreadsheetId, "'세션기록'!A2:U");
   const desiredRows = values.slice(1).map((row) => row.map((cell) => String(cell ?? "")));
   const existingRowById = new Map<string, { row: string[]; rowNumber: number }>();
 
@@ -188,7 +196,7 @@ export const updateGoogleSheetRecordAttemptCells = async (input: {
   officialGrade: string | null;
   note: string;
 }): Promise<void> => {
-  const rows = await input.client.readRange(input.spreadsheetId, "'세션기록'!A2:U5000");
+  const rows = await input.client.readRange(input.spreadsheetId, "'세션기록'!A2:U");
   const rowIndex = rows.findIndex((row) => String(row[0] ?? "") === input.attemptId);
 
   if (rowIndex < 0) {
@@ -214,7 +222,7 @@ export const updateGoogleSheetRecordSyncStatus = async (input: {
   studentId: string;
   statusLabel: string;
 }): Promise<void> => {
-  const rows = await input.client.readRange(input.spreadsheetId, "'세션기록'!A2:U5000");
+  const rows = await input.client.readRange(input.spreadsheetId, "'세션기록'!A2:U");
 
   for (const [index, row] of rows.entries()) {
     if (String(row[1] ?? "") !== input.sessionId || String(row[11] ?? "") !== input.studentId) {
@@ -247,7 +255,7 @@ export const updateGoogleSheetRecordRepresentativeCells = async (input: {
   const teacherLabel = input.state.teachers.find((entry) => entry.id === teacherId)?.email ?? teacherId ?? "";
   const desiredRows = createSourcePayloadMap(input.state).get("세션기록")?.rows ?? [];
   const desiredByAttemptId = new Map(desiredRows.map((row) => [String(row[0] ?? ""), row]));
-  const rows = await input.client.readRange(input.spreadsheetId, "'세션기록'!A2:U5000");
+  const rows = await input.client.readRange(input.spreadsheetId, "'세션기록'!A2:U");
 
   for (const [rowIndex, row] of rows.entries()) {
     if (String(row[1] ?? "") !== input.sessionId || String(row[11] ?? "") !== input.studentId) {

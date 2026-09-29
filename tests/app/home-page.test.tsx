@@ -68,7 +68,7 @@ describe("home page", () => {
 
     render(<HomePage />);
 
-    expect(screen.getByText("v1.2.5")).toBeInTheDocument();
+    expect(screen.getByText("v1.2.6")).toBeInTheDocument();
 
     const trigger = screen.getByRole("button", { name: /업데이트 내역/i });
     trigger.focus();

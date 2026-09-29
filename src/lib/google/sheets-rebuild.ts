@@ -5,28 +5,31 @@ import { GoogleSheetsAccessError, type GoogleSheetsClient } from "./sheets-clien
 import { createGoogleSheetClientFromEnv } from "./sheets-store";
 
 const SUMMARY_WRITE_SPECS = {
-  학생요약: { range: "'학생요약'!A1:L2000", rowCount: 2000, columnCount: 12 },
-  공식평가요약: { range: "'공식평가요약'!A1:K2000", rowCount: 2000, columnCount: 11 }
+  학생요약: { range: "'학생요약'!A:L", columnCount: 12 },
+  공식평가요약: { range: "'공식평가요약'!A:K", columnCount: 11 }
 } as const;
 
 type SummaryTabName = keyof typeof SUMMARY_WRITE_SPECS;
 
 const padRows = (rows: string[][], rowCount: number, columnCount: number): string[][] => {
   const normalizedRows = rows.map((row) => {
+    if (row.length > columnCount) {
+      throw new Error(`Google Sheets summary row has ${row.length} columns; expected at most ${columnCount}.`);
+    }
     const nextRow = [...row];
 
     while (nextRow.length < columnCount) {
       nextRow.push("");
     }
 
-    return nextRow.slice(0, columnCount);
+    return nextRow;
   });
 
   while (normalizedRows.length < rowCount) {
     normalizedRows.push(Array.from({ length: columnCount }, () => ""));
   }
 
-  return normalizedRows.slice(0, rowCount);
+  return normalizedRows;
 };
 
 const createSummaryPayloads = (state: GoogleSheetStructuredState): Map<SummaryTabName, string[][]> => {
@@ -100,10 +103,11 @@ export const rebuildGoogleSheetSummaries = async (input: {
       const spec = SUMMARY_WRITE_SPECS[tabName];
 
       try {
+        const existingRows = await client.readRange(input.spreadsheetId, spec.range);
         await client.updateRange(
           input.spreadsheetId,
           spec.range,
-          padRows(values, spec.rowCount, spec.columnCount)
+          padRows(values, Math.max(values.length, existingRows.length, 1), spec.columnCount)
         );
         updatedTabs.push(tabName);
       } catch {

@@ -251,7 +251,7 @@ export const createLockedSheetClient = (updateRange = vi.fn(async () => ({}))) =
       return [prototypeHeaders[tabName] ?? []];
     }
 
-    if (range === "'설정'!A2:F200") {
+    if (range === "'설정'!A2:F") {
       return [
         ["학교명", "Locked School", "교사가 관리 페이지에서 설정", "", "", ""],
         ["__PAPS_SCHOOL", "locked-school", "Locked School", "https://docs.google.com/spreadsheets/d/sheet-owned/edit", "2026-03-24T09:00:00.000Z", "2026-03-24T09:00:00.000Z"],

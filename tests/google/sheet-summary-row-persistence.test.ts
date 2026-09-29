@@ -89,20 +89,20 @@ const createClient = ({
 }): GoogleSheetsClient => ({
   getSpreadsheet: vi.fn(async () => ({ spreadsheetId: "sheet-123", sheets: [] })),
   readRange: vi.fn(async (_spreadsheetId, range) => {
-    if (range === "'세션기록'!A2:U5000") {
+    if (range === "'세션기록'!A2:U") {
       return recordRows;
     }
 
-    return range === "'학생요약'!A2:E2000" ? keyRows : [];
+    return range === "'학생요약'!A2:E" ? keyRows : [];
   }),
   readRanges: vi.fn(async (_spreadsheetId, ranges: string[]) =>
     Promise.all(
       ranges.map((range) => {
-        if (range === "'세션기록'!A2:U5000") {
+        if (range === "'세션기록'!A2:U") {
           return recordRows;
         }
 
-        return range === "'학생요약'!A2:E2000" ? keyRows : [];
+        return range === "'학생요약'!A2:E" ? keyRows : [];
       })
     )
   ),
@@ -132,7 +132,7 @@ describe("student submission summary row persistence", () => {
     );
     expect(client.updateRange).not.toHaveBeenCalledWith(
       "sheet-123",
-      "'학생요약'!A1:L2000",
+      "'학생요약'!A:L",
       expect.any(Array)
     );
     expect(client.appendRows).not.toHaveBeenCalled();

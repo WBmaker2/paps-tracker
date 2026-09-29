@@ -231,7 +231,7 @@ export const appendStudentSubmissionToSheet = async (input: {
     const nextAttemptNumber = existingSubmission
       ? existingSubmission.attemptNumber
       : getNextAttemptNumberFromSheet({
-          rows: await client.readRange(input.spreadsheetId, "'세션기록'!A2:U5000"),
+          rows: await client.readRange(input.spreadsheetId, "'세션기록'!A2:U"),
           attempts: rawAttempts,
           sessionId: input.sessionId,
           studentId: input.studentId

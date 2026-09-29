@@ -1,19 +1,119 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { GoogleSheetsClient } from "../../src/lib/google/sheets-client";
+import { buildStructuredStateFromSheet } from "../../src/lib/google/sheets-bootstrap";
 import { parseRecordNote } from "../../src/lib/google/sheets-record-note";
 import { updateGoogleSheetRecordSyncStatus } from "../../src/lib/google/sheet-source-write";
 import { appendStudentSubmissionToSheet } from "../../src/lib/google/sheets-submit";
 import { createClient } from "./sheets-submit-client";
 
 describe("Google Sheets submission idempotency and concurrent cell patches", () => {
+  it("reproduces duplicate physical rows when two isolated app instances submit the same key", async () => {
+    // Re-evaluating the module creates two independent module-local lock maps,
+    // matching separate server instances while both clients share one sheet.
+    vi.resetModules();
+    const instanceA = await import("../../src/lib/google/sheets-submit");
+    vi.resetModules();
+    const instanceB = await import("../../src/lib/google/sheets-submit");
+
+    const existingRows: string[][] = [];
+    const studentSummaryRows: string[][] = [];
+    const officialSummaryRows: string[][] = [];
+    let firstRecordReadRelease!: () => void;
+    const bothRecordReadsStarted = new Promise<void>((resolve) => {
+      firstRecordReadRelease = resolve;
+    });
+    let recordReadCount = 0;
+    let summaryReadCount = 0;
+    let releaseSummaryReads!: () => void;
+    const bothSummaryReadsStarted = new Promise<void>((resolve) => {
+      releaseSummaryReads = resolve;
+    });
+    const baseClient = createClient();
+    const client: GoogleSheetsClient = {
+      ...baseClient,
+      readRange: vi.fn(async (spreadsheetId: string, range: string) => {
+        if (range === "'세션기록'!A2:U") {
+          recordReadCount += 1;
+          if (recordReadCount === 2) firstRecordReadRelease();
+          if (recordReadCount <= 2) await bothRecordReadsStarted;
+          return existingRows.map((row) => [...row]);
+        }
+        if (range === "'학생요약'!A2:E") {
+          summaryReadCount += 1;
+          if (summaryReadCount === 2) releaseSummaryReads();
+          if (summaryReadCount <= 2) await bothSummaryReadsStarted;
+          return studentSummaryRows.map((row) => [...row].slice(0, 5));
+        }
+        if (range === "'공식평가요약'!A2:E") {
+          return officialSummaryRows.map((row) => [...row].slice(0, 5));
+        }
+        return baseClient.readRange(spreadsheetId, range);
+      }),
+      appendRows: vi.fn(async (_spreadsheetId, range, rows) => {
+        if (range === "'세션기록'!A:U") {
+          existingRows.push(...rows.map((row) => row.map((cell) => String(cell ?? ""))));
+        }
+        if (range === "'학생요약'!A:L") {
+          studentSummaryRows.push(...rows.map((row) => row.map((cell) => String(cell ?? ""))));
+        }
+        if (range === "'공식평가요약'!A:K") {
+          officialSummaryRows.push(...rows.map((row) => row.map((cell) => String(cell ?? ""))));
+        }
+        return { spreadsheetId: "sheet-123" };
+      })
+    };
+    const input = {
+      spreadsheetId: "sheet-123",
+      sessionId: "session-1",
+      studentId: "student-kim",
+      measurement: 24,
+      clientSubmissionKey: "isolated-instance-key",
+      client
+    };
+
+    const results = await Promise.all([
+      instanceA.appendStudentSubmissionToSheet(input),
+      instanceB.appendStudentSubmissionToSheet(input)
+    ]);
+
+    const sourceRows = existingRows.filter((row) => row[1] === "session-1");
+    expect(results.every((result) => result.ok)).toBe(true);
+    expect(sourceRows).toHaveLength(2);
+    expect(sourceRows.map((row) => parseRecordNote(row[20]).clientSubmissionKey)).toEqual([
+      "isolated-instance-key",
+      "isolated-instance-key"
+    ]);
+    expect(studentSummaryRows).toHaveLength(2);
+    const teacherReadState = await buildStructuredStateFromSheet({
+      client,
+      spreadsheetId: "sheet-123",
+      teacherEmail: "teacher@example.com"
+    });
+    expect(
+      teacherReadState.attempts.filter(
+        (attempt) => attempt.clientSubmissionKey === "isolated-instance-key"
+      )
+    ).toHaveLength(2);
+    // Submission responses canonicalize the duplicate key even though storage
+    // and the teacher bootstrap parser still contain both physical attempts.
+    expect(results[0]).toMatchObject({
+      ok: true,
+      result: { attempts: [expect.objectContaining({ clientSubmissionKey: "isolated-instance-key" })] }
+    });
+    expect(results[1]).toMatchObject({
+      ok: true,
+      result: { attempts: [expect.objectContaining({ clientSubmissionKey: "isolated-instance-key" })] }
+    });
+  });
+
   it("serializes concurrent retries with the same key and appends one source row", async () => {
     const existingRows: string[][] = [];
     const baseClient = createClient();
     const client = {
       ...baseClient,
       readRange: vi.fn(async (_spreadsheetId: string, range: string) => {
-        if (range === "'세션기록'!A2:U5000") {
+        if (range === "'세션기록'!A2:U") {
           return existingRows.map((row) => [...row]);
         }
 
@@ -71,8 +171,8 @@ describe("Google Sheets submission idempotency and concurrent cell patches", () 
     const client: GoogleSheetsClient = {
       ...baseClient,
       readRange: vi.fn(async (spreadsheetId: string, range: string) => {
-        if (range === "'세션기록'!A2:U5000") return [[...storedAttempt]];
-        if (range === "'설정'!A2:F200") {
+        if (range === "'세션기록'!A2:U") return [[...storedAttempt]];
+        if (range === "'설정'!A2:F") {
           const rows = await baseClient.readRange(spreadsheetId, range);
           const statusRow = rows.find((row) => row[0] === "__PAPS_SESSION_STATUS");
           if (statusRow) statusRow[2] = "N";
@@ -145,7 +245,7 @@ describe("Google Sheets submission idempotency and concurrent cell patches", () 
     const client: GoogleSheetsClient = {
       ...baseClient,
       readRange: vi.fn(async (spreadsheetId: string, range: string) => {
-        if (range === "'세션기록'!A2:U5000") {
+        if (range === "'세션기록'!A2:U") {
           return recordRows.map((row) => [...row]);
         }
 

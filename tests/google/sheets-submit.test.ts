@@ -83,12 +83,12 @@ describe("Google Sheets student submit", () => {
     ]);
     expect(successClient.updateRange).not.toHaveBeenCalledWith(
       "sheet-123",
-      "'학생요약'!A1:L2000",
+      "'학생요약'!A:L",
       expect.any(Array)
     );
     expect(successClient.updateRange).not.toHaveBeenCalledWith(
       "sheet-123",
-      "'공식평가요약'!A1:K2000",
+      "'공식평가요약'!A:K",
       expect.any(Array)
     );
     expect(successClient.appendRows).toHaveBeenCalledWith(
@@ -132,7 +132,7 @@ describe("Google Sheets student submit", () => {
   it("stores composite step-test detail inside the sheet record note", async () => {
     const stepTestClient = createClient({
       readRange: vi.fn(async (_spreadsheetId: string, range: string) => {
-        if (range === "'설정'!A2:F200") {
+        if (range === "'설정'!A2:F") {
           return [
             ["학교명", "Demo Elementary", "교사가 관리 페이지에서 설정", "", "", ""],
             ["__PAPS_SCHOOL", "demo-school", "Demo Elementary", "https://docs.google.com/spreadsheets/d/sheet-123/edit", "2026-03-24T09:00:00.000Z", "2026-03-24T09:00:00.000Z"],
@@ -147,14 +147,14 @@ describe("Google Sheets student submit", () => {
           ];
         }
 
-        if (range === "'학생명단'!A2:I1000") {
+        if (range === "'학생명단'!A2:I") {
           return [["student-kim", "2026", "5", "1", "1", "Kim", "여", "Y", ""]];
         }
 
         if (
-          range === "'세션기록'!A2:U5000" ||
-          range === "'오류로그'!A2:G2000" ||
-          range === "'수정로그'!A2:I2000"
+          range === "'세션기록'!A2:U" ||
+          range === "'오류로그'!A2:G" ||
+          range === "'수정로그'!A2:I"
         ) {
           return [];
         }
@@ -231,7 +231,7 @@ describe("Google Sheets student submit", () => {
     const unrelatedRecordRow = ["legacy-attempt", "old-session", "Preserved row"];
     const updateClient = createClient({
       readRange: vi.fn(async (_spreadsheetId: string, range: string) => {
-        if (range === "'설정'!A2:F200") {
+        if (range === "'설정'!A2:F") {
           return [
             ["학교명", "Demo Elementary", "교사가 관리 페이지에서 설정", "", "", ""],
             ["__PAPS_SCHOOL", "demo-school", "Demo Elementary", "https://docs.google.com/spreadsheets/d/sheet-123/edit", "2026-03-24T09:00:00.000Z", "2026-03-24T09:00:00.000Z"],
@@ -246,15 +246,15 @@ describe("Google Sheets student submit", () => {
           ];
         }
 
-        if (range === "'학생명단'!A2:I1000") {
+        if (range === "'학생명단'!A2:I") {
           return [["student-kim", "2026", "5", "1", "1", "Kim", "여", "Y", ""]];
         }
 
-        if (range === "'세션기록'!A2:U5000") {
+        if (range === "'세션기록'!A2:U") {
           return [unrelatedRecordRow, existingRecordRow];
         }
 
-        if (range === "'오류로그'!A2:G2000" || range === "'수정로그'!A2:I2000") {
+        if (range === "'오류로그'!A2:G" || range === "'수정로그'!A2:I") {
           return [];
         }
 
