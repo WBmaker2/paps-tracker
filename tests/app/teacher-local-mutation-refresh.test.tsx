@@ -143,7 +143,7 @@ describe("teacher local mutation refresh behavior", () => {
 
     await screen.findByText("세션을 수정했습니다.");
 
-    expect(screen.getAllByText("수정된 세션").length).toBeGreaterThan(0);
+    expect((await screen.findAllByText("수정된 세션")).length).toBeGreaterThan(0);
     expect(screen.queryByText("기존 세션")).not.toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/sessions",

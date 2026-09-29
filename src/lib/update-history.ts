@@ -6,9 +6,19 @@ export type UpdateHistoryEntry = {
   highlights: string[];
 };
 
-export const APP_VERSION = "v1.2.4";
+export const APP_VERSION = "v1.2.5";
 
 export const UPDATE_HISTORY: UpdateHistoryEntry[] = [
+  {
+    version: "v1.2.5",
+    date: "2026-09-29",
+    title: "교사 세션 생성 흐름 정리",
+    summary: "새 4요인 회차 생성 항목을 교사 세션 생성 화면에서 제거했습니다.",
+    highlights: [
+      "기존 종목 세션 생성과 수정 흐름을 유지합니다.",
+      "이미 저장된 4요인 회차의 기록과 결과 조회 기능은 계속 사용할 수 있습니다."
+    ]
+  },
   {
     version: "v1.2.4",
     date: "2026-09-29",

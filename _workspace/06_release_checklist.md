@@ -1,5 +1,26 @@
 # 릴리스 체크리스트: v1.2.4
 
+## v1.2.5 — 교사 세션 생성에서 4요인 회차 제거 (2026-09-29)
+
+- [x] 교사 세션 생성 폼의 4요인 평가 회차 항목, 전용 입력 UI, 전용 제출 분기 제거
+- [x] 기존 회차 결과/API/Google Sheets 관련 코드 보존
+- [x] Node.js 22에서 `npm run test:ci` 통과 — 85개 파일·349개 테스트
+- [x] `npm run lint`, `npm run typecheck`, `npm run build`, `npm run audit:prod` 통과
+- [x] `git diff --check` 통과
+- [x] 운영 Google Sheets 쓰기 및 기존 기록 변경 없음
+- [x] 롤백 지점: 배포 직전 Production 배포 이력
+- [ ] 앱 커밋·현재 브랜치 푸시
+- [ ] Vercel Production 배포 및 READY 확인
+- [ ] Ego Browser로 로그인 교사 화면을 읽기 전용 확인
+
+### 배포 후 확인
+
+- 배포 주소: 배포 완료 후 기록
+- Vercel deployment ID/상태: 배포 완료 후 기록
+- 앱 커밋 SHA: 커밋 완료 후 기록
+- 실제 Sheets 쓰기: 0건
+- 앱 배포 URL 직접 fetch/curl 확인은 Vercel deploy skill 지침상 수행하지 않음
+
 ## 로컬 릴리스 게이트 — 2026-09-29
 
 - [x] 전체 테스트 종료 원인 수정: `SessionStatusList` 기본 보관 세션 배열을 안정 상수로 지정

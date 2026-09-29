@@ -4,13 +4,7 @@ import React, { useEffect, useMemo, useRef, useState, useTransition } from "reac
 import type { TeacherSheetStatus } from "../../lib/google/sheet-connection-status";
 import { getEligibleEventDefinitions, getSessionTypeEventDefinitions } from "../../lib/paps/catalog";
 import type { EventId, PAPSClassroom, PAPSSession } from "../../lib/paps/types";
-import {
-  FOUR_FACTOR_IDS,
-  FOUR_FACTOR_LABELS,
-  type FourFactorId
-} from "../four-factor-round-types";
-import { createAssessmentRoundIdempotencyKey, FourFactorRoundOptions } from "./four-factor-round-creation-fields";
-import { EventSessionFields, SessionCreationModeFieldset } from "./session-form-mode-fields";
+import { EventSessionFields } from "./session-form-mode-fields";
 import { buildTeacherMutationHeaders, notifyTeacherDataRefresh } from "./teacher-data-refresh";
 import { arraysEqual, orderSelectedEventIds, type SessionFormDraft } from "./session-workspace-utils";
 
@@ -43,17 +37,11 @@ export function SessionForm({
 }: SessionFormProps) {
   const [isPending, startTransition] = useTransition();
   const [name, setName] = useState("");
-  const [creationMode, setCreationMode] = useState<"event" | "four-factor">("event");
   const [sessionType, setSessionType] = useState<"official" | "practice">("practice");
   const [classScope, setClassScope] = useState<"single" | "split">("single");
   const [primaryClassId, setPrimaryClassId] = useState(classes[0]?.id ?? "");
   const [secondaryClassId, setSecondaryClassId] = useState(classes[1]?.id ?? classes[0]?.id ?? "");
   const [selectedEventIds, setSelectedEventIds] = useState<EventId[]>([]);
-  const [selectedEventsByFactor, setSelectedEventsByFactor] = useState<
-    Partial<Record<FourFactorId, EventId>>
-  >({});
-  const [roundType, setRoundType] = useState<"regular" | "followUp">("regular");
-  const [roundNumber, setRoundNumber] = useState(1);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const formHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -78,43 +66,6 @@ export function SessionForm({
     () => orderSelectedEventIds(eligibleEvents, selectedEventIds),
     [eligibleEvents, selectedEventIds]
   );
-  const fourFactorEvents = useMemo(() => {
-    const eligibleEvents = (() => {
-      if (classScope !== "split") {
-        return getEligibleEventDefinitions({
-          gradeLevel: primaryClass?.gradeLevel ?? 5,
-          sessionType: "official"
-        });
-      }
-
-      const secondaryClass = classes.find((classroom) => classroom.id === secondaryClassId);
-      const primaryEligible = getEligibleEventDefinitions({
-        gradeLevel: primaryClass?.gradeLevel ?? 5,
-        sessionType: "official"
-      });
-      const secondaryEligible = getEligibleEventDefinitions({
-        gradeLevel: secondaryClass?.gradeLevel ?? primaryClass?.gradeLevel ?? 5,
-        sessionType: "official"
-      });
-      const secondaryIds = new Set(secondaryEligible.map((event) => event.id));
-
-      return primaryEligible.filter((event) => secondaryIds.has(event.id));
-    })();
-
-    return FOUR_FACTOR_IDS.reduce<Record<FourFactorId, typeof eligibleEvents>>(
-      (groups, factorId) => {
-        groups[factorId] = eligibleEvents.filter((event) => event.factorId === factorId);
-        return groups;
-      },
-      {
-        "cardiorespiratory-endurance": [],
-        flexibility: [],
-        "strength-endurance": [],
-        power: []
-      }
-    );
-  }, [classScope, classes, primaryClass?.gradeLevel, secondaryClassId]);
-
   useEffect(() => {
     const eligibleEventIds = new Set(eligibleEvents.map((eventDefinition) => eventDefinition.id));
     const nextEventIds = selectedEventIds.filter((eventId) => eligibleEventIds.has(eventId));
@@ -123,29 +74,6 @@ export function SessionForm({
       setSelectedEventIds(nextEventIds);
     }
   }, [eligibleEvents, selectedEventIds]);
-
-  useEffect(() => {
-    const eligibleByFactor = new Map(
-      FOUR_FACTOR_IDS.map((factorId) => [
-        factorId,
-        new Set(fourFactorEvents[factorId].map((eventDefinition) => eventDefinition.id))
-      ])
-    );
-    setSelectedEventsByFactor((current) => {
-      const next = { ...current };
-      let changed = false;
-
-      FOUR_FACTOR_IDS.forEach((factorId) => {
-        const selected = current[factorId];
-        if (selected && !eligibleByFactor.get(factorId)?.has(selected)) {
-          delete next[factorId];
-          changed = true;
-        }
-      });
-
-      return changed ? next : current;
-    });
-  }, [fourFactorEvents]);
 
   useEffect(() => {
     if (classes.length === 0) {
@@ -182,7 +110,6 @@ export function SessionForm({
         formHeadingRef.current?.focus({ preventScroll: true });
       });
       setName(editingSession.name);
-      setCreationMode("event");
       setSessionType(editingSession.sessionType);
       setClassScope(editingSession.classScope);
       setPrimaryClassId(editingSession.primaryClassId || (classes[0]?.id ?? ""));
@@ -190,27 +117,16 @@ export function SessionForm({
         editingSession.secondaryClassId || classes[1]?.id || classes[0]?.id || ""
       );
       setSelectedEventIds(editingSession.eventIds);
-      setSelectedEventsByFactor({});
       return;
     }
 
     setName("");
-    setCreationMode("event");
     setSessionType("practice");
     setClassScope("single");
     setPrimaryClassId(classes[0]?.id ?? "");
     setSecondaryClassId(classes[1]?.id ?? classes[0]?.id ?? "");
     setSelectedEventIds([]);
-    setSelectedEventsByFactor({});
-    setRoundType("regular");
-    setRoundNumber(1);
   }, [editingSession, classes]);
-
-  useEffect(() => {
-    if (creationMode === "four-factor") {
-      setSessionType("official");
-    }
-  }, [creationMode]);
 
   const handleSubmit = () => {
     if (!sheetConnected) {
@@ -221,64 +137,6 @@ export function SessionForm({
 
     setFeedback(null);
     setErrorMessage(null);
-
-    if (creationMode === "four-factor") {
-      const missingFactors = FOUR_FACTOR_IDS.filter((factorId) => !selectedEventsByFactor[factorId]);
-
-      if (missingFactors.length > 0) {
-        setErrorMessage(`네 요인의 종목을 모두 선택해주세요: ${missingFactors.map((factorId) => FOUR_FACTOR_LABELS[factorId]).join(", ")}`);
-        return;
-      }
-
-      startTransition(async () => {
-        try {
-          const response = await fetch("/api/assessment-rounds", {
-            method: "POST",
-            headers: buildTeacherMutationHeaders({
-              "content-type": "application/json",
-              "Idempotency-Key": createAssessmentRoundIdempotencyKey()
-            }),
-            body: JSON.stringify({
-              name,
-              academicYear: new Date().getFullYear(),
-              roundType,
-              roundNumber,
-              classTargets: [
-                { classId: primaryClassId },
-                ...(classScope === "split" && secondaryClassId !== primaryClassId
-                  ? [{ classId: secondaryClassId }]
-                  : [])
-              ],
-              selectedEventsByFactor,
-              sessionType: "official",
-              openImmediately: true
-            })
-          });
-          const payload = (await response.json()) as {
-            error?: string | { message?: string };
-            sessions?: PAPSSession[];
-            session?: PAPSSession;
-            studentSessionUrl?: string | null;
-            teacherStateVersion?: string;
-          };
-          const savedSessions = payload.sessions ?? (payload.session ? [payload.session] : []);
-          const error = typeof payload.error === "string" ? payload.error : payload.error?.message;
-
-          if (!response.ok || savedSessions.length === 0) {
-            throw new Error(error ?? "4요인 평가 회차를 저장하지 못했습니다.");
-          }
-
-          setFeedback("4요인 평가 회차를 저장했습니다.");
-          setName("");
-          setSelectedEventsByFactor({});
-          onCreated?.(savedSessions, payload.studentSessionUrl ?? null);
-          notifyTeacherDataRefresh({ refresh: false, nextVersion: payload.teacherStateVersion ?? null });
-        } catch (error) {
-          setErrorMessage(error instanceof Error ? error.message : "4요인 평가 회차를 저장하지 못했습니다.");
-        }
-      });
-      return;
-    }
 
     if (orderedSelectedEventIds.length === 0) {
       setErrorMessage("종목을 1개 이상 선택해주세요.");
@@ -370,7 +228,6 @@ export function SessionForm({
             : "단일 반 또는 2반 분할 세션을 바로 생성하고 열림 상태로 시작합니다."}
         </p>
       </div>
-      <SessionCreationModeFieldset value={creationMode} disabled={isStructureLocked || isEditing} onChange={setCreationMode} />
       {!sheetConnected ? (
         <div className="mb-4 rounded-2xl border border-amber-300/70 bg-amber-50 px-4 py-3 text-sm text-ink/80">
           {sheetStatus?.summary ?? "구글 시트를 먼저 연결해주세요."}
@@ -397,29 +254,12 @@ export function SessionForm({
             className="rounded-2xl border border-ink/15 px-4 py-3"
             value={sessionType}
             onChange={(event) => setSessionType(event.target.value as "official" | "practice")}
-            disabled={isStructureLocked || creationMode === "four-factor"}
+            disabled={isStructureLocked}
           >
             <option value="official">공식</option>
             <option value="practice">연습</option>
           </select>
         </label>
-        {creationMode === "four-factor" ? (
-          <>
-          <div className="rounded-2xl border border-accent/20 bg-accent/5 px-4 py-3 text-sm leading-6 text-ink/80 md:col-span-2">
-            <p className="font-semibold">4요인 결과 계산 안내</p>
-            <p className="mt-1">각 종목 측정값을 학년·성별 기준표로 요인마다 0~20점으로 바꾸고, 심폐지구력·유연성·근력/근지구력·순발력 점수를 더해 80점 만점으로 집계합니다. 합계를 100점 척도로 환산해 이 앱의 기준으로 등급을 계산합니다. 체지방과 BMI는 포함하지 않으므로 공식 PAPS 종합점수나 종합등급이 아닙니다.</p>
-          </div>
-          <FourFactorRoundOptions
-            roundType={roundType}
-            onRoundTypeChange={setRoundType}
-            roundNumber={roundNumber}
-            onRoundNumberChange={setRoundNumber}
-            eventsByFactor={fourFactorEvents}
-            selectedEventsByFactor={selectedEventsByFactor}
-            onEventChange={(factorId, eventId) => setSelectedEventsByFactor((current) => ({ ...current, [factorId]: eventId as EventId }))}
-          />
-          </>
-        ) : null}
         <label className="flex flex-col gap-2 text-sm">
           운영 방식
           <select
@@ -464,7 +304,7 @@ export function SessionForm({
             </select>
           </label>
         ) : null}
-        {creationMode === "four-factor" ? null : <EventSessionFields events={eligibleEvents} selectedEventIds={selectedEventIds} lockedEventIds={protectedEventIds} onToggle={(eventId, checked) => setSelectedEventIds((current) => checked ? [...current, eventId].filter((value, index, values) => values.indexOf(value) === index) : current.filter((entry) => entry !== eventId))} />}
+        <EventSessionFields events={eligibleEvents} selectedEventIds={selectedEventIds} lockedEventIds={protectedEventIds} onToggle={(eventId, checked) => setSelectedEventIds((current) => checked ? [...current, eventId].filter((value, index, values) => values.indexOf(value) === index) : current.filter((entry) => entry !== eventId))} />
       </div>
       {classScope === "split" ? (
         <p className="mt-3 text-sm text-ink/65">
@@ -479,7 +319,7 @@ export function SessionForm({
           onClick={handleSubmit}
           disabled={isPending}
         >
-          {isEditing ? "세션 수정" : creationMode === "four-factor" ? "4요인 평가 회차 저장" : "세션 저장"}
+          {isEditing ? "세션 수정" : "세션 저장"}
         </button>
         {isEditing ? (
           <button

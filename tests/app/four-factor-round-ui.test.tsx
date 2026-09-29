@@ -82,11 +82,11 @@ describe("four-factor round UI", () => {
     }
   ];
 
-  it("requires one event per factor and sends an official round request without fat/BMI or client rule authority", async () => {
+  it("removes four-factor creation while keeping regular session creation available", async () => {
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => ({
       ok: true,
       json: async () => ({
-        sessions: [{ id: "session-1", name: "4요인", eventId: "shuttle-run" }],
+        sessions: [{ id: "session-1", name: "왕복달리기 연습", eventId: "shuttle-run" }],
         studentSessionUrl: "/session-group/group-1"
       })
     }));
@@ -96,28 +96,19 @@ describe("four-factor round UI", () => {
       <TeacherSessionWorkspace classes={classes} sessions={[]} defaultTeacherId="teacher-1" defaultSchoolId="school-1" />
     );
 
-    fireEvent.click(screen.getByLabelText("4요인 평가 회차"));
-    fireEvent.change(screen.getByLabelText("세션 이름"), { target: { value: "1회차 체력 평가" } });
+    expect(screen.queryByLabelText("4요인 평가 회차")).not.toBeInTheDocument();
+    expect(screen.queryByText("4요인별 대표 종목")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("회차 번호")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("세션 이름"), { target: { value: "왕복달리기 연습" } });
     fireEvent.click(screen.getByLabelText("왕복오래달리기"));
-    fireEvent.click(screen.getByLabelText("앉아윗몸앞으로굽히기"));
-    fireEvent.click(screen.getByLabelText("윗몸말아올리기"));
-    fireEvent.click(screen.getByLabelText("50m달리기"));
-    fireEvent.click(screen.getByRole("button", { name: "4요인 평가 회차 저장" }));
+    fireEvent.click(screen.getByRole("button", { name: "세션 저장" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-    const [, init] = fetchMock.mock.calls[0]!;
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("/api/sessions");
     const body = JSON.parse(String(init?.body));
-    expect(body.sessionType).toBe("official");
-    expect(body.roundType).toBe("regular");
-    expect(body.roundNumber).toBe(1);
-    expect(Object.keys(body.selectedEventsByFactor)).toHaveLength(4);
-    expect(body).not.toHaveProperty("bodyFat");
-    expect(body).not.toHaveProperty("bmi");
-    expect(body).not.toHaveProperty("ruleVersion");
-    expect(body).not.toHaveProperty("ruleSource");
-    expect(body).not.toHaveProperty("teacherId");
-    expect(body).not.toHaveProperty("schoolId");
-    expect((init?.headers as Headers).get("Idempotency-Key")).toBeTruthy();
+    expect(body.name).toBe("왕복달리기 연습");
+    expect(body.eventIds).toContain("shuttle-run");
   });
 
   it("shows result statuses and finalizes a ready student", async () => {
