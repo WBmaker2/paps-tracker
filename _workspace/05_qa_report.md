@@ -8,9 +8,14 @@
 - 검증 환경: Node.js 22 `/private/tmp/paps-release-runtime/node_modules/node/bin/node`.
 - 실행 명령과 결과: `npm run test:ci` 통과 (85개 파일·349개 테스트), `npm run lint`, `npm run typecheck`, `npm run build`, `npm run audit:prod` (운영 취약점 0건), `git diff --check` 모두 통과.
 - 수정 필요 여부: 없음. 제거한 생성 전용 컴포넌트 파일은 삭제했고, 변경 대상 코드 파일은 각각 500줄 미만입니다.
-- 남은 위험: 배포 후 Ego Browser에서 로그인 교사 세션 생성 화면을 읽기 전용으로 확인할 예정입니다. 실제 교사 자격 증명과 Sheets 연결 여부에 따른 범위는 확인 결과에 기록합니다.
+- 배포 후 Ego Browser 확인: 로그인된 교사 계정으로 `https://paps-tracker.vercel.app/teacher`를 열어 세션 생성에 `4요인 평가 회차`와 `생성 모드` 문구가 없고 `세션 저장` 버튼이 있음을 확인했습니다. 업데이트 내역에서 `v1.2.5` 표시도 확인했습니다.
+- 세션 목록에서 수정 버튼 6개와 삭제 버튼 6개를 관찰했습니다. 이전 v1.2.4 확인 당시 각 8개였으나, 원인은 추정하지 않았습니다.
+- 브라우저 확인은 읽기 전용이었습니다. 세션 저장·수정·삭제 동작과 Google Sheets 쓰기를 수행하지 않았습니다.
+- 앱 커밋·푸시: `a1994deda215d7cc4a8a2a708cb14fabd2a70b82`를 현재 브랜치에 푸시했습니다.
+- Vercel Production 배포: `dpl_GzYPGeDbPzXPNzGVMvFktwqoUChS`, 상태 `READY`, alias [https://paps-tracker.vercel.app](https://paps-tracker.vercel.app). Vercel 원격 프로덕션 빌드가 완료됐습니다.
+- 남은 위험: 실제 Sheets 쓰기 및 연결 데이터 기반 동작은 이번 확인 범위가 아니며 검증하지 않았습니다.
 - 롤백 포인트: 이번 릴리스 앱 커밋 직전의 Production 배포 이력.
-- 배포 메모: 사용자 승인에 따라 앱 변경분을 현재 브랜치에 커밋·푸시하고 Vercel Production 배포를 진행합니다. 배포 후 URL, Vercel deployment ID/상태, 앱 SHA를 기록합니다.
+- 후속 기록 커밋은 QA 보고서와 릴리스 체크리스트만 변경하며 앱을 재배포하지 않습니다.
 
 ## v1.2.4 릴리스 게이트 (2026-09-29)
 

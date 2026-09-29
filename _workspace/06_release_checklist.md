@@ -9,17 +9,21 @@
 - [x] `git diff --check` 통과
 - [x] 운영 Google Sheets 쓰기 및 기존 기록 변경 없음
 - [x] 롤백 지점: 배포 직전 Production 배포 이력
-- [ ] 앱 커밋·현재 브랜치 푸시
-- [ ] Vercel Production 배포 및 READY 확인
-- [ ] Ego Browser로 로그인 교사 화면을 읽기 전용 확인
+- [x] 앱 커밋·현재 브랜치 푸시 — `a1994deda215d7cc4a8a2a708cb14fabd2a70b82`
+- [x] Vercel Production 배포 및 READY 확인 — `dpl_GzYPGeDbPzXPNzGVMvFktwqoUChS`
+- [x] Ego Browser 로그인 교사 화면 읽기 전용 확인 — `/teacher` 세션 생성에 `4요인 평가 회차`·`생성 모드`가 없고 `세션 저장`이 있음; 업데이트 내역 `v1.2.5` 표시
+- [x] 확인 당시 수정 버튼 6개·삭제 버튼 6개 관찰 (직전 v1.2.4 화면 확인은 각각 8개; 원인은 추정하지 않음)
+- [x] 세션 저장·수정·삭제 및 Google Sheets 쓰기 없이 읽기 전용으로 확인
 
 ### 배포 후 확인
 
-- 배포 주소: 배포 완료 후 기록
-- Vercel deployment ID/상태: 배포 완료 후 기록
-- 앱 커밋 SHA: 커밋 완료 후 기록
+- 배포 주소: [https://paps-tracker.vercel.app](https://paps-tracker.vercel.app)
+- Vercel deployment ID/상태: `dpl_GzYPGeDbPzXPNzGVMvFktwqoUChS` / `READY`
+- 배포 빌드 URL: [https://paps-tracker-fv9j062wh-wbmaker2s-projects.vercel.app](https://paps-tracker-fv9j062wh-wbmaker2s-projects.vercel.app)
+- 앱 커밋 SHA: `a1994deda215d7cc4a8a2a708cb14fabd2a70b82`
 - 실제 Sheets 쓰기: 0건
 - 앱 배포 URL 직접 fetch/curl 확인은 Vercel deploy skill 지침상 수행하지 않음
+- QA/체크리스트 후속 문서 커밋은 앱을 변경하지 않으며 재배포하지 않음
 
 ## 로컬 릴리스 게이트 — 2026-09-29
 
