@@ -91,7 +91,7 @@ export function SessionGroupView({
               <button
                 key={session.sessionId}
                 type="button"
-                className={`rounded-2xl border px-4 py-3 text-left transition ${
+                className={`min-h-12 rounded-2xl border px-4 py-3 text-left transition ${
                   selected
                     ? "border-accent/40 bg-accent/10 text-ink"
                     : "border-ink/10 bg-white hover:border-accent/25"

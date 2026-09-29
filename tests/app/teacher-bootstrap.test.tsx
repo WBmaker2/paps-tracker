@@ -177,6 +177,6 @@ describe("teacher bootstrap contract", () => {
     expect(screen.getByText("교사 로그인")).toBeInTheDocument();
     expect(screen.getByText("school.kr 도메인")).toBeInTheDocument();
     expect(screen.getByText("Google Sheets 연동")).toBeInTheDocument();
-    expect(screen.getByText("서비스 계정 및 템플릿 준비 완료")).toBeInTheDocument();
+    expect(screen.getByText("환경 변수 등록됨 · 원격 템플릿 미확인")).toBeInTheDocument();
   });
 });

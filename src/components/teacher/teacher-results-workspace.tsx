@@ -28,7 +28,7 @@ function ResultCountSummary({
   return (
     <section className="rounded-[1.75rem] border border-ink/10 bg-white p-4 shadow-sm">
       <p className="text-sm font-medium text-ink/80">
-        현재 {visibleCount}건 / 전체 {totalCount}건
+        현재 {visibleCount}개 결과 / 전체 {totalCount}개 결과
       </p>
     </section>
   );
@@ -74,6 +74,7 @@ export function TeacherResultsWorkspace({
   const [filterState, setFilterState] = useState<TeacherResultsFilterState>(createDefaultFilterState);
   const [focusedRecordId, setFocusedRecordId] = useState<string | null>(initialFocusRecordId);
   const [selectedGrowthStudentId, setSelectedGrowthStudentId] = useState<string | null>(null);
+  const [rebuiltSessionIds, setRebuiltSessionIds] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     setRows(initialRows);
@@ -165,8 +166,8 @@ export function TeacherResultsWorkspace({
   };
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
-      <div className="space-y-6">
+    <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,0.75fr)]">
+      <div className="min-w-0 space-y-6">
         <ResultsFilterPanel
           value={filterState}
           options={filterOptions}
@@ -174,13 +175,6 @@ export function TeacherResultsWorkspace({
           onReset={resetFilters}
         />
         <ResultCountSummary visibleCount={filteredRows.length} totalCount={rows.length} />
-        <StudentGrowthReport
-          query={filterState.query}
-          report={selectedGrowthReport}
-          candidates={matchingGrowthReports}
-          selectedStudentId={selectedGrowthReport?.studentId ?? selectedGrowthStudentId}
-          onSelectStudent={setSelectedGrowthStudentId}
-        />
         {filteredRows.length > 0 ? (
           <ResultTable
             rows={filteredRows}
@@ -202,6 +196,13 @@ export function TeacherResultsWorkspace({
         ) : (
           <EmptyFilteredState onReset={resetFilters} />
         )}
+        <StudentGrowthReport
+          query={filterState.query}
+          report={selectedGrowthReport}
+          candidates={matchingGrowthReports}
+          selectedStudentId={selectedGrowthReport?.studentId ?? selectedGrowthStudentId}
+          onSelectStudent={setSelectedGrowthStudentId}
+        />
       </div>
 
       <TeacherResultsSidebar
@@ -210,7 +211,9 @@ export function TeacherResultsWorkspace({
         sheetTabs={sheetTabs}
         failedSyncCount={failedSyncCount}
         summariesNote={summariesNote}
-        rebuildNeeded={Boolean(focusedRow?.duplicateAttemptCount)}
+        rebuildNeeded={Boolean(
+          focusedRow?.duplicateAttemptCount && !rebuiltSessionIds.has(focusedRow.sessionId)
+        )}
         onSyncStatusChange={(nextSync) => {
           if (!focusedRow) {
             return;
@@ -226,17 +229,8 @@ export function TeacherResultsWorkspace({
             return;
           }
 
-          setRows((currentRows) =>
-            currentRows.map((row) =>
-              row.sessionId === focusedRow.sessionId
-                ? {
-                    ...row,
-                    duplicateAttemptCount: 0
-                  }
-                : row
-            )
-          );
-          setSummariesNote("방금 학생요약과 공식평가요약을 다시 정리했습니다.");
+          setRebuiltSessionIds((currentIds) => new Set(currentIds).add(focusedRow.sessionId));
+          setSummariesNote("요약표를 다시 계산했습니다. 원본 중복 기록은 보존되어 있습니다.");
         }}
       />
     </div>

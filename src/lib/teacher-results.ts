@@ -54,6 +54,7 @@ export interface TeacherStudentGrowthAttemptView extends PAPSAttempt {
   eventLabel: string;
   unit: string;
   isRepresentative: boolean;
+  isDuplicate: boolean;
 }
 
 export interface TeacherStudentGrowthEventView {
@@ -109,6 +110,11 @@ export interface TeacherResultsViewModel {
   summariesNote: string;
   syncStateByRecordId: Record<string, TeacherResultSyncView>;
 }
+
+export const formatTeacherUnit = (unit: string): string => {
+  const labels: Record<string, string> = { laps: "회", lap: "회", sec: "초", seconds: "초", cm: "cm", m: "m", kg: "kg" };
+  return labels[unit.trim().toLocaleLowerCase("en-US")] ?? unit;
+};
 
 export interface BuildTeacherResultsViewModelInput {
   classes: PAPSClassroom[];
@@ -240,16 +246,19 @@ export const buildStudentGrowthReports = (
     }
 
     eventReport.attempts.push(
-      ...row.attempts.map((attempt) => ({
-        ...attempt,
-        sessionId: row.sessionId,
-        sessionName: row.sessionName,
-        sessionType: row.sessionType,
-        eventId: row.eventId,
-        eventLabel: row.eventLabel,
-        unit: row.unit,
-        isRepresentative: row.representativeAttemptId === attempt.id
-      }))
+      ...row.attempts.map((attempt) => {
+        return {
+          ...attempt,
+          sessionId: row.sessionId,
+          sessionName: row.sessionName,
+          sessionType: row.sessionType,
+          eventId: row.eventId,
+          eventLabel: row.eventLabel,
+          unit: row.unit,
+          isRepresentative: row.representativeAttemptId === attempt.id,
+          isDuplicate: false
+        };
+      })
     );
   }
 
@@ -259,12 +268,25 @@ export const buildStudentGrowthReports = (
       events: report.events
         .map((event) => ({
           ...event,
-          attempts: [...event.attempts].sort(
-            (left, right) =>
-              left.createdAt.localeCompare(right.createdAt) ||
-              left.sessionId.localeCompare(right.sessionId) ||
-              left.attemptNumber - right.attemptNumber
-          )
+          attempts: (() => {
+            const seenSubmissionKeys = new Set<string>();
+            return [...event.attempts]
+              .sort(
+                (left, right) =>
+                  left.createdAt.localeCompare(right.createdAt) ||
+                  left.sessionId.localeCompare(right.sessionId) ||
+                  left.attemptNumber - right.attemptNumber || left.id.localeCompare(right.id)
+              )
+              .map((attempt) => {
+                const submissionKey = attempt.clientSubmissionKey?.trim();
+                const scopedSubmissionKey = submissionKey ? `${attempt.sessionId}:${submissionKey}` : null;
+                const isDuplicate = Boolean(
+                  scopedSubmissionKey && seenSubmissionKeys.has(scopedSubmissionKey)
+                );
+                if (scopedSubmissionKey) seenSubmissionKeys.add(scopedSubmissionKey);
+                return { ...attempt, isDuplicate };
+              });
+          })()
         }))
         .sort((left, right) => left.eventLabel.localeCompare(right.eventLabel, "ko"))
     }))

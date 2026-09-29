@@ -7,7 +7,6 @@ import { calculateOfficialGrade } from "./grade";
 import type {
   EventId,
   GradeLevel,
-  OfficialGrade,
   PAPSFourFactorId,
   StudentSex
 } from "./types";
@@ -40,8 +39,11 @@ export interface FourFactorCalculation {
   power: number;
   fourFactorSubtotal: number;
   normalizedScore: number;
-  fourFactorGrade: OfficialGrade;
+  /** App-defined four-factor band; this is not the official PAPS overall grade. */
+  fourFactorGrade: FourFactorGrade;
 }
+
+export type FourFactorGrade = 1 | 2 | 3 | 4 | 5;
 
 const isFiniteNumber = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value);
@@ -208,7 +210,7 @@ export const calculateFourFactorScore = (
   const fourFactorSubtotal =
     cardiorespiratoryEndurance + flexibility + strengthEndurance + power;
 
-  let fourFactorGrade: OfficialGrade;
+  let fourFactorGrade: FourFactorGrade;
   if (fourFactorSubtotal >= 64) fourFactorGrade = 1;
   else if (fourFactorSubtotal >= 48) fourFactorGrade = 2;
   else if (fourFactorSubtotal >= 32) fourFactorGrade = 3;

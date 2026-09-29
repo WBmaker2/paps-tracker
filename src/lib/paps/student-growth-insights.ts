@@ -63,9 +63,6 @@ const resolveLatestAttemptIndex = (attempts: StudentGrowthAttempt[], latestAttem
     ? attempts.length - 1
     : attempts.findIndex((attempt) => isLatestAttempt(attempt, latestAttemptId));
 
-const resolveSummaryTargetAttemptLabel = (attempt: StudentGrowthAttempt): string =>
-  isHistoryAttempt(attempt) ? attempt.sessionName : "이번 기록";
-
 const resolveTrend = (deltas: number[]): StudentGrowthTrend => {
   if (deltas.length === 0) {
     return "single";
@@ -90,48 +87,23 @@ const resolveTrend = (deltas: number[]): StudentGrowthTrend => {
   return "mixed";
 };
 
-const buildSingleRecordSummary = ({ eventLabel, unit }: { eventLabel: string; unit: string }) =>
-  `${eventLabel} 측정에서 첫 번째 기록이라 직전 비교가 아직 없습니다. 단위: ${unit}.`;
+const buildSingleRecordSummary = ({ eventLabel }: { eventLabel: string }) =>
+  `${eventLabel} 첫 기록이에요. 다음 측정과 비교해 볼 수 있어요.`;
 
-const buildSummary = ({
-  trend,
-  previousDeltaText,
-  overallDeltaText,
-  overallStartLabel,
-  overallEndLabel
-}: {
-  trend: StudentGrowthTrend;
-  previousDeltaText: string | null;
-  overallDeltaText: string | null;
-  overallStartLabel: string;
-  overallEndLabel: string;
-}): string => {
+const buildSummary = (trend: StudentGrowthTrend): string => {
   if (trend === "same") {
-    return `${overallStartLabel}에서 ${overallEndLabel}까지 총 ${overallDeltaText} 변화했고, 직전 기록과 거의 동일했습니다.`;
+    return "직전 기록과 같아요. 다음 측정도 기록해 변화를 살펴보세요.";
   }
 
   if (trend === "mixed") {
-    const directionText =
-      previousDeltaText === null
-        ? "같은 수준입니다."
-        : previousDeltaText.startsWith("+")
-          ? "좋아졌습니다."
-          : previousDeltaText.startsWith("-")
-            ? "나빠졌습니다."
-            : "같은 수준입니다.";
-
-    return `${overallStartLabel}에서 ${overallEndLabel}까지 총 ${overallDeltaText} 오르내림이 있었고, 직전 기록보다 ${previousDeltaText} ${directionText}`;
+    return "측정 기록에 오르내림이 있어요. 이번 기록도 이어서 살펴보세요.";
   }
 
-  if (trend === "declining") {
-    return `${overallStartLabel}에서 ${overallEndLabel}까지 총 ${overallDeltaText} 변화했고, 직전 기록보다 ${previousDeltaText} 나빠졌습니다.`;
+  if (trend === "declining" || trend === "improving") {
+    return "이번 기록을 남겼어요. 다음 측정과 나란히 비교해 보세요.";
   }
 
-  if (trend === "improving") {
-    return `${overallStartLabel}에서 ${overallEndLabel}까지 총 ${overallDeltaText} 변화했고, 직전 기록보다 ${previousDeltaText} 좋아졌습니다.`;
-  }
-
-  return `${overallStartLabel}에서 ${overallEndLabel}까지 비교 가능한 데이터가 부족해서 요약을 만들지 못했습니다.`;
+  return "기록이 모이면 변화 흐름을 볼 수 있어요.";
 };
 
 export const formatStudentAttemptChartLabel = (
@@ -185,7 +157,7 @@ export function buildStudentGrowthInsight({
   if (!previousAttempt) {
     return {
       trend: "single",
-      summary: buildSingleRecordSummary({ eventLabel, unit }),
+      summary: buildSingleRecordSummary({ eventLabel }),
       previousDeltaText: null,
       overallDeltaText: null
     };
@@ -216,21 +188,7 @@ export function buildStudentGrowthInsight({
   });
   const previousDeltaText = formatDeltaText(previousDelta, unit);
   const overallDeltaText = formatDeltaText(overallDelta, unit);
-  const latestAttemptDisplayLabel = isHistoryAttempt(latestAttempt)
-    ? latestAttempt.sessionName
-    : "이번 기록";
-  const firstAttemptDisplayLabel = resolveSummaryTargetAttemptLabel(orderedAttempts[0]);
-
-  const overallStartLabel = `${firstAttemptDisplayLabel} ${orderedAttempts[0].measurement} ${unit}`;
-  const overallEndLabel = `${latestAttemptDisplayLabel} ${latestAttempt.measurement} ${unit}`;
-
-  const summary = buildSummary({
-    trend,
-    previousDeltaText,
-    overallDeltaText,
-    overallStartLabel,
-    overallEndLabel
-  });
+  const summary = buildSummary(trend);
 
   return {
     trend,

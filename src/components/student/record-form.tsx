@@ -1,126 +1,17 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import type {
-  ComprehensiveFlexibilityMeasurementDetail,
-  EventId,
-  PAPSMeasurementDetail
-} from "../../lib/paps/types";
-
-type RecordFormSubmission = {
-  measurement?: number;
-  detail?: PAPSMeasurementDetail | null;
-};
-
-type FlexibilitySelection = boolean | null;
-
-type FlexibilityFormState = {
-  shoulder: {
-    right: FlexibilitySelection;
-    left: FlexibilitySelection;
-  };
-  trunk: {
-    right: FlexibilitySelection;
-    left: FlexibilitySelection;
-  };
-  side: {
-    right: FlexibilitySelection;
-    left: FlexibilitySelection;
-  };
-  lowerBody: {
-    right: FlexibilitySelection;
-    left: FlexibilitySelection;
-  };
-};
-
-const STEP_TEST_INPUT_LABELS = [
-  "심박수(1분~1분30초)",
-  "심박수(2분~2분30초)",
-  "심박수(3분~3분30초)"
-] as const;
-
-const FLEXIBILITY_SECTION_LABELS = [
-  {
-    key: "shoulder",
-    label: "어깨"
-  },
-  {
-    key: "trunk",
-    label: "몸통"
-  },
-  {
-    key: "side",
-    label: "옆구리"
-  },
-  {
-    key: "lowerBody",
-    label: "하체"
-  }
-] as const;
-
-const createEmptyFlexibilityState = (): FlexibilityFormState => ({
-  shoulder: {
-    right: null,
-    left: null
-  },
-  trunk: {
-    right: null,
-    left: null
-  },
-  side: {
-    right: null,
-    left: null
-  },
-  lowerBody: {
-    right: null,
-    left: null
-  }
-});
-
-const createFlexibilityStateFromDetail = (
-  detail: PAPSMeasurementDetail | null | undefined
-): FlexibilityFormState => {
-  if (detail?.kind !== "comprehensive-flexibility") {
-    return createEmptyFlexibilityState();
-  }
-
-  return {
-    shoulder: detail.shoulder,
-    trunk: detail.trunk,
-    side: detail.side,
-    lowerBody: detail.lowerBody
-  };
-};
-
-const buildFlexibilityDetail = (
-  value: FlexibilityFormState
-): ComprehensiveFlexibilityMeasurementDetail | null => {
-  const sections = Object.values(value).flatMap((section) => [section.right, section.left]);
-
-  if (sections.some((entry) => entry === null)) {
-    return null;
-  }
-
-  return {
-    kind: "comprehensive-flexibility",
-    shoulder: {
-      right: value.shoulder.right ?? false,
-      left: value.shoulder.left ?? false
-    },
-    trunk: {
-      right: value.trunk.right ?? false,
-      left: value.trunk.left ?? false
-    },
-    side: {
-      right: value.side.right ?? false,
-      left: value.side.left ?? false
-    },
-    lowerBody: {
-      right: value.lowerBody.right ?? false,
-      left: value.lowerBody.left ?? false
-    }
-  };
-};
+import React, { useEffect, useRef, useState } from "react";
+import type { EventId } from "../../lib/paps/types";
+import {
+  buildFlexibilityDetail,
+  createEmptyFlexibilityState,
+  createFlexibilityStateFromDetail,
+  FLEXIBILITY_SECTION_LABELS,
+  STEP_TEST_INPUT_LABELS,
+  type FlexibilityFormState,
+  type RecordFormSubmission
+} from "./record-form-state";
+import { formatStudentUnit } from "../../lib/paps/student-measurement-display";
 
 export function RecordForm({
   studentId,
@@ -134,7 +25,9 @@ export function RecordForm({
   initialSubmission = null,
   submitLabel = "기록 제출",
   description,
+  autoFocusFirstField = false,
   onCancel,
+  onClearError,
   onSubmit
 }: {
   studentId: string;
@@ -152,7 +45,9 @@ export function RecordForm({
   initialSubmission?: RecordFormSubmission | null;
   submitLabel?: string;
   description?: string;
+  autoFocusFirstField?: boolean;
   onCancel?: () => void;
+  onClearError?: () => void;
   onSubmit: (submission: RecordFormSubmission) => Promise<void> | void;
 }) {
   const [measurement, setMeasurement] = useState("");
@@ -163,6 +58,48 @@ export function RecordForm({
   const [gripRight, setGripRight] = useState("");
   const [gripLeft, setGripLeft] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
+  const [errorField, setErrorField] = useState<string | null>(null);
+  const sectionRef = useRef<HTMLElement>(null);
+  const inputRefs = useRef(new Map<string, HTMLInputElement>());
+  const errorId = `${studentId}-record-error`;
+  const visibleError = localError ?? errorMessage;
+
+  const showFieldError = (message: string, field: string) => {
+    setLocalError(message);
+    setErrorField(field);
+    requestAnimationFrame(() => inputRefs.current.get(field)?.focus());
+  };
+
+  const setInputRef = (field: string) => (node: HTMLInputElement | null) => {
+    if (node) inputRefs.current.set(field, node);
+    else inputRefs.current.delete(field);
+  };
+
+  const clearFieldError = () => {
+    setLocalError(null);
+    setErrorField(null);
+    onClearError?.();
+  };
+
+  useEffect(() => {
+    if (!autoFocusFirstField) return;
+    requestAnimationFrame(() => {
+      const firstInput = inputRefs.current.values().next().value as HTMLInputElement | undefined;
+      if (!firstInput) return;
+      const section = sectionRef.current;
+      if (typeof section?.scrollIntoView === "function") {
+        section.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+      firstInput.focus({ preventScroll: true });
+    });
+  }, [autoFocusFirstField, eventId, studentId]);
+
+  useEffect(() => {
+    if (!errorMessage || localError) return;
+    const fallbackField = eventId === "step-test" ? "step-0" : eventId === "grip-strength" ? "grip-right" : eventId === "comprehensive-flexibility" ? "flex-shoulder-right" : "measurement";
+    setErrorField(fallbackField);
+    requestAnimationFrame(() => inputRefs.current.get(fallbackField)?.focus());
+  }, [errorMessage, eventId, localError]);
 
   useEffect(() => {
     if (eventId === "grip-strength") {
@@ -209,12 +146,14 @@ export function RecordForm({
       });
 
       if (parsedHeartRates.some((value) => value === null)) {
-        setLocalError("심박수 3개를 모두 입력해 주세요.");
+        const missingIndex = parsedHeartRates.findIndex((value) => value === null);
+        showFieldError("심박수 3개를 모두 입력해 주세요.", `step-${missingIndex}`);
         return;
       }
 
       if (parsedHeartRates.some((value) => Number.isNaN(value))) {
-        setLocalError("심박수는 0~240 사이 정수로 입력해 주세요.");
+        const invalidIndex = parsedHeartRates.findIndex((value) => Number.isNaN(value));
+        showFieldError("심박수는 0~240 사이 정수로 입력해 주세요.", `step-${invalidIndex}`);
         return;
       }
 
@@ -232,7 +171,13 @@ export function RecordForm({
       const detail = buildFlexibilityDetail(flexibilityState);
 
       if (!detail) {
-        setLocalError("종합유연성의 모든 항목을 선택해 주세요.");
+        const missingSection = FLEXIBILITY_SECTION_LABELS.find((section) =>
+          (["right", "left"] as const).some((side) => flexibilityState[section.key][side] === null)
+        );
+        const missingSide = missingSection
+          ? (["right", "left"] as const).find((side) => flexibilityState[missingSection.key][side] === null)
+          : "right";
+        showFieldError("종합유연성의 모든 항목을 선택해 주세요.", `flex-${missingSection?.key ?? "shoulder"}-${missingSide ?? "right"}`);
         return;
       }
 
@@ -245,7 +190,7 @@ export function RecordForm({
 
     if (eventId === "grip-strength") {
       if (!gripRight.trim() || !gripLeft.trim()) {
-        setLocalError("양쪽 악력 값을 모두 입력해 주세요.");
+        showFieldError("양쪽 악력 값을 모두 입력해 주세요.", gripRight.trim() ? "grip-left" : "grip-right");
         return;
       }
 
@@ -253,7 +198,33 @@ export function RecordForm({
       const leftMeasurement = Number(gripLeft);
 
       if (!Number.isFinite(rightMeasurement) || !Number.isFinite(leftMeasurement)) {
-        setLocalError("악력은 숫자로 입력해 주세요.");
+        showFieldError("악력은 숫자로 입력해 주세요.", Number.isFinite(rightMeasurement) ? "grip-left" : "grip-right");
+        return;
+      }
+
+      const gripValues = [
+        { value: rightMeasurement, field: "grip-right", side: "오른쪽" },
+        { value: leftMeasurement, field: "grip-left", side: "왼쪽" }
+      ];
+      const invalidGrip = gripValues.find(({ value }) =>
+        value < measurementConstraints.min || value > measurementConstraints.max
+      );
+      if (invalidGrip) {
+        showFieldError(
+          `${invalidGrip.side} 악력은 ${measurementConstraints.min}~${measurementConstraints.max} ${formatStudentUnit(unit)} 사이로 입력해 주세요.`,
+          invalidGrip.field
+        );
+        return;
+      }
+      const precisionFactor = 10 ** measurementConstraints.precision;
+      const invalidPrecisionGrip = gripValues.find(({ value }) =>
+        Math.abs(value * precisionFactor - Math.round(value * precisionFactor)) > Number.EPSILON * 10
+      );
+      if (invalidPrecisionGrip) {
+        showFieldError(
+          `${invalidPrecisionGrip.side} 악력은 소수점 아래 ${measurementConstraints.precision}자리까지 입력해 주세요.`,
+          invalidPrecisionGrip.field
+        );
         return;
       }
 
@@ -269,14 +240,25 @@ export function RecordForm({
     }
 
     if (!measurement.trim()) {
-      setLocalError("숫자 기록을 입력해 주세요.");
+      showFieldError("숫자 기록을 입력해 주세요.", "measurement");
       return;
     }
 
     const numericMeasurement = Number(measurement);
 
     if (!Number.isFinite(numericMeasurement)) {
-      setLocalError("숫자 기록을 입력해 주세요.");
+      showFieldError("숫자 기록을 입력해 주세요.", "measurement");
+      return;
+    }
+
+    if (numericMeasurement < measurementConstraints.min || numericMeasurement > measurementConstraints.max) {
+      showFieldError(`기록은 ${measurementConstraints.min}~${measurementConstraints.max} ${formatStudentUnit(unit)} 사이로 입력해 주세요.`, "measurement");
+      return;
+    }
+
+    const precisionFactor = 10 ** measurementConstraints.precision;
+    if (Math.abs(numericMeasurement * precisionFactor - Math.round(numericMeasurement * precisionFactor)) > Number.EPSILON * 10) {
+      showFieldError(`소수점 아래 ${measurementConstraints.precision}자리까지 입력해 주세요.`, "measurement");
       return;
     }
 
@@ -287,14 +269,14 @@ export function RecordForm({
   };
 
   return (
-    <section className="rounded-[1.75rem] border border-ink/10 bg-white p-5 shadow-sm">
+    <section ref={sectionRef} className="scroll-mt-4 rounded-[1.75rem] border border-ink/10 bg-white p-5 shadow-sm">
       <div className="mb-4">
         <h2 className="text-xl font-semibold">{studentName}</h2>
         <p className="mt-1 text-sm text-ink/70">
           {description ?? `${eventLabel} 기록을 입력하고 바로 제출합니다.`}
         </p>
       </div>
-      <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+      <form className="flex flex-col gap-4" onSubmit={handleSubmit} noValidate>
         {eventId === "step-test" ? (
           <>
             <div className="grid gap-4 md:grid-cols-3">
@@ -302,6 +284,7 @@ export function RecordForm({
                 <label key={label} className="flex flex-col gap-2 text-sm">
                   {label}
                   <input
+                    ref={setInputRef(`step-${index}`)}
                     type="number"
                     inputMode="numeric"
                     step="1"
@@ -309,7 +292,10 @@ export function RecordForm({
                     max={240}
                     className="rounded-2xl border border-ink/15 px-4 py-3"
                     value={stepHeartRates[index]}
+                    aria-invalid={errorField === `step-${index}` && Boolean(visibleError)}
+                    aria-describedby={errorField === `step-${index}` && visibleError ? errorId : undefined}
                     onChange={(inputEvent) => {
+                      clearFieldError();
                       setStepHeartRates((current) => {
                         const next = [...current];
                         next[index] = inputEvent.target.value;
@@ -321,7 +307,7 @@ export function RecordForm({
               ))}
             </div>
             <p className="text-sm text-ink/70">
-              단위: 회 · 세 구간 심박수를 입력하면 PEI가 자동 계산됩니다.
+              세 구간 심박수로 심폐지구력 지수를 계산해요. 심박수는 분당 횟수로 입력합니다.
             </p>
           </>
         ) : null}
@@ -351,11 +337,14 @@ export function RecordForm({
                           <div className="flex flex-wrap gap-3">
                             <div className="flex items-center gap-2">
                               <input
+                                ref={setInputRef(`flex-${groupName}`)}
                                 id={successId}
                                 type="radio"
                                 name={groupName}
                                 checked={currentValue === true}
+                                aria-describedby={errorField === `flex-${groupName}` && visibleError ? errorId : undefined}
                                 onChange={() => {
+                                  clearFieldError();
                                   setFlexibilityState((current) => ({
                                     ...current,
                                     [section.key]: {
@@ -371,11 +360,14 @@ export function RecordForm({
                             </div>
                             <div className="flex items-center gap-2">
                               <input
+                                ref={setInputRef(`flex-${groupName}`)}
                                 id={failId}
                                 type="radio"
                                 name={groupName}
                                 checked={currentValue === false}
+                                aria-describedby={errorField === `flex-${groupName}` && visibleError ? errorId : undefined}
                                 onChange={() => {
+                                  clearFieldError();
                                   setFlexibilityState((current) => ({
                                     ...current,
                                     [section.key]: {
@@ -408,6 +400,7 @@ export function RecordForm({
             <label className="flex flex-col gap-2 text-sm">
               오른쪽 악력
               <input
+                ref={setInputRef("grip-right")}
                 type="number"
                 inputMode="decimal"
                 step={step}
@@ -415,12 +408,15 @@ export function RecordForm({
                 max={measurementConstraints.max}
                 className="rounded-2xl border border-ink/15 px-4 py-3"
                 value={gripRight}
-                onChange={(inputEvent) => setGripRight(inputEvent.target.value)}
+                aria-invalid={errorField === "grip-right" && Boolean(visibleError)}
+                aria-describedby={errorField === "grip-right" && visibleError ? errorId : undefined}
+                onChange={(inputEvent) => { clearFieldError(); setGripRight(inputEvent.target.value); }}
               />
             </label>
             <label className="flex flex-col gap-2 text-sm">
               왼쪽 악력
               <input
+                ref={setInputRef("grip-left")}
                 type="number"
                 inputMode="decimal"
                 step={step}
@@ -428,7 +424,9 @@ export function RecordForm({
                 max={measurementConstraints.max}
                 className="rounded-2xl border border-ink/15 px-4 py-3"
                 value={gripLeft}
-                onChange={(inputEvent) => setGripLeft(inputEvent.target.value)}
+                aria-invalid={errorField === "grip-left" && Boolean(visibleError)}
+                aria-describedby={errorField === "grip-left" && visibleError ? errorId : undefined}
+                onChange={(inputEvent) => { clearFieldError(); setGripLeft(inputEvent.target.value); }}
               />
             </label>
           </div>
@@ -438,6 +436,7 @@ export function RecordForm({
             <label className="flex flex-col gap-2 text-sm">
               {eventLabel} 기록
               <input
+                ref={setInputRef("measurement")}
                 type="number"
                 inputMode="decimal"
                 step={step}
@@ -445,35 +444,27 @@ export function RecordForm({
                 max={measurementConstraints.max}
                 className="rounded-2xl border border-ink/15 px-4 py-3"
                 value={measurement}
-                onChange={(inputEvent) => setMeasurement(inputEvent.target.value)}
+                aria-invalid={errorField === "measurement" && Boolean(visibleError)}
+                aria-describedby={errorField === "measurement" && visibleError ? errorId : undefined}
+                onChange={(inputEvent) => { clearFieldError(); setMeasurement(inputEvent.target.value); }}
               />
             </label>
             <p className="text-sm text-ink/70">
-              단위: {unit} · 입력 범위: {measurementConstraints.min}~{measurementConstraints.max}
+              단위: {formatStudentUnit(unit)} · 입력 범위: {measurementConstraints.min}~{measurementConstraints.max}
             </p>
           </>
         ) : null}
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="submit"
-            className="rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-white transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+            className="gi-pulse min-h-12 rounded-full bg-ink px-6 py-3 text-sm font-semibold text-white transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
             disabled={isSubmitting}
           >
             {submitLabel}
           </button>
+          {visibleError ? <p id={errorId} role="alert" className="text-sm font-medium text-rose-700">{visibleError}</p> : null}
           {onCancel ? (
-            <button
-              type="button"
-              className="rounded-full border border-ink/15 px-5 py-2.5 text-sm font-medium text-ink transition hover:border-accent hover:text-accent"
-              onClick={onCancel}
-              disabled={isSubmitting}
-            >
-              수정 취소
-            </button>
-          ) : null}
-          {localError ? <p className="text-sm font-medium text-rose-700">{localError}</p> : null}
-          {!localError && errorMessage ? (
-            <p className="text-sm font-medium text-rose-700">{errorMessage}</p>
+            <button type="button" className="min-h-11 rounded-full border border-ink/15 px-5 py-3 text-sm font-medium text-ink transition hover:border-accent hover:text-accent" onClick={onCancel} disabled={isSubmitting}>수정 취소</button>
           ) : null}
         </div>
       </form>

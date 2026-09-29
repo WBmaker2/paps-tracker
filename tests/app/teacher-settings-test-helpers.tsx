@@ -1,0 +1,283 @@
+import React from "react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { NextRequest } from "next/server";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { PAPSDemoStoreData } from "../../src/lib/paps/types";
+import { GoogleSheetsAccessError } from "../../src/lib/google/sheets-client";
+
+export const notifyTeacherDataRefresh = vi.fn();
+
+vi.mock("next/link", () => ({
+  default: ({
+    children,
+    href,
+    prefetch: _prefetch,
+    ...props
+  }: React.AnchorHTMLAttributes<HTMLAnchorElement> & {
+    href: string;
+    prefetch?: boolean;
+  }) => (
+    <a href={href} {...props}>
+      {children}
+    </a>
+  )
+}));
+
+vi.mock("../../src/lib/teacher-auth", () => ({
+  requireTeacherSession: vi.fn(async () => ({
+    email: "demo-teacher@example.com",
+    name: "Demo Teacher",
+    image: null
+  })),
+  requireTeacherRouteSession: vi.fn(async () => ({
+    ok: true as const,
+    session: {
+      email: "demo-teacher@example.com",
+      name: "Demo Teacher",
+      image: null
+    }
+  }))
+}));
+
+vi.mock("../../src/lib/google/sheets-client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../src/lib/google/sheets-client")>();
+
+  return {
+    ...actual,
+    createGoogleSheetsClient: vi.fn(() => ({
+      getSpreadsheet: vi.fn(async () => ({
+        spreadsheetId: "sheet-verified",
+        sheets: [
+          "설정",
+          "학생명단",
+          "세션기록",
+          "학생요약",
+          "공식평가요약",
+          "오류로그",
+          "수정로그"
+        ].map((title, index) => ({
+          properties: {
+            sheetId: index + 1,
+            title
+          }
+        }))
+      })),
+      readRange: vi.fn(async (_spreadsheetId: string, range: string) => {
+        if (range === "'설정'!A1:C20") {
+          return [
+            ["항목", "값", "설명"],
+            ["시트 템플릿 버전", "v0.1-prototype", "프로토타입 예시"]
+          ];
+        }
+
+        const tabName = range.split("!")[0]?.replace(/^'/, "").replace(/'$/, "") ?? "";
+        const headers: Record<string, string[]> = {
+          설정: ["항목", "값", "설명", "", "사용 탭", "역할"],
+          학생명단: ["학생ID", "학년도", "학년", "반", "번호", "이름", "성별", "활성", "비고"],
+          세션기록: [
+            "기록ID",
+            "세션ID",
+            "세션명",
+            "학년도",
+            "측정일",
+            "세션유형",
+            "입력화면유형",
+            "대상반표시",
+            "실제반",
+            "종목",
+            "단위",
+            "학생ID",
+            "학생이름",
+            "시도순번",
+            "원측정값",
+            "대표값선택",
+            "대표값선정교사",
+            "공식등급",
+            "제출시각",
+            "동기화상태",
+            "비고"
+          ],
+          학생요약: [
+            "학생ID",
+            "이름",
+            "학년",
+            "반",
+            "종목",
+            "최신대표값",
+            "단위",
+            "직전대표값",
+            "변화량",
+            "최고대표값",
+            "최근측정일",
+            "학생표시문구"
+          ],
+          공식평가요약: ["학생ID", "이름", "학년", "반", "종목", "대표값", "단위", "공식등급", "측정일", "세션명", "비고"],
+          오류로그: ["시간", "수준", "구분", "메시지", "관련ID", "재시도상태", "해결시각"],
+          수정로그: ["시간", "교사계정", "세션ID", "학생ID", "종목", "작업", "이전기록ID", "선택기록ID", "사유"]
+        };
+
+        return [headers[tabName] ?? []];
+      }),
+      appendRows: vi.fn(async () => ({})),
+      updateRange: vi.fn(async () => ({}))
+    }))
+  };
+});
+
+vi.mock("../../src/components/teacher/teacher-data-refresh", () => ({
+  buildTeacherMutationHeaders: (headers?: HeadersInit) => new Headers(headers),
+  notifyTeacherDataRefresh
+}));
+
+export const buildSeed = (): PAPSDemoStoreData => ({
+  version: 1,
+  schools: [
+    {
+      id: "demo-school",
+      name: "Demo Elementary",
+      teacherIds: ["demo-teacher"],
+      sheetUrl: null,
+      createdAt: "2026-03-23T09:00:00.000Z",
+      updatedAt: "2026-03-23T09:00:00.000Z"
+    }
+  ],
+  classes: [
+    {
+      id: "demo-class-5-1",
+      schoolId: "demo-school",
+      academicYear: 2026,
+      gradeLevel: 5,
+      classNumber: 1,
+      label: "5-1",
+      active: true
+    }
+  ],
+  teachers: [
+    {
+      id: "demo-teacher",
+      schoolId: "demo-school",
+      name: "Demo Teacher",
+      email: "demo-teacher@example.com",
+      createdAt: "2026-03-23T09:00:00.000Z",
+      updatedAt: "2026-03-23T09:00:00.000Z"
+    }
+  ],
+  students: [],
+  sessions: [],
+  attempts: [],
+  syncStatuses: [],
+  syncErrorLogs: [],
+  representativeSelectionAuditLogs: []
+});
+
+export const jsonRequest = (pathname: string, method: string, body?: unknown): NextRequest =>
+  new NextRequest(`http://localhost${pathname}`, {
+    method,
+    headers: {
+      "content-type": "application/json"
+    },
+    body: body === undefined ? undefined : JSON.stringify(body)
+  });
+
+export const importRequestStore = () => import("../../src/lib/store/paps-memory-store");
+
+const prototypeHeaders: Record<string, string[]> = {
+  설정: ["항목", "값", "설명", "", "사용 탭", "역할"],
+  학생명단: ["학생ID", "학년도", "학년", "반", "번호", "이름", "성별", "활성", "비고"],
+  세션기록: [
+    "기록ID",
+    "세션ID",
+    "세션명",
+    "학년도",
+    "측정일",
+    "세션유형",
+    "입력화면유형",
+    "대상반표시",
+    "실제반",
+    "종목",
+    "단위",
+    "학생ID",
+    "학생이름",
+    "시도순번",
+    "원측정값",
+    "대표값선택",
+    "대표값선정교사",
+    "공식등급",
+    "제출시각",
+    "동기화상태",
+    "비고"
+  ],
+  학생요약: [
+    "학생ID",
+    "이름",
+    "학년",
+    "반",
+    "종목",
+    "최신대표값",
+    "단위",
+    "직전대표값",
+    "변화량",
+    "최고대표값",
+    "최근측정일",
+    "학생표시문구"
+  ],
+  공식평가요약: ["학생ID", "이름", "학년", "반", "종목", "대표값", "단위", "공식등급", "측정일", "세션명", "비고"],
+  오류로그: ["시간", "수준", "구분", "메시지", "관련ID", "재시도상태", "해결시각"],
+  수정로그: ["시간", "교사계정", "세션ID", "학생ID", "종목", "작업", "이전기록ID", "선택기록ID", "사유"]
+};
+
+export const createLockedSheetClient = (updateRange = vi.fn(async () => ({}))) => ({
+  getSpreadsheet: vi.fn(async () => ({
+    spreadsheetId: "sheet-owned",
+    sheets: Object.keys(prototypeHeaders).map((title, index) => ({
+      properties: {
+        sheetId: index + 1,
+        title
+      }
+    }))
+  })),
+  readRange: vi.fn(async (_spreadsheetId: string, range: string) => {
+    if (range === "'설정'!A1:C20") {
+      return [
+        ["항목", "값", "설명"],
+        ["시트 템플릿 버전", "v0.1-prototype", "프로토타입 예시"]
+      ];
+    }
+
+    if (range.endsWith("!A1:Z1")) {
+      const tabName = range.split("!")[0]?.replace(/^'/, "").replace(/'$/, "") ?? "";
+
+      return [prototypeHeaders[tabName] ?? []];
+    }
+
+    if (range === "'설정'!A2:F200") {
+      return [
+        ["학교명", "Locked School", "교사가 관리 페이지에서 설정", "", "", ""],
+        ["__PAPS_SCHOOL", "locked-school", "Locked School", "https://docs.google.com/spreadsheets/d/sheet-owned/edit", "2026-03-24T09:00:00.000Z", "2026-03-24T09:00:00.000Z"],
+        [
+          "__PAPS_TEACHER_RETURN_PIN",
+          JSON.stringify({
+            algorithm: "hmac-sha256-v1",
+            salt: "test-salt",
+            hash: "test-hash",
+            updatedAt: "2026-04-21T09:00:00.000Z",
+            updatedByTeacherEmail: "other-teacher@example.com"
+          }),
+          "교사 화면 접근 PIN 해시",
+          "",
+          "",
+          ""
+        ],
+        ["__PAPS_TEACHER", "teacher-other", "locked-school", "Other Teacher", "other-teacher@example.com", ""],
+        ["__PAPS_TEACHER_META", "teacher-other", "2026-03-24T09:00:00.000Z", "2026-03-24T09:00:00.000Z", "", ""],
+        ["__PAPS_CLASS", "locked-class-4-1", "locked-school", "2026", "4", "1"],
+        ["__PAPS_CLASS_META", "locked-class-4-1", "4-1", "Y", "", ""]
+      ];
+    }
+
+    return [];
+  }),
+  appendRows: vi.fn(async () => ({})),
+  updateRange
+});

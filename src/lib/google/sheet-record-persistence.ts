@@ -17,8 +17,20 @@ import type { GoogleSheetsClient } from "./sheets-client";
 import {
   writeGoogleSheetAuditLogSourceTab,
   writeGoogleSheetErrorLogSourceTab,
-  writeGoogleSheetRecordSourceTab
+  updateGoogleSheetRecordRepresentativeCells,
+  updateGoogleSheetRecordSyncStatus
 } from "./sheet-source-write";
+
+const toSheetSyncStatusLabel = (status: SetSyncStatusInput["status"]): string => {
+  switch (status) {
+    case "synced":
+      return "완료";
+    case "failed":
+      return "실패";
+    case "pending":
+      return "대기";
+  }
+};
 
 export const buildAttemptRecordsForSession = (
   state: GoogleSheetStructuredState,
@@ -109,7 +121,7 @@ export const setGoogleSheetSyncStatus = async ({
   state,
   inputStatus
 }: {
-  client: Pick<GoogleSheetsClient, "updateRange">;
+  client: Pick<GoogleSheetsClient, "readRange" | "updateRange">;
   spreadsheetId: string;
   state: GoogleSheetStructuredState;
   inputStatus: SetSyncStatusInput;
@@ -143,10 +155,12 @@ export const setGoogleSheetSyncStatus = async ({
     syncErrorLogs: nextSyncErrorLogs
   };
 
-  await writeGoogleSheetRecordSourceTab({
+  await updateGoogleSheetRecordSyncStatus({
     client,
     spreadsheetId,
-    state: nextState
+    sessionId: inputStatus.sessionId,
+    studentId: inputStatus.studentId,
+    statusLabel: toSheetSyncStatusLabel(inputStatus.status)
   });
 
   if (inputStatus.status === "failed" && inputStatus.message) {
@@ -166,7 +180,7 @@ export const selectGoogleSheetRepresentativeAttempt = async ({
   state,
   selection
 }: {
-  client: Pick<GoogleSheetsClient, "updateRange">;
+  client: Pick<GoogleSheetsClient, "readRange" | "updateRange">;
   spreadsheetId: string;
   state: GoogleSheetStructuredState;
   selection: SelectRepresentativeAttemptInput;
@@ -209,10 +223,14 @@ export const selectGoogleSheetRepresentativeAttempt = async ({
     spreadsheetId,
     state: nextState
   });
-  await writeGoogleSheetRecordSourceTab({
+  await updateGoogleSheetRecordRepresentativeCells({
     client,
     spreadsheetId,
-    state: nextState
+    state: nextState,
+    sessionId: selection.sessionId,
+    studentId: selection.studentId,
+    selectedAttemptId: selection.attemptId,
+    reason: selection.reason ?? ""
   });
 
   return updatedRecord;

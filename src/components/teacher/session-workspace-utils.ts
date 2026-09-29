@@ -26,6 +26,15 @@ export interface SessionFormDraft {
   eventIds: EventId[];
 }
 
+export const arraysEqual = <T,>(left: T[], right: T[]): boolean =>
+  left.length === right.length && left.every((value, index) => value === right[index]);
+
+export const orderSelectedEventIds = (
+  eligibleEvents: Array<{ id: EventId }>,
+  selectedEventIds: EventId[]
+): EventId[] =>
+  selectedEventIds.filter((eventId) => eligibleEvents.some((eventDefinition) => eventDefinition.id === eventId));
+
 export const sortSessionsByRecency = (sessions: PAPSSession[]): PAPSSession[] =>
   [...sessions].sort(
     (left, right) =>

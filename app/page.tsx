@@ -39,7 +39,7 @@ export default function HomePage() {
               className="group rounded-[2rem] border border-accent/30 bg-white/90 p-8 shadow-panel backdrop-blur transition duration-200 hover:-translate-y-1 hover:border-accent/60"
             >
               <p className="text-sm font-semibold uppercase tracking-[0.24em] text-accent">
-                Teacher Start
+                교사 시작
               </p>
               <div className="mt-5 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
                 <div>
@@ -57,14 +57,11 @@ export default function HomePage() {
 
             <article className="rounded-[2rem] border border-ink/10 bg-white/70 p-8 shadow-panel backdrop-blur">
               <p className="text-sm font-semibold uppercase tracking-[0.24em] text-accent">
-                Student Flow
+                학생 기록
               </p>
-              <h2 className="mt-5 text-2xl font-semibold">학생 입력 안내</h2>
+              <h2 className="mt-5 text-2xl font-semibold">학생 입력</h2>
               <p className="mt-4 text-sm leading-7 text-ink/70 sm:text-base">
-                학생은 선생님이 열어 준 세션 링크 또는 QR 코드로 접속합니다.
-              </p>
-              <p className="mt-3 text-sm leading-7 text-ink/65 sm:text-base">
-                학생 입력 링크는 교사 홈에서 세션을 연 뒤 안내할 수 있습니다.
+                선생님이 공유한 세션 링크나 QR 코드로 들어와 본인 이름을 선택하세요.
               </p>
             </article>
           </section>

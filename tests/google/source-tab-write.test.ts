@@ -49,13 +49,22 @@ describe("Google Sheet source-tab writes", () => {
     expect(values[0]?.slice(0, 3)).toEqual(["항목", "값", "설명"]);
   });
 
-  it("serializes structured state into the record tab and pads the source range", async () => {
+  it("appends missing record rows while preserving rows absent from the snapshot", async () => {
+    const preservedRow = ["legacy-attempt", "old-session", "Historic session"];
+    const existingRows = [preservedRow];
     const updateRange = vi.fn(async () => ({}));
+    const appendRows = vi.fn(async (_spreadsheetId: string, _range: string, rows: string[][]) => {
+      existingRows.push(...rows.map((row) => [...row]));
+      return {};
+    });
+    const readRange = vi.fn(async () => existingRows.map((row) => [...row]));
 
     await writeGoogleSheetRecordSourceTab({
       spreadsheetId: "sheet-123",
       client: {
-        updateRange
+        readRange,
+        updateRange,
+        appendRows
       } as never,
       state: {
         school: {
@@ -133,16 +142,19 @@ describe("Google Sheet source-tab writes", () => {
       } as never
     });
 
-    expect(updateRange).toHaveBeenCalledTimes(1);
-    expect(updateRange).toHaveBeenCalledWith(
+    expect(readRange).toHaveBeenCalledWith("sheet-123", "'세션기록'!A2:U5000");
+    expect(updateRange).not.toHaveBeenCalledWith(
       "sheet-123",
       "'세션기록'!A1:U5000",
       expect.any(Array)
     );
-    const values = updateRange.mock.calls[0]?.[2] as string[][];
-    expect(values).toHaveLength(5000);
-    expect(values[0]?.slice(0, 4)).toEqual(["기록ID", "세션ID", "세션명", "학년도"]);
-    expect(values[1]?.[1]).toBe("session-1");
-    expect(values[1]?.[12]).toBe("Kim");
+    expect(appendRows).toHaveBeenCalledWith(
+      "sheet-123",
+      "'세션기록'!A:U",
+      [expect.arrayContaining(["attempt-1", "session-1", "Shuttle Run Practice", "2026"])]
+    );
+    expect(existingRows[0]).toEqual(preservedRow);
+    expect(existingRows).toHaveLength(2);
+    expect(existingRows[1]?.[12]).toBe("Kim");
   });
 });

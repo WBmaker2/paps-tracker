@@ -218,7 +218,7 @@ describe("teacher results workspace", () => {
     );
 
     expect(screen.getByRole("heading", { name: "검색 및 필터" })).toBeInTheDocument();
-    expect(screen.getByText("현재 3건 / 전체 3건")).toBeInTheDocument();
+    expect(screen.getByText("현재 3개 결과 / 전체 3개 결과")).toBeInTheDocument();
     expect(screen.getByText("이하나 추이")).toBeInTheDocument();
     expect(
       screen.getByText("이 요약표는 현재 화면 필터와 별개로 전체 연결 시트 기준입니다.")
@@ -257,7 +257,7 @@ describe("teacher results workspace", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "필터 초기화" }));
 
-    expect(screen.getByText("현재 3건 / 전체 3건")).toBeInTheDocument();
+    expect(screen.getByText("현재 3개 결과 / 전체 3개 결과")).toBeInTheDocument();
     expect(screen.getByText("이하나")).toBeInTheDocument();
     expect(screen.getAllByText("홍길동").length).toBeGreaterThan(0);
   });
@@ -335,6 +335,6 @@ describe("teacher results workspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "요약 재계산 시뮬레이션" }));
 
     expect(screen.queryByText("rebuild-needed")).not.toBeInTheDocument();
-    expect(screen.getByText("방금 학생요약과 공식평가요약을 다시 정리했습니다.")).toBeInTheDocument();
+    expect(screen.getByText("요약표를 다시 계산했습니다. 원본 중복 기록은 보존되어 있습니다.")).toBeInTheDocument();
   });
 });

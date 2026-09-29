@@ -333,7 +333,8 @@ describe("teacher route authorization scoping", () => {
         classId: "other-class-5-1",
         name: "Intruder",
         sex: "female",
-        gradeLevel: 5
+        gradeLevel: 5,
+        studentNumber: 1
       })
     );
     const studentDeleteResponse = await studentsRoute.DELETE(
@@ -356,7 +357,8 @@ describe("teacher route authorization scoping", () => {
         classId: "demo-class-5-1",
         name: "Normalized Student",
         sex: "female",
-        gradeLevel: 5
+        gradeLevel: 5,
+        studentNumber: 3
       })
     );
     const payload = await response.json();
@@ -370,21 +372,85 @@ describe("teacher route authorization scoping", () => {
     expect(createdStudent?.schoolId).toBe("demo-school");
   });
 
-  it("deletes an in-scope student and returns the next teacher state version", async () => {
+  it("rejects blank student names and non-positive or fractional numbers without saving", async () => {
     const studentsRoute = await import("../../app/api/students/route");
+    const { getRequestStore } = await importRequestStore();
+    const store = getRequestStore();
+
+    const blankNameResponse = await studentsRoute.POST(jsonRequest("/api/students", "POST", {
+      classId: "demo-class-5-1", name: "   ", sex: "female", gradeLevel: 5, studentNumber: 1
+    }));
+    const invalidNumberResponse = await studentsRoute.POST(jsonRequest("/api/students", "POST", {
+      classId: "demo-class-5-1", name: "Valid Name", sex: "female", gradeLevel: 5, studentNumber: 1.5
+    }));
+
+    expect(blankNameResponse.status).toBe(400);
+    expect((await blankNameResponse.json()).fieldErrors.name).toBe("학생 이름을 입력해주세요.");
+    expect(invalidNumberResponse.status).toBe(400);
+    expect((await invalidNumberResponse.json()).fieldErrors.studentNumber).toBe("번호는 1 이상의 정수로 입력해주세요.");
+    expect(store.listStudents().some((student) => student.name === "Valid Name")).toBe(false);
+  });
+
+  it("blocks archiving a student with measurements and preserves the rows", async () => {
+    const studentsRoute = await import("../../app/api/students/route");
+    const { getRequestStore } = await importRequestStore();
+    const store = getRequestStore();
+    store.appendAttempt({
+      id: "attempt-before-archive",
+      sessionId: "demo-session",
+      studentId: "demo-student",
+      measurement: 30,
+      createdAt: "2026-09-01T09:00:00.000Z"
+    });
 
     const response = await studentsRoute.DELETE(
       new NextRequest("http://localhost/api/students?studentId=demo-student")
     );
     const payload = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(payload.error).toMatch(/측정 기록이 있는 학생은 보관할 수 없습니다/);
+    expect(store.getStudent("demo-student")).toMatchObject({ active: true });
+    expect(store.listSessionRecords("demo-session")).toEqual([
+      expect.objectContaining({ studentId: "demo-student", attempts: [expect.objectContaining({ id: "attempt-before-archive" })] })
+    ]);
+  });
+
+  it("archives a student without measurements and returns the next state version", async () => {
+    const studentsRoute = await import("../../app/api/students/route");
     const { getRequestStore } = await importRequestStore();
+    const store = getRequestStore();
+
+    const response = await studentsRoute.DELETE(
+      new NextRequest("http://localhost/api/students?studentId=demo-student")
+    );
+    const payload = await response.json();
 
     expect(response.status).toBe(200);
     expect(payload.ok).toBe(true);
+    expect(payload.archived).toBe(true);
     expect(typeof payload.teacherStateVersion).toBe("string");
-    expect(getRequestStore().listStudents().some((student) => student.id === "demo-student")).toBe(
-      false
-    );
+    expect(store.getStudent("demo-student")).toMatchObject({ active: false });
+    expect(store.listSessionRecords("demo-session")).toEqual([
+      expect.objectContaining({ studentId: "demo-student", attempts: [] })
+    ]);
+  });
+
+  it("allows reusing an archived student's number as a new, unlinked student", async () => {
+    const studentsRoute = await import("../../app/api/students/route");
+    const { getRequestStore } = await importRequestStore();
+    const store = getRequestStore();
+
+    await studentsRoute.DELETE(new NextRequest("http://localhost/api/students?studentId=demo-student"));
+    const response = await studentsRoute.POST(jsonRequest("/api/students", "POST", {
+      classId: "demo-class-5-1", name: "새 학생", sex: "female", gradeLevel: 5, studentNumber: 1
+    }));
+    const payload = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(payload.student.id).not.toBe("demo-student");
+    expect(payload.student.studentNumber).toBe(1);
+    expect(store.getStudent("demo-student")).toMatchObject({ active: false });
   });
 
   it("returns 404 for missing scoped resources instead of surfacing a 500", async () => {

@@ -159,6 +159,20 @@ describe("PAPS 체지방 제외 4요인 항목 점수", () => {
     }
   });
 
+  it("네 요인 환산 등급은 공식 종합등급이 아니라 앱의 보조 지표다", () => {
+    const result = calculateFourFactorScore({
+      "cardiorespiratory-endurance": 20,
+      flexibility: 20,
+      "strength-endurance": 20,
+      power: 20
+    });
+
+    expect(result).toMatchObject({ fourFactorSubtotal: 80, normalizedScore: 100, fourFactorGrade: 1 });
+    // The regulation's overall ability grade combines the five factor scores,
+    // including body composition. The four-factor result must remain explicit.
+    expect(result).not.toHaveProperty("overallGrade");
+  });
+
   it("요인 누락·중복과 점수 규칙 미확인 조합은 거부한다", () => {
     expect(() =>
       calculateFourFactorScore({

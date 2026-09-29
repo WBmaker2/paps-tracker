@@ -10,9 +10,7 @@ import type {
   OfficialGrade,
   PAPSAttempt,
   PAPSMeasurementDetail,
-  PAPSStudentEventHistoryAttempt,
   PAPSStoredAttempt
-  , PAPSStudentRoundSubmitProgress, PAPSStudentRoundSubmitFinalizedResult
 } from "../paps/types";
 import {
   assertAttemptInputAllowed,
@@ -24,7 +22,13 @@ import { createGoogleSheetClientFromEnv } from "./sheets-store";
 import { type GoogleSheetsClient } from "./sheets-client";
 import { buildRecordNote } from "./sheets-record-note";
 import { persistStudentSubmissionSummaryRows } from "./sheet-summary-row-persistence";
-import { writeGoogleSheetRecordSourceTab } from "./sheet-source-write";
+import { updateGoogleSheetRecordAttemptCells } from "./sheet-source-write";
+import { withGoogleSheetSubmissionLock } from "./sheet-submission-lock";
+import {
+  dedupeAttemptsByClientSubmissionKey,
+  getNextAttemptNumberFromSheet,
+  type StudentSubmissionSheetResult
+} from "./sheet-submission-utils";
 import { buildStudentEventHistoryAttempts } from "./sheet-student-session-views";
 import { buildRoundSubmitExtras } from "./sheet-round-submit-view";
 import { toStudentSubmissionSheetError } from "./sheet-submit-errors";
@@ -121,46 +125,7 @@ const buildAttemptRow = (input: {
     })
   ];
 };
-export const dedupeAttemptsByClientSubmissionKey = (attempts: PAPSAttempt[]): PAPSAttempt[] => {
-  const seenKeys = new Set<string>();
-
-  return sortAttempts(attempts).filter((attempt) => {
-    const key = attempt.clientSubmissionKey?.trim();
-
-    if (!key) {
-      return true;
-    }
-
-    if (seenKeys.has(key)) {
-      return false;
-    }
-
-    seenKeys.add(key);
-    return true;
-  });
-};
-
-type StudentSubmissionSheetResult =
-  | {
-      ok: true;
-      result: {
-        student: {
-          id: string;
-          name: string;
-        };
-        attempts: PAPSAttempt[];
-        historyAttempts?: PAPSStudentEventHistoryAttempt[];
-        latestOfficialGrade: OfficialGrade | null;
-        roundProgress?: PAPSStudentRoundSubmitProgress;
-        finalizedResult?: PAPSStudentRoundSubmitFinalizedResult | null;
-        summaryWarning?: string;
-      };
-    }
-  | {
-      ok: false;
-      error: string;
-      status: number;
-    };
+export { dedupeAttemptsByClientSubmissionKey } from "./sheet-submission-utils";
 
 export const appendStudentSubmissionToSheet = async (input: {
   spreadsheetId: string;
@@ -172,6 +137,9 @@ export const appendStudentSubmissionToSheet = async (input: {
   authorizedSessionGroupId?: string | null;
   client?: GoogleSheetsClient;
 }): Promise<StudentSubmissionSheetResult> => {
+  const lockKey = `${input.spreadsheetId}:${input.sessionId}:${input.studentId}:${input.clientSubmissionKey.trim()}`;
+
+  return withGoogleSheetSubmissionLock(lockKey, async () => {
   const client = input.client ?? createGoogleSheetClientFromEnv();
 
   try {
@@ -184,10 +152,6 @@ export const appendStudentSubmissionToSheet = async (input: {
 
     if (!session) {
       throw new Error(`Session ${input.sessionId} was not found.`);
-    }
-
-    if (session.isOpen === false) {
-      throw new Error("Session is closed.");
     }
 
     if (
@@ -207,11 +171,31 @@ export const appendStudentSubmissionToSheet = async (input: {
       throw new Error("Inactive students cannot submit attempts.");
     }
 
-    const resolvedSubmission = resolveSubmissionMeasurement({
-      eventId: session.eventId,
-      measurement: input.measurement,
-      detail: input.detail ?? null
-    });
+    const rawAttempts = sortAttempts(
+      state.attempts
+        .filter(
+          (attempt) =>
+            attempt.sessionId === input.sessionId && attempt.studentId === input.studentId
+        )
+        .map(toStudentAttempt)
+    );
+    const existingSubmission = rawAttempts.find(
+      (attempt) => attempt.clientSubmissionKey?.trim() === input.clientSubmissionKey.trim()
+    ) ?? null;
+
+    // A closed session must still return the committed result for a retry whose
+    // key was already recorded; new submissions remain blocked below.
+    if (session.isOpen === false && !existingSubmission) {
+      throw new Error("Session is closed.");
+    }
+
+    const resolvedSubmission = existingSubmission
+      ? { measurement: existingSubmission.measurement, detail: existingSubmission.detail ?? null }
+      : resolveSubmissionMeasurement({
+          eventId: session.eventId,
+          measurement: input.measurement,
+          detail: input.detail ?? null
+        });
 
     assertAttemptInputAllowed({
       session,
@@ -232,15 +216,7 @@ export const appendStudentSubmissionToSheet = async (input: {
       measurement: resolvedSubmission.measurement
     });
 
-    const rawAttempts = sortAttempts(
-      state.attempts
-        .filter(
-          (attempt) =>
-            attempt.sessionId === input.sessionId && attempt.studentId === input.studentId
-        )
-        .map(toStudentAttempt)
-    );
-    const createdAt = new Date().toISOString();
+    const createdAt = existingSubmission?.createdAt ?? new Date().toISOString();
     const latestOfficialGrade =
       session.sessionType === "official" &&
       hasOfficialGradeRule(session.eventId, student.gradeLevel, student.sex)
@@ -251,38 +227,50 @@ export const appendStudentSubmissionToSheet = async (input: {
             measurement: resolvedSubmission.measurement
           })
         : null;
+    const nextAttemptNumber = existingSubmission
+      ? existingSubmission.attemptNumber
+      : getNextAttemptNumberFromSheet({
+          rows: await client.readRange(input.spreadsheetId, "'세션기록'!A2:U5000"),
+          attempts: rawAttempts,
+          sessionId: input.sessionId,
+          studentId: input.studentId
+        });
     const appendedStoredAttempt: PAPSStoredAttempt = {
-      id: randomUUID(),
+      id: existingSubmission?.id ?? randomUUID(),
       sessionId: input.sessionId,
       studentId: input.studentId,
       eventId: session.eventId,
       unit: getEventDefinition(session.eventId).unit,
-      attemptNumber: rawAttempts.length + 1,
+      attemptNumber: nextAttemptNumber,
       measurement: resolvedSubmission.measurement,
       createdAt,
-      clientSubmissionKey: input.clientSubmissionKey,
+      clientSubmissionKey: existingSubmission?.clientSubmissionKey ?? input.clientSubmissionKey,
       detail: resolvedSubmission.detail
     };
     const appendedAttempt = toStudentAttempt(appendedStoredAttempt);
-    const nextState = {
-      ...state,
-      attempts: [...state.attempts, appendedStoredAttempt]
-    };
+    const nextState = existingSubmission
+      ? state
+      : {
+          ...state,
+          attempts: [...state.attempts, appendedStoredAttempt]
+        };
 
-    await client.appendRows(input.spreadsheetId, RECORD_APPEND_RANGE, [
-      buildAttemptRow({
-        state,
-        sessionId: input.sessionId,
-        studentId: input.studentId,
-        measurement: resolvedSubmission.measurement,
-        createdAt,
-        attemptId: appendedAttempt.id,
-        attemptNumber: appendedAttempt.attemptNumber,
-        clientSubmissionKey: input.clientSubmissionKey,
-        latestOfficialGrade,
-        detail: resolvedSubmission.detail
-      })
-    ]);
+    if (!existingSubmission) {
+      await client.appendRows(input.spreadsheetId, RECORD_APPEND_RANGE, [
+        buildAttemptRow({
+          state,
+          sessionId: input.sessionId,
+          studentId: input.studentId,
+          measurement: resolvedSubmission.measurement,
+          createdAt,
+          attemptId: appendedAttempt.id,
+          attemptNumber: appendedAttempt.attemptNumber,
+          clientSubmissionKey: input.clientSubmissionKey,
+          latestOfficialGrade,
+          detail: resolvedSubmission.detail
+        })
+      ]);
+    }
     const summaryRebuild = await persistStudentSubmissionSummaryRows({
       spreadsheetId: input.spreadsheetId,
       state: nextState,
@@ -313,6 +301,7 @@ export const appendStudentSubmissionToSheet = async (input: {
   } catch (error) {
     return toStudentSubmissionSheetError(error);
   }
+  });
 };
 
 export const updateStudentSubmissionInSheet = async (input: {
@@ -326,6 +315,9 @@ export const updateStudentSubmissionInSheet = async (input: {
   authorizedSessionGroupId?: string | null;
   client?: GoogleSheetsClient;
 }): Promise<StudentSubmissionSheetResult> => {
+  const lockKey = `${input.spreadsheetId}:${input.sessionId}:${input.studentId}:${input.clientSubmissionKey.trim()}`;
+
+  return withGoogleSheetSubmissionLock(lockKey, async () => {
   const client = input.client ?? createGoogleSheetClientFromEnv();
 
   try {
@@ -438,10 +430,25 @@ export const updateStudentSubmissionInSheet = async (input: {
       attempts: updatedAttempts
     };
 
-    await writeGoogleSheetRecordSourceTab({
+    const latestAuditLog = state.representativeSelectionAuditLogs
+      .filter((entry) => entry.sessionId === input.sessionId && entry.studentId === input.studentId)
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
+      .at(-1);
+    await updateGoogleSheetRecordAttemptCells({
       spreadsheetId: input.spreadsheetId,
       client,
-      state: nextState
+      attemptId: input.attemptId,
+      measurement: resolvedSubmission.measurement,
+      officialGrade: latestOfficialGrade === null ? null : String(latestOfficialGrade),
+      note: buildRecordNote({
+        clientSubmissionKey: existingAttempt.clientSubmissionKey ?? input.clientSubmissionKey,
+        reason: latestAuditLog?.reason,
+        detail: resolvedSubmission.detail,
+        detailSummary: formatAttemptDetailSummary({
+          eventId: session.eventId,
+          detail: resolvedSubmission.detail
+        })
+      })
     });
     const summaryRebuild = await persistStudentSubmissionSummaryRows({
       spreadsheetId: input.spreadsheetId,
@@ -482,4 +489,5 @@ export const updateStudentSubmissionInSheet = async (input: {
   } catch (error) {
     return toStudentSubmissionSheetError(error);
   }
+  });
 };

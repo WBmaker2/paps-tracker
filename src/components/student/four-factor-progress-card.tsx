@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { formatStudentUnit } from "../../lib/paps/student-measurement-display";
 
 import {
   FOUR_FACTOR_IDS,
@@ -46,7 +47,7 @@ export function FourFactorProgressCard({
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-accent">Assessment round</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-accent">평가 회차</p>
           <h2 id="four-factor-progress-title" className="mt-2 text-xl font-semibold">
             {progress.roundName ?? "체지방 제외 4요인 평가"}
           </h2>
@@ -79,7 +80,7 @@ export function FourFactorProgressCard({
               const factor = getResultFactor(displayedResult?.factors, factorId);
               const measurement = factor?.measurement === null || factor?.measurement === undefined
                 ? "—"
-                : `${factor.measurement}${factor.unit ? ` ${factor.unit}` : ""}`;
+                : `${factor.measurement}${factor.unit ? ` ${formatStudentUnit(factor.unit)}` : ""}`;
 
               return (
                 <div key={factorId} className="rounded-xl bg-white/75 px-3 py-3">

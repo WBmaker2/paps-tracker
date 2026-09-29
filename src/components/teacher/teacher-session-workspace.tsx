@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 
 import type { TeacherSheetStatus } from "../../lib/google/sheet-connection-status";
 import type { PAPSClassroom, PAPSSession } from "../../lib/paps/types";
@@ -39,6 +39,7 @@ export function TeacherSessionWorkspace({
   const [sessionItems, setSessionItems] = useState(() => sortSessionsByRecency(sessions));
   const [sessionUrlItems, setSessionUrlItems] = useState(studentSessionUrls ?? {});
   const [editingSession, setEditingSession] = useState<SessionFormDraft | null>(null);
+  const editReturnTarget = useRef<HTMLElement | null>(null);
   const listDescription = showRecentSessions
     ? "최근 생성 순으로 확인하고 이름 수정, 종목 수정, 열기와 닫기를 바로 전환할 수 있습니다."
     : "세션을 확인하고 이름 수정, 종목 수정, 열기와 닫기를 바로 전환할 수 있습니다.";
@@ -86,12 +87,25 @@ export function TeacherSessionWorkspace({
   };
 
   const handleEdit = (sessionsToEdit: PAPSSession[]) => {
+    editReturnTarget.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setEditingSession(buildSessionFormDraft(sessionsToEdit));
   };
 
   const handleCancelEdit = () => {
     setEditingSession(null);
+    requestAnimationFrame(() => editReturnTarget.current?.focus());
   };
+
+  if (!sheetConnected) {
+    return (
+      <section className="rounded-[1.75rem] border border-amber-300/70 bg-amber-50 p-6 shadow-sm" aria-labelledby="teacher-first-run-title">
+        <p className="text-sm font-semibold text-amber-900">첫 설정이 필요합니다</p>
+        <h2 id="teacher-first-run-title" className="mt-2 text-xl font-semibold text-ink">구글 시트를 연결하면 세션을 만들 수 있습니다</h2>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/75">{sheetStatus?.detail ?? sheetStatus?.summary ?? "학교 설정에서 시트 템플릿을 확인하고 학교 시트를 연결해 주세요."}</p>
+        <a href="/teacher/settings" className="gi-pulse mt-5 inline-flex min-h-12 items-center justify-center rounded-full bg-ink px-6 py-3 text-sm font-semibold text-white">학교 시트 연결하기</a>
+      </section>
+    );
+  }
 
   return (
     <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">

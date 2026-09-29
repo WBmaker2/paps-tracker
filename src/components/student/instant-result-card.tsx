@@ -8,6 +8,7 @@ import {
   summarizeGripStrengthBilateralBest
 } from "../../lib/paps/composite-measurements";
 import { buildStudentGrowthInsight, formatStudentAttemptChartLabel } from "../../lib/paps/student-growth-insights";
+import { formatStudentUnit } from "../../lib/paps/student-measurement-display";
 import type {
   BetterDirection,
   EventId,
@@ -162,12 +163,13 @@ export function InstantResultCard({
 
   const chartLabelResolver = (attempt: PAPSAttempt, index: number) =>
     formatStudentAttemptChartLabel(attempt, index, latestAttempt.id);
+  const learnerUnit = formatStudentUnit(unit);
   const growthInsight = buildStudentGrowthInsight({
     attempts: displayAttempts,
     latestAttemptId: latestAttempt.id,
     betterDirection,
     eventLabel,
-    unit
+    unit: learnerUnit
   });
 
   return (
@@ -201,7 +203,7 @@ export function InstantResultCard({
         <div className="space-y-3 rounded-2xl bg-canvas/80 p-4">
           <p className="text-sm text-ink/70">이번 기록</p>
           <p className="text-3xl font-semibold">
-            {latestAttempt.measurement} {unit}
+            {latestAttempt.measurement} {learnerUnit}
           </p>
           {latestDetailSummary ? (
             <p className="text-sm text-ink/70">{latestDetailSummary}</p>
@@ -214,7 +216,7 @@ export function InstantResultCard({
           {improvement !== null ? (
             <p className="text-sm text-ink/70">
               직전 대비 {improvement > 0 ? "+" : ""}
-              {formatDelta(improvement)} {unit}
+              {formatDelta(improvement)} {learnerUnit}
             </p>
           ) : (
             <p className="text-sm text-ink/70">첫 입력이라 비교값이 아직 없습니다.</p>
@@ -228,7 +230,7 @@ export function InstantResultCard({
         ) : (
           <ProgressMiniChart
             attempts={displayAttempts}
-            unit={unit}
+            unit={learnerUnit}
             title="개인 누적 추이"
             description={hasPastSessionHistory ? "지난 세션까지 이어서 봅니다." : undefined}
             getLabel={chartLabelResolver}
@@ -255,7 +257,7 @@ export function InstantResultCard({
                   <td className="px-4 py-3 text-ink/70">{formatHistorySessionLabel(attempt)}</td>
                 ) : null}
                 <td className="px-4 py-3">
-                  {attempt.measurement} {unit}
+                  {attempt.measurement} {learnerUnit}
                 </td>
                 {hasDetailSummary ? (
                   <td className="px-4 py-3 text-ink/70">

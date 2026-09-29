@@ -70,11 +70,11 @@ export function SummaryExportsCard({
   }
 
   return (
-    <section className="rounded-[1.75rem] border border-ink/10 bg-white p-5 shadow-sm">
+    <section className="min-w-0 rounded-[1.75rem] border border-ink/10 bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-accent">
-            Summary
+          <p className="text-sm font-semibold text-accent">
+            결과 요약
           </p>
           <h2 className="text-lg font-semibold">요약 내려받기와 결과 미리보기</h2>
           <p className="mt-1 text-sm text-ink/70">
@@ -87,7 +87,7 @@ export function SummaryExportsCard({
             <a
               href={buildCsvHref(studentSummaryTab)}
               download="학생요약.csv"
-              className="rounded-full border border-ink/15 px-4 py-2 text-sm font-medium transition hover:border-accent/40 hover:text-accent"
+              className="inline-flex min-h-11 items-center rounded-full border border-ink/15 px-4 py-2 text-sm font-medium transition hover:border-accent/40 hover:text-accent"
             >
               학생요약 CSV 다운로드
             </a>
@@ -96,7 +96,7 @@ export function SummaryExportsCard({
             <a
               href={buildCsvHref(officialSummaryTab)}
               download="공식평가요약.csv"
-              className="rounded-full border border-ink/15 px-4 py-2 text-sm font-medium transition hover:border-accent/40 hover:text-accent"
+              className="inline-flex min-h-11 items-center rounded-full border border-ink/15 px-4 py-2 text-sm font-medium transition hover:border-accent/40 hover:text-accent"
             >
               공식평가요약 CSV 다운로드
             </a>
@@ -104,7 +104,7 @@ export function SummaryExportsCard({
           {(studentSummaryTab || officialSummaryTab) ? (
             <a
               href="/api/results/export.xlsx"
-              className="rounded-full border border-ink/15 px-4 py-2 text-sm font-medium transition hover:border-accent/40 hover:text-accent"
+              className="inline-flex min-h-11 items-center rounded-full border border-ink/15 px-4 py-2 text-sm font-medium transition hover:border-accent/40 hover:text-accent"
             >
               요약 XLSX 다운로드
             </a>
@@ -112,16 +112,19 @@ export function SummaryExportsCard({
         </div>
       </div>
 
-      <SummaryPreviewTable
-        title="학생요약 미리보기"
-        tab={studentSummaryTab}
-        emptyMessage="아직 대표 기록이 없어 학생요약이 비어 있습니다."
-      />
-      <SummaryPreviewTable
-        title="공식평가요약 미리보기"
-        tab={officialSummaryTab}
-        emptyMessage="아직 공식 대표 기록이 없어 공식평가요약이 비어 있습니다."
-      />
+      <details className="mt-4">
+        <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold">요약표 미리보기 열기</summary>
+        <SummaryPreviewTable
+          title="학생요약 미리보기"
+          tab={studentSummaryTab}
+          emptyMessage="아직 대표 기록이 없어 학생요약이 비어 있습니다."
+        />
+        <SummaryPreviewTable
+          title="공식평가요약 미리보기"
+          tab={officialSummaryTab}
+          emptyMessage="아직 공식 대표 기록이 없어 공식평가요약이 비어 있습니다."
+        />
+      </details>
     </section>
   );
 }

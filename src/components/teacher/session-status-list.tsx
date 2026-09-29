@@ -133,7 +133,7 @@ export function SessionStatusList({
           <h2 className="text-lg font-semibold">{title}</h2>
           <p className="mt-1 text-sm text-ink/70">{description}</p>
         </div>
-        {message ? <p className="text-sm text-ink/70">{message}</p> : null}
+        {message ? <p role="status" aria-live="polite" className="text-sm text-ink/70">{message}</p> : null}
       </div>
       <div className="space-y-3">
         {items.length > 0 ? (
@@ -176,7 +176,7 @@ export function SessionStatusList({
                       ) : (
                         <button
                           type="button"
-                          className="rounded-full border border-ink/15 px-4 py-2 text-sm font-medium"
+                          className="min-h-12 rounded-full border border-ink/15 px-5 py-3 text-sm font-semibold"
                           onClick={() => onEdit(item.sessions)}
                         >
                           {editingSessionKey === item.id ? `${item.name} 수정 중` : `${item.name} 수정`}
@@ -185,7 +185,7 @@ export function SessionStatusList({
                     ) : null}
                     <button
                       type="button"
-                      className="rounded-full border border-ink/15 px-4 py-2 text-sm font-medium"
+                      className="min-h-12 rounded-full border border-ink/15 px-5 py-3 text-sm font-semibold"
                       onClick={() => toggleGroupOpen(item.sessions)}
                     >
                       {item.sessions.some((session) => session.isOpen !== false) ? "닫기" : "열기"}
@@ -215,7 +215,7 @@ export function SessionStatusList({
                       ) : (
                         <button
                           type="button"
-                          className="rounded-full border border-ink/15 px-4 py-2 text-sm font-medium"
+                          className="min-h-12 rounded-full border border-ink/15 px-5 py-3 text-sm font-semibold"
                           onClick={() => onEdit([item.session])}
                         >
                           {editingSessionKey === item.id
@@ -226,7 +226,7 @@ export function SessionStatusList({
                     ) : null}
                     <button
                       type="button"
-                      className="rounded-full border border-ink/15 px-4 py-2 text-sm font-medium"
+                      className="min-h-12 rounded-full border border-ink/15 px-5 py-3 text-sm font-semibold"
                       onClick={() => toggleOpen(item.session)}
                     >
                       {item.session.isOpen ? "닫기" : "열기"}

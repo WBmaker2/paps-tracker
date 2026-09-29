@@ -82,25 +82,36 @@ export function SettingsSchoolConnectionCard({
           </summary>
           <div className="mt-4 space-y-3">
             <p className="text-sm leading-6 text-ink/65">
-              템플릿 복사본을 만든 뒤 서비스 계정과 공유하고, 복사본 주소를 연결하면 바로
-              사용할 수 있습니다.
+              기존 템플릿을 복사하거나, 원본이 열리지 않을 때는 측정 기록이 없는 빈 파일을 내려받아 사용할 수 있습니다. 빈 파일은 Google Drive에 업로드한 뒤 Google Sheets로 변환해 주세요.
             </p>
             <ol className="grid gap-3 text-sm text-ink/80">
               <li className="rounded-2xl border border-ink/10 bg-white px-4 py-3">
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div className="space-y-1">
-                    <p className="font-medium text-ink">1. 템플릿 시트 복사본 만들기</p>
-                    <p className="text-ink/65">원본을 열고 내 Google Drive에 사본을 만듭니다.</p>
+                    <p className="font-medium text-ink">1. 사용할 시트 준비하기</p>
+                    <p className="text-ink/65">기존 템플릿 사본을 만들거나 빈 파일을 다운로드해 Drive에서 Google Sheets로 변환합니다.</p>
                   </div>
-                  <button
-                    type="button"
-                    className="rounded-full border border-ink/15 px-5 py-2.5 text-sm font-medium text-ink disabled:cursor-not-allowed disabled:opacity-50"
-                    onClick={onOpenTemplateCopy}
-                    disabled={isTemplatePending || templateMissing}
-                  >
-                    구글 시트 생성(최초 1회)
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className="min-h-12 rounded-full border border-ink/15 px-5 py-3 text-sm font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-50"
+                      onClick={onOpenTemplateCopy}
+                      disabled={isTemplatePending || templateMissing}
+                    >
+                      {isTemplatePending ? "템플릿 확인 중..." : "기존 템플릿 복사"}
+                    </button>
+                    <a
+                      href="/api/google-sheet/template/download"
+                      className="gi-pulse inline-flex min-h-12 items-center justify-center rounded-full bg-ink px-5 py-3 text-center text-sm font-semibold text-white transition hover:bg-accent"
+                      download
+                    >
+                      빈 PAPS 시트 다운로드
+                    </a>
+                  </div>
                 </div>
+                <p className="mt-2 text-xs leading-5 text-ink/60">
+                  빈 워크북에는 탭 이름과 머리글만 있고 측정 기록은 없습니다. 업로드 후 서비스 계정을 편집자로 공유하고, 변환한 시트 URL을 연결해 주세요.
+                </p>
               </li>
               <li className="rounded-2xl border border-ink/10 bg-white px-4 py-3">
                 <p className="font-medium text-ink">2. 서비스 계정을 편집자로 공유</p>
@@ -131,7 +142,7 @@ export function SettingsSchoolConnectionCard({
           <div className="rounded-2xl border border-amber-300/70 bg-amber-50 px-4 py-3">
             <p className="text-sm font-semibold text-ink">배포 설정 확인 필요</p>
             <p className="mt-1 text-sm text-ink/75">
-              아래 환경변수가 비어 있어 실제 구글 시트 연결이 막힐 수 있습니다.
+              환경변수 등록 상태만 표시합니다. 템플릿 ID가 설정되어 있어도 원본 파일 삭제·권한 오류까지 확인한 것은 아닙니다.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               {sheetSetupStatus.missingKeys.map((key) => (
@@ -144,6 +155,18 @@ export function SettingsSchoolConnectionCard({
               ))}
             </div>
           </div>
+        ) : null}
+
+        {!sheetConnected && templateMissing ? (
+          <p className="rounded-2xl border border-ink/10 bg-white px-4 py-3 text-sm leading-6 text-ink/75">
+            템플릿 설정을 기다리지 않아도 됩니다. 이미 학교에서 사용하는 PAPS 시트가 있으면 그 주소를 아래에 붙여넣고 학교 정보를 저장해 연결할 수 있습니다.
+          </p>
+        ) : null}
+
+        {sheetSetupStatus.templateConfigured ? (
+          <p className="rounded-2xl border border-ink/10 bg-canvas px-4 py-3 text-sm leading-6 text-ink/75">
+            템플릿 ID가 환경에 등록되어 있습니다. 사본 열기에 실패하면 관리자에게 유효한 Google Sheets 템플릿 ID와 파일 공유 상태를 확인해 달라고 요청하거나, 이미 사용하는 시트 URL을 아래에 입력해 연결하세요.
+          </p>
         ) : null}
 
         {!sheetConnected && sheetStatus && sheetStatus.code !== "not_connected" ? (
@@ -211,7 +234,7 @@ export function SettingsSchoolConnectionCard({
         </p>
         <button
           type="button"
-          className="rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+          className="gi-pulse min-h-12 rounded-full bg-ink px-6 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
           onClick={onSaveSchool}
           disabled={isSchoolPending}
         >

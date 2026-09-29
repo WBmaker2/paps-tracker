@@ -166,7 +166,7 @@ describe("Google Sheet entity persistence helpers", () => {
     expect(writeGoogleSheetStudentsSourceTab).toHaveBeenCalledTimes(1);
   });
 
-  it("removes a deleted student and dependent record rows from Google Sheet source tabs", async () => {
+  it("archives a student without changing measurement, sync, or audit source rows", async () => {
     const state = createState();
 
     state.attempts = [
@@ -222,15 +222,17 @@ describe("Google Sheet entity persistence helpers", () => {
     });
 
     const studentsState = writeGoogleSheetStudentsSourceTab.mock.calls[0]?.[0]?.state;
-    const recordsState = writeGoogleSheetRecordSourceTab.mock.calls[0]?.[0]?.state;
-    const errorsState = writeGoogleSheetErrorLogSourceTab.mock.calls[0]?.[0]?.state;
-    const auditsState = writeGoogleSheetAuditLogSourceTab.mock.calls[0]?.[0]?.state;
 
-    expect(studentsState.allStudents).toEqual([]);
-    expect(recordsState.attempts).toEqual([]);
-    expect(recordsState.syncStatuses).toEqual([]);
-    expect(errorsState.syncErrorLogs).toEqual([]);
-    expect(auditsState.representativeSelectionAuditLogs).toEqual([]);
+    expect(studentsState.allStudents).toEqual([
+      expect.objectContaining({ id: "student-1", name: "Kim", active: false })
+    ]);
+    expect(writeGoogleSheetRecordSourceTab).not.toHaveBeenCalled();
+    expect(writeGoogleSheetErrorLogSourceTab).not.toHaveBeenCalled();
+    expect(writeGoogleSheetAuditLogSourceTab).not.toHaveBeenCalled();
+    expect(state.attempts).toEqual([expect.objectContaining({ id: "attempt-1", studentId: "student-1" })]);
+    expect(state.syncStatuses).toHaveLength(1);
+    expect(state.syncErrorLogs).toHaveLength(1);
+    expect(state.representativeSelectionAuditLogs).toHaveLength(1);
   });
 
   it("writes the settings tab when saving or deleting a session", async () => {

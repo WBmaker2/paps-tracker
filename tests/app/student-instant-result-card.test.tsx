@@ -81,7 +81,7 @@ describe("student instant result card", () => {
     expect(screen.getByText("직전 대비 +0.6 kg")).toBeInTheDocument();
     expect(
       screen.getByText((content) =>
-        content.includes("총 0 kg 오르내림이 있었고, 직전 기록보다 +0.6 kg 좋아졌습니다.")
+        content.includes("측정 기록에 오르내림이 있어요. 이번 기록도 이어서 살펴보세요.")
       )
     ).toBeInTheDocument();
     expect(screen.getByText("오른손·왼손 추이")).toBeInTheDocument();
@@ -164,7 +164,7 @@ describe("student instant result card", () => {
 
     expect(
       screen.getByText(
-        "3월 측정 16 cm에서 7월 측정 24 cm까지 총 +8 cm 변화했고, 직전 기록보다 +3 cm 좋아졌습니다."
+        "이번 기록을 남겼어요. 다음 측정과 나란히 비교해 보세요."
       )
     ).toBeInTheDocument();
     expect(screen.getByText("개인 누적 추이")).toBeInTheDocument();

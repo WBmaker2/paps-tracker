@@ -8,8 +8,16 @@ import { buildTeacherMutationHeaders, notifyTeacherDataRefresh } from "./teacher
 
 const STATUS_LABELS: Record<PAPSSyncState, string> = {
   pending: "대기 중",
-  synced: "동기화 완료",
-  failed: "동기화 실패"
+  synced: "시트 반영됨",
+  failed: "시트 반영 실패"
+};
+
+const formatLocalDateTime = (value: string) => {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul", year: "numeric", month: "numeric", day: "numeric",
+    hour: "2-digit", minute: "2-digit"
+  }).format(date);
 };
 
 export function SyncStatusCard({
@@ -140,26 +148,25 @@ export function SyncStatusCard({
   return (
     <section className="rounded-[1.75rem] border border-ink/10 bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div className="space-y-2">
-          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-accent">Sync</p>
+        <div className="min-w-0 space-y-2">
+          <p className="text-sm font-semibold text-accent">원본 시트 반영 상태</p>
           <h2 className="text-lg font-semibold">{STATUS_LABELS[currentStatus]}</h2>
-          <p className="text-sm text-ink/65">마지막 업데이트: {currentUpdatedAt}</p>
+          <p className="text-sm text-ink/65">마지막 확인: {formatLocalDateTime(currentUpdatedAt)}</p>
           {duplicateAttemptCount > 0 ? (
             <p className="text-sm text-amber-700">
-              중복으로 보이는 제출 {duplicateAttemptCount}건이 있어 요약을 다시 계산하는 것이
-              좋습니다.
+              원본 중복 제출 {duplicateAttemptCount}건을 보존하고 있습니다.
             </p>
           ) : null}
           {rebuildNeeded ? (
-            <p className="text-sm font-medium text-amber-700">요약 재계산 필요</p>
+            <p className="text-sm font-medium text-amber-700">요약표 갱신 필요 · 원본 저장 상태와 별도입니다.</p>
           ) : null}
-          {feedback ? <p className="text-sm text-ink/75">{feedback}</p> : null}
+          {feedback ? <p role="status" aria-live="polite" className="text-sm text-ink/75">{feedback}</p> : null}
         </div>
         <div className="flex flex-wrap gap-2">
           {rebuildSessionId ? (
             <button
               type="button"
-              className="rounded-full border border-ink/15 px-4 py-2 text-sm font-medium"
+              className={`min-h-11 rounded-full border border-ink/15 px-4 py-2 text-sm font-medium ${rebuildNeeded ? "gi-pulse" : ""}`}
               onClick={rebuildSummaries}
               disabled={isPending}
             >
@@ -169,7 +176,7 @@ export function SyncStatusCard({
           {currentStatus === "failed" ? (
             <button
               type="button"
-              className="rounded-full border border-ink/15 px-4 py-2 text-sm font-medium"
+              className="min-h-11 rounded-full border border-ink/15 px-4 py-2 text-sm font-medium"
               onClick={requeueSync}
               disabled={isPending}
             >

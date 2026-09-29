@@ -5,17 +5,20 @@ import type { GoogleSheetStructuredState } from "../../src/lib/google/sheets-boo
 const {
   writeGoogleSheetAuditLogSourceTab,
   writeGoogleSheetErrorLogSourceTab,
-  writeGoogleSheetRecordSourceTab
+  updateGoogleSheetRecordRepresentativeCells,
+  updateGoogleSheetRecordSyncStatus
 } = vi.hoisted(() => ({
   writeGoogleSheetAuditLogSourceTab: vi.fn(async () => undefined),
   writeGoogleSheetErrorLogSourceTab: vi.fn(async () => undefined),
-  writeGoogleSheetRecordSourceTab: vi.fn(async () => undefined)
+  updateGoogleSheetRecordRepresentativeCells: vi.fn(async () => undefined),
+  updateGoogleSheetRecordSyncStatus: vi.fn(async () => undefined)
 }));
 
 vi.mock("../../src/lib/google/sheet-source-write", () => ({
   writeGoogleSheetAuditLogSourceTab,
   writeGoogleSheetErrorLogSourceTab,
-  writeGoogleSheetRecordSourceTab
+  updateGoogleSheetRecordRepresentativeCells,
+  updateGoogleSheetRecordSyncStatus
 }));
 
 import {
@@ -124,7 +127,8 @@ describe("Google Sheet record persistence helpers", () => {
   beforeEach(() => {
     writeGoogleSheetAuditLogSourceTab.mockClear();
     writeGoogleSheetErrorLogSourceTab.mockClear();
-    writeGoogleSheetRecordSourceTab.mockClear();
+    updateGoogleSheetRecordRepresentativeCells.mockClear();
+    updateGoogleSheetRecordSyncStatus.mockClear();
   });
 
   it("builds session records for all targeted students and sorts attempts", () => {
@@ -210,7 +214,13 @@ describe("Google Sheet record persistence helpers", () => {
       status: "failed",
       attemptId: "attempt-1"
     });
-    expect(writeGoogleSheetRecordSourceTab).toHaveBeenCalledTimes(1);
+    expect(updateGoogleSheetRecordSyncStatus).toHaveBeenCalledWith({
+      client: {},
+      spreadsheetId: "sheet-123",
+      sessionId: "session-1",
+      studentId: "student-1",
+      statusLabel: "실패"
+    });
     expect(writeGoogleSheetErrorLogSourceTab).toHaveBeenCalledTimes(1);
   });
 
@@ -231,6 +241,16 @@ describe("Google Sheet record persistence helpers", () => {
 
     expect(updatedRecord.representativeAttemptId).toBe("attempt-1");
     expect(writeGoogleSheetAuditLogSourceTab).toHaveBeenCalledTimes(1);
-    expect(writeGoogleSheetRecordSourceTab).toHaveBeenCalledTimes(1);
+    expect(updateGoogleSheetRecordRepresentativeCells).toHaveBeenCalledWith({
+      client: {},
+      spreadsheetId: "sheet-123",
+      state: expect.objectContaining({
+        representativeSelectionAuditLogs: [expect.objectContaining({ selectedAttemptId: "attempt-1" })]
+      }),
+      sessionId: "session-1",
+      studentId: "student-1",
+      selectedAttemptId: "attempt-1",
+      reason: "Best lap count"
+    });
   });
 });

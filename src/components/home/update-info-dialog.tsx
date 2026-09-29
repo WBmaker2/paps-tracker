@@ -1,15 +1,16 @@
 "use client";
 
-import { useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 
 import type { UpdateHistoryEntry } from "../../lib/update-history";
 import { AccessibleDialog } from "../ui/accessible-dialog";
 
 type UpdateInfoDialogProps = {
   updates: UpdateHistoryEntry[];
+  buttonLabel?: string;
 };
 
-export function UpdateInfoDialog({ updates }: UpdateInfoDialogProps) {
+export function UpdateInfoDialog({ updates, buttonLabel = "업데이트 내역" }: UpdateInfoDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -17,10 +18,10 @@ export function UpdateInfoDialog({ updates }: UpdateInfoDialogProps) {
     <>
       <button
         type="button"
-        className="rounded-full border border-ink/15 bg-white/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-ink/70 shadow-sm backdrop-blur transition hover:border-accent/50 hover:text-accent"
+        className="min-h-11 rounded-full border border-ink/15 bg-white/70 px-4 py-2 text-xs font-semibold text-ink/70 shadow-sm backdrop-blur transition hover:border-accent/50 hover:text-accent"
         onClick={() => setIsOpen(true)}
       >
-        Update info
+        {buttonLabel}
       </button>
 
       <AccessibleDialog
@@ -34,7 +35,7 @@ export function UpdateInfoDialog({ updates }: UpdateInfoDialogProps) {
             <div className="flex flex-col gap-4 border-b border-ink/10 bg-canvas/70 px-6 py-6 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.28em] text-accent">
-                  Release notes
+                  업데이트 내역
                 </p>
                 <h2 id="update-info-title" className="mt-3 text-2xl font-semibold">
                   업데이트 기록

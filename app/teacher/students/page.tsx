@@ -22,7 +22,7 @@ export default async function TeacherStudentsPage() {
 
   return (
     <AppShell
-      eyebrow="Roster"
+      eyebrow="학생 명단"
       title="학생 명단 관리"
       description="학급별 학생을 확인하고 추가하여 세션 대상자를 바로 준비합니다."
     >

@@ -84,7 +84,7 @@ export default async function TeacherSettingsPage() {
             <div>
               <h2 className="text-lg font-semibold">운영 준비 상태</h2>
               <p className="mt-1 text-sm text-ink/70">
-                로그인, 접근 정책, Google Sheets 연동 준비 여부를 한 번에 확인합니다.
+                환경 설정 등록 여부와 현재 시트 연결 상태를 구분해 보여줍니다. 템플릿 파일의 실제 접근은 사본 열기를 눌렀을 때 확인합니다.
               </p>
             </div>
             <span
@@ -94,7 +94,7 @@ export default async function TeacherSettingsPage() {
                   : "bg-amber-100 text-amber-800"
               }`}
             >
-              {operationalReadiness.ready ? "준비 완료" : "설정 필요"}
+              {operationalReadiness.ready ? "환경 설정 등록" : "환경 설정 필요"}
             </span>
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-3">
@@ -110,11 +110,13 @@ export default async function TeacherSettingsPage() {
             <article className="rounded-2xl border border-ink/10 px-4 py-3">
               <p className="text-sm text-ink/60">Google Sheets 연동</p>
               <p className="mt-2 font-medium text-ink">
-                {operationalReadiness.checks.googleSheets.summary}
+                {operationalReadiness.checks.googleSheets.ready
+                  ? "환경 변수 등록됨 · 원격 템플릿 미확인"
+                  : "연동 환경 설정 필요"}
               </p>
               <p className="mt-1 text-sm text-ink/65">
                 {operationalReadiness.checks.googleSheets.ready
-                  ? "시트 검증과 동기화를 실행할 수 있습니다."
+                  ? "환경변수가 등록되어 있습니다. 템플릿 파일 접근 여부는 아직 확인하지 않았습니다."
                   : operationalReadiness.checks.googleSheets.missingKeys.join(", ")}
               </p>
             </article>

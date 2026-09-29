@@ -11,6 +11,12 @@ import type {
 import type { TeacherResultRowView } from "../../src/lib/teacher-results";
 
 describe("teacher results view model", () => {
+  it("shows stored lap units with Korean classroom wording", async () => {
+    const { formatTeacherUnit } = await import("../../src/lib/teacher-results");
+    expect(formatTeacherUnit("laps")).toBe("회");
+    expect(formatTeacherUnit("cm")).toBe("cm");
+  });
+
   it("builds filter-ready rows across multiple sessions and computes options with initial focus", async () => {
     const { buildTeacherResultsViewModel } = await import("../../src/lib/teacher-results");
 
@@ -341,5 +347,53 @@ describe("teacher results view model", () => {
         isRepresentative: true
       })
     ]);
+  });
+
+  it("keeps duplicate source attempts but marks them so growth uses one logical measurement", async () => {
+    const { buildStudentGrowthReports } = await import("../../src/lib/teacher-results");
+    const base: TeacherResultRowView = {
+      recordId: "session:student",
+      sessionId: "session",
+      studentId: "student",
+      studentName: "홍길동",
+      studentNameNormalized: "홍길동",
+      studentNumber: 1,
+      classId: "class",
+      classLabel: "5학년 1반",
+      classNumber: 1,
+      gradeLevel: 5,
+      schoolId: "school",
+      sessionName: "5월 측정",
+      sessionType: "official",
+      eventId: "sit-and-reach",
+      eventLabel: "앉아윗몸앞으로굽히기",
+      unit: "cm",
+      representativeAttemptId: "attempt-32",
+      duplicateAttemptCount: 1,
+      attempts: [
+        { id: "attempt-30-a", attemptNumber: 1, measurement: 30, createdAt: "2026-05-01T00:00:00Z", clientSubmissionKey: "same-submit" },
+        { id: "attempt-30-b", attemptNumber: 1, measurement: 30, createdAt: "2026-05-01T00:00:01Z", clientSubmissionKey: "same-submit" },
+        { id: "attempt-32", attemptNumber: 2, measurement: 32, createdAt: "2026-05-01T00:01:00Z", clientSubmissionKey: "next-submit" }
+      ]
+    };
+
+    const nextSession: TeacherResultRowView = {
+      ...base,
+      recordId: "session-2:student",
+      sessionId: "session-2",
+      sessionName: "6월 측정",
+      attempts: [{
+        id: "attempt-next-session",
+        attemptNumber: 1,
+        measurement: 34,
+        createdAt: "2026-05-01T00:02:00Z",
+        clientSubmissionKey: "same-submit"
+      }]
+    };
+    const attempts = buildStudentGrowthReports([base, nextSession])[0]?.events[0]?.attempts ?? [];
+    expect(attempts.map(({ measurement, isDuplicate }) => [measurement, isDuplicate])).toEqual([
+      [30, false], [30, true], [32, false], [34, false]
+    ]);
+    expect(attempts.filter((attempt) => !attempt.isDuplicate).map((attempt) => attempt.measurement)).toEqual([30, 32, 34]);
   });
 });

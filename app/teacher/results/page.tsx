@@ -36,7 +36,7 @@ export default async function TeacherResultsPage() {
   if (!sheetConnected) {
     return (
       <AppShell
-        eyebrow="Results"
+        eyebrow="결과"
         title="결과 검토"
         description={sheetStatus.summary}
       >
@@ -55,7 +55,7 @@ export default async function TeacherResultsPage() {
   if (!store) {
     return (
       <AppShell
-        eyebrow="Results"
+        eyebrow="결과"
         title="결과 검토"
         description="대표값 선택과 동기화 상태를 확인할 세션이 아직 없습니다."
       >
@@ -101,7 +101,7 @@ export default async function TeacherResultsPage() {
 
   return (
     <AppShell
-      eyebrow="Results"
+      eyebrow="결과"
       title="측정 결과 검토"
       description="대표 기록 확정, 요약 재계산, 시트 반영 현황을 한 화면에서 확인합니다."
     >

@@ -7,7 +7,7 @@ import type { TeacherSheetStatus } from "../../lib/google/sheet-connection-statu
 import type { PAPSClassroom, PAPSSchool } from "../../lib/paps/types";
 import { SettingsClassManagementCard } from "./settings-class-management-card";
 import { SettingsSchoolConnectionCard } from "./settings-school-connection-card";
-import { SettingsTeacherPinCard } from "./settings-teacher-pin-card";
+import { SettingsTeacherPinPanel } from "./settings-teacher-pin-panel";
 import {
   areSavedSchoolSettingsEqual,
   createSavedSchoolSettings,
@@ -75,16 +75,9 @@ export function TeacherSettingsManager({
   const [newClassNumber, setNewClassNumber] = useState("1");
   const [schoolMessage, setSchoolMessage] = useState<string | null>(null);
   const [classMessage, setClassMessage] = useState<string | null>(null);
-  const [pin, setPin] = useState("");
-  const [pinConfirmation, setPinConfirmation] = useState("");
-  const [pinMessage, setPinMessage] = useState<string | null>(null);
-  const [teacherReturnPinConfigured, setTeacherReturnPinConfigured] = useState(() =>
-    hasTeacherReturnPin(school)
-  );
   const [isSchoolPending, startSchoolTransition] = useTransition();
   const [isTemplatePending, startTemplateTransition] = useTransition();
   const [isClassPending, startClassTransition] = useTransition();
-  const [isPinPending, startPinTransition] = useTransition();
   const [isInvitePending, startInviteTransition] = useTransition();
   const serviceAccountMissing = !sheetSetupStatus.serviceAccountConfigured;
   const templateMissing = !sheetSetupStatus.templateConfigured;
@@ -114,7 +107,6 @@ export function TeacherSettingsManager({
     persistSavedSchoolSettings(nextSavedSchoolSettings);
     setSchoolName(nextSavedSchoolSettings?.schoolName ?? "");
     setSheetUrl(nextSavedSchoolSettings?.sheetUrl ?? "");
-    setTeacherReturnPinConfigured(hasTeacherReturnPin(payload.school));
     setPendingSheetClaim(null);
     setTeacherInviteToken("");
     setSchoolMessage(message);
@@ -171,7 +163,6 @@ export function TeacherSettingsManager({
     }
 
     setSchoolState(school);
-    setTeacherReturnPinConfigured(hasTeacherReturnPin(school));
 
     if (areSavedSchoolSettingsEqual(savedSchoolSettings, nextSavedSchoolSettings)) {
       return;
@@ -387,97 +378,6 @@ export function TeacherSettingsManager({
     });
   };
 
-  const saveTeacherReturnPin = () => {
-    if (!schoolState) {
-      setPinMessage("학교 정보를 먼저 저장해주세요.");
-      return;
-    }
-
-    if (!/^\d{4,6}$/.test(pin.trim())) {
-      setPinMessage("PIN은 4~6자리 숫자로 입력해주세요.");
-      return;
-    }
-
-    if (pin.trim() !== pinConfirmation.trim()) {
-      setPinMessage("PIN 확인 값이 일치하지 않습니다.");
-      return;
-    }
-
-    setPinMessage(null);
-
-    startPinTransition(async () => {
-      try {
-        const response = await fetch("/api/teacher/student-return-pin", {
-          method: "POST",
-          headers: buildTeacherMutationHeaders({
-            "content-type": "application/json"
-          }),
-          body: JSON.stringify({
-            pin
-          })
-        });
-        const payload = (await response.json()) as {
-          error?: string;
-          teacherReturnPinConfigured?: boolean;
-          teacherStateVersion?: string;
-        };
-
-        if (!response.ok || !payload.teacherReturnPinConfigured) {
-          throw new Error(payload.error ?? "교사용 PIN을 저장하지 못했습니다.");
-        }
-
-        setTeacherReturnPinConfigured(true);
-        setPin("");
-        setPinConfirmation("");
-        setPinMessage("교사 화면 접근 PIN을 저장했습니다.");
-        notifyTeacherDataRefresh({
-          refresh: false,
-          nextVersion: payload.teacherStateVersion ?? null
-        });
-      } catch (error) {
-        setPinMessage(error instanceof Error ? error.message : "교사용 PIN을 저장하지 못했습니다.");
-      }
-    });
-  };
-
-  const clearTeacherReturnPin = () => {
-    if (!schoolState) {
-      setPinMessage("학교 정보를 먼저 저장해주세요.");
-      return;
-    }
-
-    setPinMessage(null);
-
-    startPinTransition(async () => {
-      try {
-        const response = await fetch("/api/teacher/student-return-pin", {
-          method: "DELETE",
-          headers: buildTeacherMutationHeaders()
-        });
-        const payload = (await response.json()) as {
-          error?: string;
-          teacherReturnPinConfigured?: boolean;
-          teacherStateVersion?: string;
-        };
-
-        if (!response.ok) {
-          throw new Error(payload.error ?? "교사용 PIN을 해제하지 못했습니다.");
-        }
-
-        setTeacherReturnPinConfigured(false);
-        setPin("");
-        setPinConfirmation("");
-        setPinMessage("교사 화면 접근 PIN을 해제했습니다.");
-        notifyTeacherDataRefresh({
-          refresh: false,
-          nextVersion: payload.teacherStateVersion ?? null
-        });
-      } catch (error) {
-        setPinMessage(error instanceof Error ? error.message : "교사용 PIN을 해제하지 못했습니다.");
-      }
-    });
-  };
-
   return (
     <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
       <SettingsSchoolConnectionCard
@@ -505,16 +405,10 @@ export function TeacherSettingsManager({
         onSaveSchool={saveSchool}
         onIssueTeacherInvite={issueTeacherInvite}
       />
-      <SettingsTeacherPinCard
-        configured={teacherReturnPinConfigured}
-        pin={pin}
-        pinConfirmation={pinConfirmation}
-        message={pinMessage}
-        pending={isPinPending}
-        onPinChange={setPin}
-        onPinConfirmationChange={setPinConfirmation}
-        onSave={saveTeacherReturnPin}
-        onClear={clearTeacherReturnPin}
+      <SettingsTeacherPinPanel
+        key={`${schoolState?.id ?? "none"}-${hasTeacherReturnPin(schoolState)}`}
+        available={Boolean(schoolState)}
+        initialConfigured={hasTeacherReturnPin(schoolState)}
       />
       <SettingsClassManagementCard
         classes={classItems}

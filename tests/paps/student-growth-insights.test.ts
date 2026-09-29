@@ -64,9 +64,7 @@ describe("student growth insights", () => {
     expect(insight.trend).toBe("improving");
     expect(insight.previousDeltaText).toBe("+3 cm");
     expect(insight.overallDeltaText).toBe("+8 cm");
-    expect(insight.summary).toBe(
-      "3월 측정 16 cm에서 7월 측정 24 cm까지 총 +8 cm 변화했고, 직전 기록보다 +3 cm 좋아졌습니다."
-    );
+    expect(insight.summary).toBe("이번 기록을 남겼어요. 다음 측정과 나란히 비교해 보세요.");
   });
 
   it("uses the last provided attempt as latest when latestAttemptId is null", () => {
@@ -132,9 +130,7 @@ describe("student growth insights", () => {
 
     expect(insight.previousDeltaText).toBe("+3 kg");
     expect(insight.overallDeltaText).toBe("+3 kg");
-    expect(insight.summary).toBe(
-      "1회차 10 kg에서 2회차 13 kg까지 총 +3 kg 변화했고, 직전 기록보다 +3 kg 좋아졌습니다."
-    );
+    expect(insight.summary).toBe("이번 기록을 남겼어요. 다음 측정과 나란히 비교해 보세요.");
     expect(insight.trend).toBe("improving");
   });
 
@@ -171,7 +167,7 @@ describe("student growth insights", () => {
     expect(insight.trend).toBe("declining");
     expect(insight.previousDeltaText).toBe("-12 cm");
     expect(insight.overallDeltaText).toBe("-18 cm");
-    expect(insight.summary).toContain("직전 기록보다 -12 cm 나빠졌습니다.");
+    expect(insight.summary).toBe("이번 기록을 남겼어요. 다음 측정과 나란히 비교해 보세요.");
   });
 
   it("handles lower-is-better improvement with positive delta text", () => {
@@ -201,7 +197,7 @@ describe("student growth insights", () => {
     expect(insight.trend).toBe("improving");
     expect(insight.previousDeltaText).toBe("+0.9 초");
     expect(insight.overallDeltaText).toBe("+0.9 초");
-    expect(insight.summary).toContain("좋아졌습니다");
+    expect(insight.summary).toBe("이번 기록을 남겼어요. 다음 측정과 나란히 비교해 보세요.");
   });
 
   it("computes trend from the full chronological series even when latest is in the middle", () => {
@@ -237,7 +233,7 @@ describe("student growth insights", () => {
     expect(insight.trend).toBe("mixed");
     expect(insight.previousDeltaText).toBe("+6 cm");
     expect(insight.overallDeltaText).toBe("+6 cm");
-    expect(insight.summary).toContain("직전 기록");
+    expect(insight.summary).toContain("오르내림");
   });
 
   it("builds compact chart labels from month sessions and latest marker", () => {
@@ -322,7 +318,7 @@ describe("student growth insights", () => {
     expect(insight.trend).toBe("same");
     expect(insight.previousDeltaText).toBe("0 cm");
     expect(insight.overallDeltaText).toBe("0 cm");
-    expect(insight.summary).toContain("직전 기록과 거의 동일했습니다.");
+    expect(insight.summary).toBe("직전 기록과 같아요. 다음 측정도 기록해 변화를 살펴보세요.");
     expect(insight.summary).not.toContain("점수 (1월 기록)");
   });
 
@@ -357,6 +353,6 @@ describe("student growth insights", () => {
     });
 
     expect(insight.trend).toBe("mixed");
-    expect(insight.summary).toContain("오르내림이 있었고, 직전 기록보다 -4 cm 나빠졌습니다.");
+    expect(insight.summary).toBe("측정 기록에 오르내림이 있어요. 이번 기록도 이어서 살펴보세요.");
   });
 });

@@ -21,7 +21,7 @@ const parseGradeLevel = (value: unknown): GradeLevel => {
     return numericValue;
   }
 
-  throw new Error("A valid grade level is required.");
+  throw new Error("학년 정보를 확인해주세요.");
 };
 
 const parseStudentSex = (value: unknown): StudentSex => {
@@ -29,7 +29,7 @@ const parseStudentSex = (value: unknown): StudentSex => {
     return value;
   }
 
-  throw new Error("A valid student sex is required.");
+  throw new Error("성별을 선택해주세요.");
 };
 
 export async function GET(request: NextRequest) {
@@ -83,6 +83,18 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json().catch(() => null);
+  const name = typeof body?.name === "string" ? body.name.trim() : "";
+  const studentNumber = Number(body?.studentNumber);
+  const fieldErrors: Record<string, string> = {};
+
+  if (!name) fieldErrors.name = "학생 이름을 입력해주세요.";
+  if (!Number.isSafeInteger(studentNumber) || studentNumber < 1) {
+    fieldErrors.studentNumber = "번호는 1 이상의 정수로 입력해주세요.";
+  }
+
+  if (Object.keys(fieldErrors).length > 0) {
+    return NextResponse.json({ error: "입력 내용을 확인해주세요.", fieldErrors }, { status: 400 });
+  }
 
   try {
     const originClientId = request.headers.get(TEACHER_LIVE_UPDATE_CLIENT_HEADER);
@@ -111,11 +123,8 @@ export async function POST(request: NextRequest) {
       id: requestedId,
       schoolId: classroom.schoolId,
       classId,
-      studentNumber: Number(body?.studentNumber) || undefined,
-      name:
-        typeof body?.name === "string" && body.name.trim()
-          ? body.name.trim()
-          : "이름 없는 학생",
+      studentNumber,
+      name,
       sex: parseStudentSex(body?.sex),
       gradeLevel: parseGradeLevel(body?.gradeLevel),
       active: body?.active !== false
@@ -156,7 +165,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : "Could not save the student."
+        error: error instanceof Error ? error.message : "학생을 저장하지 못했습니다."
       },
       {
         status: 400
@@ -175,7 +184,7 @@ export async function DELETE(request: NextRequest) {
   const studentId = request.nextUrl.searchParams.get("studentId");
 
   if (!studentId) {
-    return NextResponse.json({ error: "studentId is required." }, { status: 400 });
+    return NextResponse.json({ error: "학생을 선택해주세요." }, { status: 400 });
   }
 
   try {
@@ -191,16 +200,19 @@ export async function DELETE(request: NextRequest) {
       return forbiddenTeacherRouteResponse();
     }
 
-    await store.deleteStudent(studentId);
+    const hasRecordedResults = bootstrap.attempts.some((attempt) => attempt.studentId === studentId) ||
+      (bootstrap.studentRoundResults ?? []).some((result) => result.studentId === studentId);
+    if (hasRecordedResults) {
+      return NextResponse.json({
+        error: "측정 기록이 있는 학생은 보관할 수 없습니다. 측정 기록과 학생 정보를 안전하게 유지했습니다."
+      }, { status: 409 });
+    }
+
+    // Archive only the roster row. Measurement and audit source rows are never rewritten.
+    await store.saveStudent({ ...student, active: false });
     const teacherStateVersion = buildTeacherStateVersion({
       ...bootstrap,
-      students: bootstrap.students.filter((entry) => entry.id !== studentId),
-      attempts: bootstrap.attempts.filter((entry) => entry.studentId !== studentId),
-      syncStatuses: bootstrap.syncStatuses.filter((entry) => entry.studentId !== studentId),
-      syncErrorLogs: bootstrap.syncErrorLogs.filter((entry) => entry.studentId !== studentId),
-      representativeSelectionAuditLogs: bootstrap.representativeSelectionAuditLogs.filter(
-        (entry) => entry.studentId !== studentId
-      )
+      students: bootstrap.students.filter((entry) => entry.id !== studentId)
     });
 
     publishTeacherLiveUpdate({
@@ -211,6 +223,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({
       ok: true,
+      archived: true,
       teacherStateVersion
     });
   } catch (error) {

@@ -67,7 +67,7 @@ export default async function TeacherDashboardPage() {
     >
       <TeacherDataRefresh initialVersion={initialVersion} pollIntervalMs={60000} />
       <TeacherSheetAutoLoader sheetStatus={sheetStatus} />
-      <section className="grid gap-4 md:grid-cols-4">
+      {sheetConnected ? <section className="grid gap-4 md:grid-cols-4">
         {summaryCards.map((card) => (
           <article
             key={card.label}
@@ -77,7 +77,7 @@ export default async function TeacherDashboardPage() {
             <p className="mt-3 text-3xl font-semibold">{card.value}</p>
           </article>
         ))}
-      </section>
+      </section> : null}
       <TeacherSessionWorkspace
         classes={bootstrap.classes}
         sessions={bootstrap.sessions}

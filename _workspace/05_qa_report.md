@@ -1,4 +1,20 @@
-# QA 보고서: v1.2.1 체지방 제외 4요인 회차·운영 의존성
+# QA 보고서: v1.2.3 학생·교사 UX 및 기록 보존 개선
+
+## v1.2.3 현재 릴리스 게이트 (2026-09-29)
+
+- 실행 환경: 임시 npm 캐시와 런타임에 설치한 Node.js `v22.23.3`, npm `10.9.9`. 프로젝트 엔진 범위(`>=22.0.0 <23.0.0`)에서 검증했습니다. 기존 사용자 npm 캐시의 권한 오류를 피하기 위해 `/private/tmp` 아래의 별도 캐시를 사용했습니다.
+- 보안 수정: `package.json`의 Next `sharp` override와 `package-lock.json`의 `sharp` 및 플랫폼별 optional 패키지를 `0.35.4`로 동기화했습니다. `npm ls sharp --all --depth=2`에서 `sharp@0.35.4 overridden`을 확인했습니다.
+- `npm ci --no-audit --no-fund`: 통과. Node 22/npm 10에서 lockfile 기반으로 490개 패키지를 재설치했습니다.
+- `npm run audit:prod`: 통과. 운영 의존성 취약점 0건입니다.
+- `npm run test:ci`: 통과, 85개 파일·345개 테스트. 위 clean install 이후 Node 22에서 실행했습니다.
+- `npm run lint`: 통과.
+- `npm run typecheck`: 통과.
+- `npm run build`: 통과. 위 clean install 이후 Node 22에서 빌드했으며 Browserslist 데이터가 오래됐다는 안내가 있었습니다.
+- `git diff --check`: 통과.
+- 독립 QA Google Sheets 실연동: 검증 불가. 로컬 민감 키의 인증 오류 및 Drive 메타데이터 403으로 사전 읽기 단계가 막혀 시트 접근·쓰기 시험은 실행하지 않았습니다. 쓰기 0건이며 운영 측정 데이터는 변경하지 않았습니다.
+- 커밋·푸시·배포: 아직 수행하지 않았습니다. 로컬 릴리스 게이트를 통과했고 변경 검토를 기다리고 있습니다.
+
+이하의 v1.2.1 배포·실시 기록은 과거 릴리스의 참고 자료이며 v1.2.3 검증 증거가 아닙니다.
 
 ## 범위
 

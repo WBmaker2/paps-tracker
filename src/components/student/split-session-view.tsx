@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useMemo, useState, useTransition } from "react";
+import React, { useMemo, useRef, useState, useTransition } from "react";
 
 import { InstantResultCard } from "./instant-result-card";
 import { FourFactorProgressCard } from "./four-factor-progress-card";
 import { NamePicker } from "./name-picker";
 import { RecordForm, type RecordFormSubmission } from "./record-form";
 import { StudentSessionNavigation } from "./student-session-navigation";
+import { getOrCreateClientSubmissionKey } from "./submission-intent";
 import type {
   BetterDirection,
   ClassScope,
@@ -38,6 +39,7 @@ type SubmissionResult = {
   attempts: PAPSAttempt[];
   historyAttempts?: PAPSStudentEventHistoryAttempt[];
   latestOfficialGrade: OfficialGrade | null;
+  summaryWarning?: string;
   roundProgress?: FourFactorProgressView | null;
   finalizedResult?: FourFactorStudentResultView | null;
 };
@@ -98,6 +100,7 @@ export function SplitSessionView({
   const [roundProgress, setRoundProgress] = useState<FourFactorProgressView | null>(assessmentProgress);
   const [finalizedResult, setFinalizedResult] = useState<FourFactorStudentResultView | null>(null);
   const studentStatusRequestRef = React.useRef(0);
+  const clientSubmissionIntentRef = useRef<{ fingerprint: string; key: string } | null>(null);
   const assessmentProgressRef = React.useRef(assessmentProgress);
   assessmentProgressRef.current = assessmentProgress;
   const [isPending, startTransition] = useTransition();
@@ -139,6 +142,7 @@ export function SplitSessionView({
     }
 
     setSelectedStudentId(studentId);
+    clientSubmissionIntentRef.current = null;
     onStudentChange?.(studentId);
     setSubmitResult(null);
     setEditingAttempt(null);
@@ -185,9 +189,7 @@ export function SplitSessionView({
         setFinalizedResult(payload.result.finalizedResult ?? null);
       } catch (error) {
         if (studentStatusRequestRef.current === requestId) {
-          setErrorMessage(
-            error instanceof Error ? error.message : "회차 진행 상태를 불러오지 못했습니다."
-          );
+          setErrorMessage("회차 진행 상태를 불러오지 못했어요. 인터넷 연결을 확인하고 다시 선택해 주세요.");
         }
       }
     });
@@ -199,7 +201,13 @@ export function SplitSessionView({
     }
 
     setErrorMessage(null);
-    const clientSubmissionKey = createClientSubmissionKey();
+    const fingerprint = JSON.stringify({ sessionId, studentId: selectedStudentId, measurement: submission.measurement ?? null, detail: submission.detail ?? null });
+    clientSubmissionIntentRef.current = getOrCreateClientSubmissionKey(
+      clientSubmissionIntentRef.current,
+      fingerprint,
+      createClientSubmissionKey
+    );
+    const clientSubmissionKey = clientSubmissionIntentRef.current.key;
 
     await new Promise<void>((resolve) => {
       startTransition(async () => {
@@ -227,13 +235,17 @@ export function SplitSessionView({
           }
 
           setSubmitResult(payload.result);
+          clientSubmissionIntentRef.current = null;
           const nextRoundProgress = payload.result.roundProgress ?? roundProgress;
           setRoundProgress(nextRoundProgress);
           onAssessmentProgressChange?.(nextRoundProgress);
           setFinalizedResult(payload.result.finalizedResult ?? null);
           setEditingAttempt(null);
         } catch (error) {
-          setErrorMessage(error instanceof Error ? error.message : "기록을 제출하지 못했습니다.");
+          const message = error instanceof Error ? error.message : "";
+          setErrorMessage(message === "Session is closed."
+            ? "이 세션은 닫혔어요. 선생님께 다시 열어 달라고 말씀해 주세요."
+            : "기록을 저장하지 못했어요. 입력값과 인터넷 연결을 확인한 뒤 다시 제출해 주세요.");
         } finally {
           resolve();
         }
@@ -280,8 +292,8 @@ export function SplitSessionView({
           onAssessmentProgressChange?.(nextRoundProgress);
           setFinalizedResult(payload.result.finalizedResult ?? null);
           setEditingAttempt(null);
-        } catch (error) {
-          setErrorMessage(error instanceof Error ? error.message : "기록을 수정하지 못했습니다.");
+        } catch {
+          setErrorMessage("기록을 수정하지 못했어요. 값을 확인한 뒤 다시 저장해 주세요.");
         } finally {
           resolve();
         }
@@ -291,6 +303,7 @@ export function SplitSessionView({
 
   const handleReset = () => {
     studentStatusRequestRef.current += 1;
+    clientSubmissionIntentRef.current = null;
     setSelectedStudentId(null);
     setSubmitResult(null);
     setEditingAttempt(null);
@@ -333,7 +346,9 @@ export function SplitSessionView({
           measurementConstraints={measurementConstraints}
           isSubmitting={isPending}
           errorMessage={errorMessage}
+          autoFocusFirstField
           onSubmit={handleSubmit}
+          onClearError={() => setErrorMessage(null)}
         />
       ) : null}
 
@@ -347,6 +362,11 @@ export function SplitSessionView({
 
       {submitResult ? (
         <div className="grid gap-4">
+          {submitResult.summaryWarning ? (
+            <p role="status" aria-live="polite" className="rounded-2xl border border-amber-300/70 bg-amber-50 px-4 py-3 text-sm leading-6 text-ink/80">
+              기록은 저장됐어요. 요약 갱신에 문제가 있어 선생님 확인이 필요합니다.
+            </p>
+          ) : null}
           <InstantResultCard
             studentName={submitResult.student.name}
             sessionType={sessionType}
@@ -380,6 +400,7 @@ export function SplitSessionView({
                 setErrorMessage(null);
               }}
               onSubmit={handleUpdateLatestAttempt}
+              onClearError={() => setErrorMessage(null)}
             />
           ) : null}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -389,7 +410,7 @@ export function SplitSessionView({
             />
             <button
               type="button"
-              className="rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-white transition hover:bg-accent"
+              className="gi-pulse min-h-12 rounded-full bg-ink px-6 py-3 text-sm font-semibold text-white transition hover:bg-accent"
               onClick={handleReset}
             >
               다음 학생

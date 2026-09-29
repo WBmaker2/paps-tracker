@@ -1,5 +1,7 @@
 import React, { type ReactNode } from "react";
 
+import { UpdateInfoDialog } from "../home/update-info-dialog";
+import { UPDATE_HISTORY } from "../../lib/update-history";
 import { TeacherNavigation } from "./teacher-navigation";
 
 export function AppShell({
@@ -27,7 +29,10 @@ export function AppShell({
                 <p className="max-w-3xl text-sm leading-7 text-ink/75">{description}</p>
               </div>
             </div>
-            <TeacherNavigation />
+            <div className="flex flex-wrap items-center gap-3">
+              <UpdateInfoDialog updates={UPDATE_HISTORY} buttonLabel="업데이트 내역" />
+              <TeacherNavigation />
+            </div>
           </div>
         </section>
         {children}

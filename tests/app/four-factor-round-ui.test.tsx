@@ -244,7 +244,7 @@ describe("four-factor round UI", () => {
       />
     );
     expect(screen.getByText("공식 PAPS 종합등급이 아닌 체지방 제외 4요인 환산 결과입니다.")).toBeInTheDocument();
-    expect(screen.getByText("대표 기록 42 laps · 요인점수 16 / 20")).toBeInTheDocument();
+    expect(screen.getByText("대표 기록 42 회 · 요인점수 16 / 20")).toBeInTheDocument();
     expect(screen.getByLabelText("확정된 4요인 대표 기록")).toBeInTheDocument();
   });
 

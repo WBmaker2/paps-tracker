@@ -6,6 +6,7 @@ import type {
   TeacherResultRowView,
   TeacherResultSyncView
 } from "../../lib/teacher-results";
+import { formatTeacherUnit } from "../../lib/teacher-results";
 import { SummaryExportsCard } from "./summary-exports-card";
 import { SyncStatusCard } from "./sync-status-card";
 
@@ -31,11 +32,12 @@ export function TeacherResultsSidebar({
   onSummariesRebuilt
 }: TeacherResultsSidebarProps) {
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6">
+      <SummaryExportsCard tabs={sheetTabs} note={summariesNote} />
       <TeacherProgressChart
         title={`${focusedRow?.studentName ?? "선택 학생"} 추이`}
         attempts={focusedRow?.attempts ?? []}
-        unit={focusedRow?.unit ?? ""}
+        unit={focusedRow ? formatTeacherUnit(focusedRow.unit) : ""}
       />
       {focusedRow && focusedSync ? (
         <SyncStatusCard
@@ -51,12 +53,12 @@ export function TeacherResultsSidebar({
         />
       ) : null}
       {sheetTabs.length > 0 ? (
-        <section className="rounded-[1.75rem] border border-ink/10 bg-white p-5 shadow-sm">
+        <details className="rounded-[1.75rem] border border-ink/10 bg-white p-5 shadow-sm">
+          <summary className="min-h-11 cursor-pointer text-sm font-semibold">시트 진단 정보</summary>
+        <section className="min-w-0 rounded-[1.75rem] border border-ink/10 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-accent">
-                Sheet
-              </p>
+              <p className="text-sm font-semibold text-accent">연결 시트</p>
               <h2 className="text-lg font-semibold">구글 시트 반영 현황</h2>
             </div>
             <span className="rounded-full bg-ink/5 px-3 py-1 text-xs text-ink/70">
@@ -68,14 +70,14 @@ export function TeacherResultsSidebar({
               <div key={tab.tabName} className="flex items-center justify-between gap-3 text-sm">
                 <span>{tab.tabName}</span>
                 <span className="text-ink/65">
-                  {tab.header.length} cols · {tab.rows.length} rows
+                  {tab.header.length}개 열 · {tab.rows.length}개 행
                 </span>
               </div>
             ))}
           </div>
         </section>
+        </details>
       ) : null}
-      <SummaryExportsCard tabs={sheetTabs} note={summariesNote} />
     </div>
   );
 }

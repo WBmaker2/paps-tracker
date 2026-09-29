@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useMemo, useState, useTransition } from "react";
+import React, { useEffect, useMemo, useRef, useState, useTransition } from "react";
 
 import type { TeacherSheetStatus } from "../../lib/google/sheet-connection-status";
 import { getEligibleEventDefinitions, getSessionTypeEventDefinitions } from "../../lib/paps/catalog";
@@ -12,7 +12,7 @@ import {
 import { createAssessmentRoundIdempotencyKey, FourFactorRoundOptions } from "./four-factor-round-creation-fields";
 import { EventSessionFields, SessionCreationModeFieldset } from "./session-form-mode-fields";
 import { buildTeacherMutationHeaders, notifyTeacherDataRefresh } from "./teacher-data-refresh";
-import type { SessionFormDraft } from "./session-workspace-utils";
+import { arraysEqual, orderSelectedEventIds, type SessionFormDraft } from "./session-workspace-utils";
 
 export interface SessionFormProps {
   classes: PAPSClassroom[];
@@ -25,17 +25,6 @@ export interface SessionFormProps {
   hasSubmittedRecords?: boolean;
   onCancelEdit?: () => void;
 }
-
-const arraysEqual = <T,>(left: T[], right: T[]): boolean =>
-  left.length === right.length && left.every((value, index) => value === right[index]);
-
-const orderSelectedEventIds = (
-  eligibleEvents: Array<{ id: EventId }>,
-  selectedEventIds: EventId[]
-): EventId[] =>
-  selectedEventIds.filter((eventId) =>
-    eligibleEvents.some((eventDefinition) => eventDefinition.id === eventId)
-  );
 
 export function SessionForm({
   classes,
@@ -63,6 +52,7 @@ export function SessionForm({
   const [roundNumber, setRoundNumber] = useState(1);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const formHeadingRef = useRef<HTMLHeadingElement>(null);
 
   const isEditing = editingSession !== null;
   const isStructureLocked = isEditing && hasSubmittedRecords;
@@ -180,6 +170,13 @@ export function SessionForm({
     setErrorMessage(null);
 
     if (editingSession) {
+      requestAnimationFrame(() => {
+        const heading = formHeadingRef.current;
+        if (typeof heading?.scrollIntoView === "function") {
+          heading.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+        formHeadingRef.current?.focus({ preventScroll: true });
+      });
       setName(editingSession.name);
       setCreationMode("event");
       setSessionType(editingSession.sessionType);
@@ -360,9 +357,9 @@ export function SessionForm({
   };
 
   return (
-    <section className="rounded-[1.75rem] border border-ink/10 bg-white p-5 shadow-sm">
+    <section className="scroll-mt-6 rounded-[1.75rem] border border-ink/10 bg-white p-5 shadow-sm">
       <div className="mb-4">
-        <h2 className="text-lg font-semibold">{isEditing ? "세션 수정" : "세션 생성"}</h2>
+        <h2 ref={formHeadingRef} tabIndex={-1} className="text-lg font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent">{isEditing ? "세션 수정" : "세션 생성"}</h2>
         <p className="mt-1 text-sm text-ink/70">
           {isEditing
             ? "이미 등록된 세션의 이름과 종목 구성을 수정합니다."
@@ -403,6 +400,11 @@ export function SessionForm({
           </select>
         </label>
         {creationMode === "four-factor" ? (
+          <>
+          <div className="rounded-2xl border border-accent/20 bg-accent/5 px-4 py-3 text-sm leading-6 text-ink/80 md:col-span-2">
+            <p className="font-semibold">4요인 결과 계산 안내</p>
+            <p className="mt-1">각 종목 측정값을 학년·성별 기준표로 요인마다 0~20점으로 바꾸고, 심폐지구력·유연성·근력/근지구력·순발력 점수를 더해 80점 만점으로 집계합니다. 합계를 100점 척도로 환산해 이 앱의 기준으로 등급을 계산합니다. 체지방과 BMI는 포함하지 않으므로 공식 PAPS 종합점수나 종합등급이 아닙니다.</p>
+          </div>
           <FourFactorRoundOptions
             roundType={roundType}
             onRoundTypeChange={setRoundType}
@@ -412,6 +414,7 @@ export function SessionForm({
             selectedEventsByFactor={selectedEventsByFactor}
             onEventChange={(factorId, eventId) => setSelectedEventsByFactor((current) => ({ ...current, [factorId]: eventId as EventId }))}
           />
+          </>
         ) : null}
         <label className="flex flex-col gap-2 text-sm">
           운영 방식
@@ -468,7 +471,7 @@ export function SessionForm({
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <button
           type="button"
-          className={`rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-white transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60 ${creationMode === "four-factor" ? "gi-pulse" : ""}`}
+          className={`min-h-12 rounded-full bg-ink px-6 py-3 text-sm font-semibold text-white transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60 ${!isEditing ? "gi-pulse" : ""}`}
           onClick={handleSubmit}
           disabled={isPending}
         >

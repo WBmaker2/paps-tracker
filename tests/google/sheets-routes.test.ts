@@ -1,0 +1,346 @@
+import { NextRequest } from "next/server";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { createPapsGoogleSheetTabPayloads } from "../../src/lib/google/sheets";
+import { PAPS_GOOGLE_SHEET_PROTOTYPE_TABS } from "../../src/lib/google/template";
+import type { PAPSDemoStoreData } from "../../src/lib/paps/types";
+
+vi.mock("../../src/lib/teacher-auth", () => ({
+  requireTeacherRouteSession: vi.fn(async () => ({
+    ok: true as const,
+    session: {
+      email: "teacher@example.com",
+      name: "Teacher",
+      image: null
+    }
+  }))
+}));
+
+const seed: PAPSDemoStoreData = {
+  version: 1,
+  schools: [
+    {
+      id: "school-1",
+      name: "Alpha Elementary",
+      teacherIds: ["teacher-1"],
+      sheetUrl: "https://docs.google.com/spreadsheets/d/sheet-123/edit",
+      createdAt: "2026-03-23T09:00:00.000Z",
+      updatedAt: "2026-03-23T09:00:00.000Z"
+    }
+  ],
+  classes: [
+    {
+      id: "class-5-1",
+      schoolId: "school-1",
+      academicYear: 2026,
+      gradeLevel: 5,
+      classNumber: 1,
+      label: "5-1",
+      active: true
+    }
+  ],
+  teachers: [
+    {
+      id: "teacher-1",
+      schoolId: "school-1",
+      name: "Teacher",
+      email: "teacher@example.com",
+      createdAt: "2026-03-23T09:00:00.000Z",
+      updatedAt: "2026-03-23T09:00:00.000Z"
+    }
+  ],
+  students: [
+    {
+      id: "student-1",
+      schoolId: "school-1",
+      classId: "class-5-1",
+      studentNumber: 1,
+      name: "Kim",
+      sex: "female",
+      gradeLevel: 5,
+      active: true
+    },
+    {
+      id: "student-2",
+      schoolId: "school-1",
+      classId: "class-5-1",
+      studentNumber: 2,
+      name: "Lee",
+      sex: "male",
+      gradeLevel: 5,
+      active: true
+    }
+  ],
+  sessions: [
+    {
+      id: "practice-1",
+      schoolId: "school-1",
+      teacherId: "teacher-1",
+      academicYear: 2026,
+      name: "5-1 Shuttle Run Practice A",
+      gradeLevel: 5,
+      sessionType: "practice",
+      classScope: "single",
+      eventId: "shuttle-run",
+      classTargets: [{ classId: "class-5-1", eventId: "shuttle-run" }],
+      isOpen: false,
+      createdAt: "2026-03-23T09:00:00.000Z"
+    },
+    {
+      id: "practice-2",
+      schoolId: "school-1",
+      teacherId: "teacher-1",
+      academicYear: 2026,
+      name: "5-1 Shuttle Run Practice B",
+      gradeLevel: 5,
+      sessionType: "practice",
+      classScope: "single",
+      eventId: "shuttle-run",
+      classTargets: [{ classId: "class-5-1", eventId: "shuttle-run" }],
+      isOpen: false,
+      createdAt: "2026-03-23T10:00:00.000Z"
+    },
+    {
+      id: "official-1",
+      schoolId: "school-1",
+      teacherId: "teacher-1",
+      academicYear: 2026,
+      name: "5-1 Sit And Reach Official",
+      gradeLevel: 5,
+      sessionType: "official",
+      classScope: "single",
+      eventId: "sit-and-reach",
+      classTargets: [{ classId: "class-5-1", eventId: "sit-and-reach" }],
+      isOpen: false,
+      createdAt: "2026-03-23T11:00:00.000Z"
+    }
+  ],
+  attempts: [
+    {
+      id: "attempt-1",
+      sessionId: "practice-1",
+      studentId: "student-1",
+      eventId: "shuttle-run",
+      unit: "laps",
+      attemptNumber: 1,
+      measurement: 31,
+      createdAt: "2026-03-23T09:01:00.000Z"
+    },
+    {
+      id: "attempt-2",
+      sessionId: "practice-1",
+      studentId: "student-1",
+      eventId: "shuttle-run",
+      unit: "laps",
+      attemptNumber: 2,
+      measurement: 33,
+      createdAt: "2026-03-23T09:02:00.000Z"
+    },
+    {
+      id: "attempt-3",
+      sessionId: "practice-2",
+      studentId: "student-1",
+      eventId: "shuttle-run",
+      unit: "laps",
+      attemptNumber: 1,
+      measurement: 35,
+      createdAt: "2026-03-23T10:02:00.000Z"
+    },
+    {
+      id: "attempt-4",
+      sessionId: "official-1",
+      studentId: "student-2",
+      eventId: "sit-and-reach",
+      unit: "cm",
+      attemptNumber: 1,
+      measurement: 18,
+      createdAt: "2026-03-23T11:01:00.000Z"
+    },
+    {
+      id: "attempt-5",
+      sessionId: "official-1",
+      studentId: "student-2",
+      eventId: "sit-and-reach",
+      unit: "cm",
+      attemptNumber: 2,
+      measurement: 21,
+      createdAt: "2026-03-23T11:02:00.000Z"
+    }
+  ],
+  syncStatuses: [
+    {
+      id: "practice-2:student-1",
+      sessionId: "practice-2",
+      studentId: "student-1",
+      status: "failed",
+      attemptId: "attempt-3",
+      updatedAt: "2026-03-23T10:05:00.000Z"
+    },
+    {
+      id: "official-1:student-2",
+      sessionId: "official-1",
+      studentId: "student-2",
+      status: "synced",
+      attemptId: "attempt-5",
+      updatedAt: "2026-03-23T11:05:00.000Z"
+    }
+  ],
+  syncErrorLogs: [
+    {
+      id: "sync-error:practice-2:student-1:2026-03-23T10:05:00.000Z",
+      sessionId: "practice-2",
+      studentId: "student-1",
+      syncStatusId: "practice-2:student-1",
+      message: "Sheets write failed",
+      createdAt: "2026-03-23T10:05:00.000Z"
+    }
+  ],
+  representativeSelectionAuditLogs: [
+    {
+      id: "rep:practice-1:student-1:2026-03-23T09:03:00.000Z",
+      sessionId: "practice-1",
+      studentId: "student-1",
+      eventId: "shuttle-run",
+      previousAttemptId: null,
+      selectedAttemptId: "attempt-2",
+      changedByTeacherId: "teacher-1",
+      reason: "Best lap count",
+      createdAt: "2026-03-23T09:03:00.000Z"
+    },
+    {
+      id: "rep:practice-2:student-1:2026-03-23T10:03:00.000Z",
+      sessionId: "practice-2",
+      studentId: "student-1",
+      eventId: "shuttle-run",
+      previousAttemptId: null,
+      selectedAttemptId: "attempt-3",
+      changedByTeacherId: "teacher-1",
+      reason: "Latest practice record",
+      createdAt: "2026-03-23T10:03:00.000Z"
+    },
+    {
+      id: "rep:official-1:student-2:2026-03-23T11:03:00.000Z",
+      sessionId: "official-1",
+      studentId: "student-2",
+      eventId: "sit-and-reach",
+      previousAttemptId: "attempt-4",
+      selectedAttemptId: "attempt-5",
+      changedByTeacherId: "teacher-1",
+      reason: "Second attempt selected",
+      createdAt: "2026-03-23T11:03:00.000Z"
+    }
+  ]
+};
+
+const jsonRequest = (pathname: string, method: string, body?: unknown): NextRequest =>
+  new NextRequest(`http://localhost${pathname}`, {
+    method,
+    headers: {
+      "content-type": "application/json",
+      cookie: "paps-spreadsheet-id=sheet-123"
+    },
+    body: body === undefined ? undefined : JSON.stringify(body)
+  });
+
+describe("Google Sheet routes", () => {
+  beforeEach(async () => {
+    vi.resetModules();
+    const memoryStoreModule = await import("../../src/lib/store/paps-memory-store");
+    memoryStoreModule.resetRequestStore(seed);
+  });
+
+  afterEach(async () => {
+    const memoryStoreModule = await import("../../src/lib/store/paps-memory-store");
+    memoryStoreModule.resetRequestStore();
+    vi.clearAllMocks();
+  });
+
+  it("surfaces setup readiness when validating a sheet URL without service-account env", async () => {
+    const route = await import("../../app/api/google-sheet/validate/route");
+    const response = await route.POST(
+      jsonRequest("/api/google-sheet/validate", "POST", {
+        url: "https://docs.google.com/spreadsheets/d/sheet-123/edit"
+      })
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      status: "missing_service_account",
+      spreadsheetId: "sheet-123",
+      templateVersion: null,
+      prototypeTabs: PAPS_GOOGLE_SHEET_PROTOTYPE_TABS
+    });
+  });
+
+  it("builds app-derived payloads for file-store resync requests", async () => {
+    const route = await import("../../app/api/google-sheet/resync/route");
+    const response = await route.POST(
+      jsonRequest("/api/google-sheet/resync", "POST", {
+        spreadsheetUrl: "https://docs.google.com/spreadsheets/d/sheet-123/edit",
+        source: "file-store",
+        dryRun: true
+      })
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      dryRun: true,
+      updatedTabs: [],
+      request: {
+        spreadsheetId: "sheet-123",
+        data: expect.arrayContaining([
+          expect.objectContaining({
+            tabName: "설정",
+            values: expect.arrayContaining([
+              PAPS_GOOGLE_SHEET_PROTOTYPE_TABS[0]!.header
+            ])
+          }),
+          expect.objectContaining({
+            tabName: "학생요약"
+          })
+        ])
+      }
+    });
+  });
+
+  it("rejects manual tabs that do not match the prototype contract", async () => {
+    const route = await import("../../app/api/google-sheet/resync/route");
+    const response = await route.POST(
+      jsonRequest("/api/google-sheet/resync", "POST", {
+        spreadsheetUrl: "https://docs.google.com/spreadsheets/d/sheet-123/edit",
+        tabs: [
+          {
+            tabName: "설정",
+            header: ["항목", "값", "설명"],
+            rows: []
+          }
+        ]
+      })
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringContaining("prototype")
+    });
+  });
+
+  it("rejects resync attempts targeting a sheet other than the connected sheet", async () => {
+    const route = await import("../../app/api/google-sheet/resync/route");
+    const response = await route.POST(
+      jsonRequest("/api/google-sheet/resync", "POST", {
+        spreadsheetUrl: "https://docs.google.com/spreadsheets/d/sheet-other/edit",
+        source: "file-store",
+        dryRun: true
+      })
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: "연결된 구글 시트만 동기화할 수 있습니다."
+    });
+  });
+});

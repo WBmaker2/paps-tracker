@@ -22,12 +22,10 @@ export function StudentGrowthReport({
 
   if (!trimmedQuery) {
     return (
-      <section className="rounded-[1.75rem] border border-ink/10 bg-white p-5 shadow-sm">
+      <section className="min-w-0 rounded-[1.75rem] border border-ink/10 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-accent">
-              Student Growth
-            </p>
+            <p className="text-sm font-semibold text-accent">성장 기록</p>
             <h2 className="mt-1 text-lg font-semibold">학생별 성장 리포트</h2>
             <p className="mt-1 text-sm text-ink/70">
               학생 이름을 검색하면 종목별 누적 기록과 그래프가 이곳에 표시됩니다.
@@ -46,12 +44,10 @@ export function StudentGrowthReport({
   }
 
   return (
-    <section className="rounded-[1.75rem] border border-ink/10 bg-white p-5 shadow-sm">
+    <section className="min-w-0 rounded-[1.75rem] border border-ink/10 bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-accent">
-            Student Growth
-          </p>
+          <p className="text-sm font-semibold text-accent">성장 기록</p>
           <h2 className="mt-1 text-lg font-semibold">학생별 성장 리포트</h2>
           <p className="mt-1 text-sm text-ink/70">
             검색한 학생의 종목별 기록을 지난 세션까지 모아 표와 그래프로 보여줍니다.
@@ -77,7 +73,7 @@ export function StudentGrowthReport({
                 <button
                   key={candidate.studentId}
                   type="button"
-                  className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
+                  className={`min-h-11 rounded-full border px-4 py-2 text-sm font-medium transition ${
                     active
                       ? "border-accent/40 bg-accent/10 text-accent"
                       : "border-ink/15 bg-white text-ink"

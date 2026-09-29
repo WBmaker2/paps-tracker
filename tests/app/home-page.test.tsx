@@ -53,10 +53,10 @@ describe("home page", () => {
     );
     expect(screen.queryByRole("link", { name: /학생 입력 영역/ })).not.toBeInTheDocument();
     expect(
-      screen.getByText(/학생은 선생님이 열어 준 세션 링크 또는 QR 코드로 접속합니다\./)
+      screen.getByText(/선생님이 공유한 세션 링크나 QR 코드로 들어와 본인 이름을 선택하세요\./)
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/학생 입력 링크는 교사 홈에서 세션을 연 뒤 안내할 수 있습니다\./)
+      screen.getByText(/선생님이 공유한 세션 링크나 QR 코드로 들어와 본인 이름을 선택하세요\./)
     ).toBeInTheDocument();
 
     const links = screen.getAllByRole("link") as HTMLAnchorElement[];
@@ -68,9 +68,9 @@ describe("home page", () => {
 
     render(<HomePage />);
 
-    expect(screen.getByText("v1.2.1")).toBeInTheDocument();
+    expect(screen.getByText("v1.2.3")).toBeInTheDocument();
 
-    const trigger = screen.getByRole("button", { name: /Update info/i });
+    const trigger = screen.getByRole("button", { name: /업데이트 내역/i });
     trigger.focus();
     fireEvent.click(trigger);
 
@@ -84,7 +84,7 @@ describe("home page", () => {
 
     fireEvent.keyDown(closeButton, { key: "Tab" });
     expect(closeButton).toHaveFocus();
-    expect(screen.getAllByText("v1.2.1").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("v1.2.3").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/보안과 운영 기반 강화/)).toBeInTheDocument();
     expect(screen.getAllByText("2026-07-12").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("2026-03-24")).toBeInTheDocument();

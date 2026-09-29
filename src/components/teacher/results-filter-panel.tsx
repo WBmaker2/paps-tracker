@@ -30,7 +30,7 @@ export function ResultsFilterPanel({
       : options.classes.filter((classroom) => classroom.gradeLevel === value.grade);
 
   return (
-    <section className="rounded-[1.75rem] border border-ink/10 bg-white p-5 shadow-sm">
+    <section className="min-w-0 rounded-[1.75rem] border border-ink/10 bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
           <h2 className="text-lg font-semibold">검색 및 필터</h2>
@@ -41,7 +41,7 @@ export function ResultsFilterPanel({
         </div>
         <button
           type="button"
-          className="rounded-full border border-ink/15 px-4 py-2 text-sm font-medium"
+          className="min-h-11 rounded-full border border-ink/15 px-4 py-2 text-sm font-medium"
           onClick={onReset}
           aria-label="상단 필터 초기화"
         >
@@ -149,7 +149,7 @@ export function ResultsFilterPanel({
                 <button
                   key={sessionType.value}
                   type="button"
-                  className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
+                  className={`min-h-11 rounded-full border px-4 py-2 text-sm font-medium transition ${
                     active
                       ? "border-accent/40 bg-accent/10 text-accent"
                       : "border-ink/15 text-ink"
