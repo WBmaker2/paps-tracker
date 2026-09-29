@@ -24,12 +24,13 @@ import {
 import { GOOGLE_SHEET_SERVICE_ACCOUNT_ERROR } from "./sheet-connection-status";
 import {
   deleteGoogleSheetClass,
-  deleteGoogleSheetSession,
+  deleteGoogleSheetSessions,
   deleteGoogleSheetStudent,
   saveGoogleSheetClass,
   saveGoogleSheetSchool,
   saveGoogleSheetSession,
   saveGoogleSheetSessions,
+  replaceGoogleSheetSessions,
   saveGoogleSheetStudent
 } from "./sheet-entity-persistence";
 import {
@@ -250,30 +251,53 @@ export const createGoogleSheetsStoreForRequest = async (
   };
 
   const saveSession = async (session: PAPSSession): Promise<PAPSSession> => {
+    const state = await getState();
     return saveGoogleSheetSession({
       client,
       spreadsheetId: input.spreadsheetId,
-      state: await getState(),
+      state,
       session
+    }).then((saved) => {
+      state.sessions = [...state.sessions.filter((entry) => entry.id !== saved.id), saved];
+      return saved;
     });
   };
 
   const saveSessions = async (sessions: PAPSSession[]): Promise<PAPSSession[]> => {
-    return saveGoogleSheetSessions({
+    const state = await getState();
+    const saved = await saveGoogleSheetSessions({
       client,
       spreadsheetId: input.spreadsheetId,
-      state: await getState(),
+      state,
       sessions
     });
+    const ids = new Set(saved.map((entry) => entry.id));
+    state.sessions = [...state.sessions.filter((entry) => !ids.has(entry.id)), ...saved];
+    return saved;
+  };
+
+  const replaceSessions = async (sessions: PAPSSession[], deleteSessionIds: string[]): Promise<PAPSSession[]> => {
+    const state = await getState();
+    const saved = await replaceGoogleSheetSessions({ client, spreadsheetId: input.spreadsheetId, state, sessions, deleteSessionIds });
+    const replacedIds = new Set([...saved.map((entry) => entry.id), ...deleteSessionIds]);
+    state.sessions = [...state.sessions.filter((entry) => !replacedIds.has(entry.id)), ...saved];
+    return saved;
   };
 
   const deleteSession = async (sessionId: string): Promise<void> => {
-    await deleteGoogleSheetSession({
+    await deleteSessions([sessionId]);
+  };
+
+  const deleteSessions = async (sessionIds: string[]): Promise<void> => {
+    const state = await getState();
+    await deleteGoogleSheetSessions({
       client,
       spreadsheetId: input.spreadsheetId,
-      state: await getState(),
-      sessionId
+      state,
+      sessionIds
     });
+    const ids = new Set(sessionIds);
+    state.sessions = state.sessions.filter((entry) => !ids.has(entry.id));
   };
 
   const listSessionRecords = async (sessionId: string): Promise<PAPSAttemptRecord[]> =>
@@ -344,7 +368,9 @@ export const createGoogleSheetsStoreForRequest = async (
     getSession,
     saveSession,
     saveSessions,
+    replaceSessions,
     deleteSession,
+    deleteSessions,
     getStudentSessionView,
     getStudentSessionGroupView,
     listSessionRecords,

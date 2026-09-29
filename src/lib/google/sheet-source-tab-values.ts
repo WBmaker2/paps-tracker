@@ -220,8 +220,8 @@ const buildSettingsRows = (input: {
         session.id,
         session.isOpen === false ? "N" : "Y",
         session.createdAt ?? toIsoNow(),
-        "",
-        ""
+        session.archivedAt ?? "",
+        session.isOpenBeforeArchive === undefined ? "" : session.isOpenBeforeArchive ? "Y" : "N"
       ],
       ...session.classTargets.map((target, index) => [
         SETTINGS_MACHINE_ROW_LABELS.sessionTarget,

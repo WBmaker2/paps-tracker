@@ -87,6 +87,7 @@ const buildStudentSessionView = (
   sessionId: string
 ): StudentSessionView => {
   const session = store.getSession(sessionId);
+  if (session.archivedAt) throw new Error(`Session ${sessionId} is archived.`);
   const activeStudents = store.listStudents().filter((student) => student.active !== false);
   const classSections = session.classTargets.map((classTarget) => {
     const classroom = store.getClass(classTarget.classId);
@@ -122,7 +123,7 @@ const buildStudentSessionGroupView = (
 ): StudentSessionGroupView => {
   const sessions = store
     .listSessions()
-    .filter((session) => session.sessionGroupId === sessionGroupId)
+    .filter((session) => session.sessionGroupId === sessionGroupId && !session.archivedAt)
     .sort(
       (left, right) =>
         (left.sessionGroupOrder ?? 0) - (right.sessionGroupOrder ?? 0) ||
@@ -168,7 +169,9 @@ export const createStoreForRequest = async (): Promise<PapsStore> => {
     getSession: demoStore.getSession,
     saveSession: demoStore.saveSession,
     saveSessions: demoStore.saveSessions,
+    replaceSessions: demoStore.replaceSessions,
     deleteSession: demoStore.deleteSession,
+    deleteSessions: demoStore.deleteSessions,
     appendAttempt: demoStore.appendAttempt,
     updateAttempt: demoStore.updateAttempt,
     listSessionRecords: demoStore.listSessionRecords,

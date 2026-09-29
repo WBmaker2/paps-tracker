@@ -149,6 +149,7 @@ export const appendStudentSubmissionToSheet = async (input: {
       teacherEmail: STUDENT_RUNTIME_EMAIL
     });
     const session = state.sessions.find((entry) => entry.id === input.sessionId);
+    if (session?.archivedAt) throw new Error("Session is archived.");
 
     if (!session) {
       throw new Error(`Session ${input.sessionId} was not found.`);
@@ -327,6 +328,7 @@ export const updateStudentSubmissionInSheet = async (input: {
       teacherEmail: STUDENT_RUNTIME_EMAIL
     });
     const session = state.sessions.find((entry) => entry.id === input.sessionId);
+    if (session?.archivedAt) throw new Error("Session is archived.");
 
     if (!session) {
       throw new Error(`Session ${input.sessionId} was not found.`);

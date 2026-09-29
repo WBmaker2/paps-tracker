@@ -398,6 +398,8 @@ const buildStructuredSessions = (rowsByLabel: Map<string, string[][]>): PAPSSess
             }
           : {}),
         isOpen: (statusRow?.[2] ?? "Y") !== "N",
+        archivedAt: statusRow?.[4]?.trim() ? normalizeIsoValue(statusRow[4]) : undefined,
+        isOpenBeforeArchive: statusRow?.[5] === "Y" ? true : statusRow?.[5] === "N" ? false : undefined,
         createdAt: normalizeIsoValue(statusRow?.[3])
       } satisfies PAPSSession;
     });

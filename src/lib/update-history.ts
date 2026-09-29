@@ -6,9 +6,20 @@ export type UpdateHistoryEntry = {
   highlights: string[];
 };
 
-export const APP_VERSION = "v1.2.3";
+export const APP_VERSION = "v1.2.4";
 
 export const UPDATE_HISTORY: UpdateHistoryEntry[] = [
+  {
+    version: "v1.2.4",
+    date: "2026-09-29",
+    title: "교사 세션 수정과 보관 복원",
+    summary: "기록이 있는 종목을 보호하면서 세션 종목 편집과 안전한 삭제·복원을 지원합니다.",
+    highlights: [
+      "측정 기록이 있는 세션은 기록을 보존한 채 보관하고, 교사 화면에서 묶음으로 복원할 수 있습니다.",
+      "기록이 없는 세션은 설정에서 제거하며, 그룹 수정·삭제 뒤 시트 재조회에도 최신 설정을 유지합니다.",
+      "학생 기록이 연결된 종목의 구조 변경은 서버에서 막고 새 종목 추가와 기록 없는 종목 제거를 허용합니다."
+    ]
+  },
   {
     version: "v1.2.3",
     date: "2026-09-29",

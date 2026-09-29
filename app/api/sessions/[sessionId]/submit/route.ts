@@ -103,6 +103,7 @@ const buildLocalRoundExtras = (store: Awaited<ReturnType<typeof createStoreForRe
   const factors = FOUR_FACTOR_IDS.map((factorId) => {
     const sessionId = round.sessionIdsByFactor[factorId];
     const session = store.getSession(sessionId);
+
     const record = store.listSessionRecords(sessionId).find((entry) => entry.studentId === studentId);
     const event = getEventDefinition(session.eventId);
     return { factorId, eventId: session.eventId, eventLabel: event.label, complete: (record?.attempts.length ?? 0) > 0 };
@@ -162,6 +163,8 @@ export async function POST(request: NextRequest, context: SubmitRouteContext) {
 
     const store = await createStoreForRequest();
     const session = store.getSession(sessionId);
+
+    if (session.archivedAt) return NextResponse.json({ error: "Session is archived." }, { status: 409 });
 
     if (session.isOpen === false) {
       return NextResponse.json(
@@ -353,6 +356,8 @@ export async function PATCH(request: NextRequest, context: SubmitRouteContext) {
 
     const store = await createStoreForRequest();
     const session = store.getSession(sessionId);
+
+    if (session.archivedAt) return NextResponse.json({ error: "Session is archived." }, { status: 409 });
 
     if (session.isOpen === false) {
       return NextResponse.json(

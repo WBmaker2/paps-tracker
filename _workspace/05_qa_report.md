@@ -1,3 +1,15 @@
+# QA 보고서: v1.2.4 교사 세션 수정·삭제 및 전체 테스트 종료 수정
+
+## v1.2.4 릴리스 게이트 (2026-09-29)
+
+- 전체 테스트 종료 문제: `SessionStatusList`가 렌더마다 새로운 기본 `archivedSessions=[]`를 만들어 effect가 상태 갱신과 재렌더를 반복했습니다. 안정된 빈 배열 상수로 기본값을 고정했습니다.
+- 재현·수정 검증: Node.js 22 런타임 `/private/tmp/paps-release-runtime/node_modules/node/bin/node`에서 `npm run test:ci` 종료 코드 0, 85개 파일·349개 테스트 통과.
+- `npm run lint`, `npm run typecheck`, `npm run build`, `npm run audit:prod`, `git diff --check`: 모두 통과.
+- 세션 수정·삭제: 기존 측정 시도가 있는 세션은 기록을 보존하며 보관하고, 기록이 없는 세션만 설정에서 삭제합니다. 보관 세션 복원을 지원합니다.
+- Google Sheets 데이터 경계: 이번 릴리스 준비와 검증에서 운영 Google Sheets에 쓰기를 수행하지 않았습니다. 기존 학생 측정 행·기록은 수정·삭제하지 않았습니다.
+- 범위 검토: 지정 변경 코드 파일은 모두 500줄 미만입니다.
+- 커밋·푸시·Production 배포 후 주소와 배포 증거를 아래에 추가합니다.
+
 # QA 보고서: v1.2.3 학생·교사 UX 및 기록 보존 개선
 
 ## v1.2.3 현재 릴리스 게이트 (2026-09-29)

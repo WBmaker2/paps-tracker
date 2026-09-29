@@ -16,6 +16,7 @@ import {
 export interface TeacherSessionWorkspaceProps {
   classes: PAPSClassroom[];
   sessions: PAPSSession[];
+  archivedSessions?: PAPSSession[];
   studentSessionUrls?: Record<string, string>;
   defaultTeacherId?: string;
   defaultSchoolId?: string;
@@ -25,18 +26,22 @@ export interface TeacherSessionWorkspaceProps {
   submittedSessionIds?: string[];
 }
 
+const EMPTY_SESSIONS: PAPSSession[] = [];
+const EMPTY_SESSION_IDS: string[] = [];
+
 export function TeacherSessionWorkspace({
   classes,
   sessions,
+  archivedSessions = EMPTY_SESSIONS,
   studentSessionUrls,
   defaultTeacherId,
   defaultSchoolId,
   showRecentSessions = true,
   sheetConnected = true,
   sheetStatus,
-  submittedSessionIds = []
+  submittedSessionIds = EMPTY_SESSION_IDS
 }: TeacherSessionWorkspaceProps) {
-  const [sessionItems, setSessionItems] = useState(() => sortSessionsByRecency(sessions));
+  const [sessionItems, setSessionItems] = useState(() => sortSessionsByRecency(sessions.filter((session) => !session.archivedAt)));
   const [sessionUrlItems, setSessionUrlItems] = useState(studentSessionUrls ?? {});
   const [editingSession, setEditingSession] = useState<SessionFormDraft | null>(null);
   const editReturnTarget = useRef<HTMLElement | null>(null);
@@ -122,11 +127,14 @@ export function TeacherSessionWorkspace({
             ? editingSession.sessionIds.some((sessionId) => submittedSessionIdSet.has(sessionId))
             : false
         }
+        protectedEventIds={sessionItems.filter((session) => editingSession?.sessionIds.includes(session.id) && submittedSessionIdSet.has(session.id)).map((session) => session.eventId)}
+        hasDuplicateEvents={sessionItems.filter((session) => editingSession?.sessionIds.includes(session.id)).some((session, _, group) => group.filter((entry) => entry.eventId === session.eventId).length > 1)}
         onCancelEdit={handleCancelEdit}
       />
       <div className="space-y-6">
         <SessionStatusList
           sessions={sessionItems}
+          archivedSessions={archivedSessions}
           studentSessionUrls={sessionUrlItems}
           onUpdated={handleUpdated}
           onEdit={handleEdit}

@@ -122,6 +122,7 @@ const buildStudentSessionView = (
   if (!session) {
     throw new Error(`Session ${sessionId} was not found.`);
   }
+  if (session.archivedAt) throw new Error(`Session ${sessionId} is archived.`);
 
   const activeStudents = state.allStudents.filter((student) => student.active !== false);
   const classSections = session.classTargets.map((classTarget) => {
@@ -179,7 +180,7 @@ export const loadStudentSessionGroupViewFromSheet = async (input: {
     teacherEmail: STUDENT_RUNTIME_EMAIL
   });
   const sessions = state.sessions
-    .filter((session) => session.sessionGroupId === input.sessionGroupId)
+    .filter((session) => session.sessionGroupId === input.sessionGroupId && !session.archivedAt)
     .sort(
       (left, right) =>
         (left.sessionGroupOrder ?? 0) - (right.sessionGroupOrder ?? 0) ||

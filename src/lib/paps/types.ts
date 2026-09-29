@@ -61,6 +61,8 @@ export interface PAPSSession {
   academicYear?: number;
   name?: string;
   isOpen?: boolean;
+  archivedAt?: string;
+  isOpenBeforeArchive?: boolean;
   createdAt?: string;
   /** Explicit link used only by four-factor assessment rounds. */
   assessmentRoundId?: string;

@@ -34,6 +34,8 @@ export interface TeacherSheetsStore {
   saveSession(session: PAPSSession): Promise<PAPSSession>;
   saveSessions(sessions: PAPSSession[]): Promise<PAPSSession[]>;
   deleteSession(sessionId: string): Promise<void>;
+  deleteSessions(sessionIds: string[]): Promise<void>;
+  replaceSessions(sessions: PAPSSession[], deleteSessionIds: string[]): Promise<PAPSSession[]>;
   getStudentSessionView(sessionId: string): Promise<StudentSessionView>;
   getStudentSessionGroupView(sessionGroupId: string): Promise<StudentSessionGroupView>;
   listSessionRecords(sessionId: string): MaybePromise<PAPSAttemptRecord[]>;

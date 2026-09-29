@@ -36,11 +36,13 @@ export function EventSessionFields({
   events,
   selectedEventIds,
   disabled,
+  lockedEventIds = [],
   onToggle
 }: {
   events: EventOption[];
   selectedEventIds: EventId[];
   disabled?: boolean;
+  lockedEventIds?: EventId[];
   onToggle: (eventId: EventId, checked: boolean) => void;
 }) {
   return (
@@ -50,7 +52,7 @@ export function EventSessionFields({
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         {events.map((eventDefinition) => (
           <label key={eventDefinition.id} className="flex items-center gap-2 rounded-xl border border-ink/10 px-3 py-2 text-sm">
-            <input type="checkbox" checked={selectedEventIds.includes(eventDefinition.id)} disabled={disabled} onChange={(event) => onToggle(eventDefinition.id, event.target.checked)} />
+            <input type="checkbox" checked={selectedEventIds.includes(eventDefinition.id)} disabled={disabled || lockedEventIds.includes(eventDefinition.id)} onChange={(event) => onToggle(eventDefinition.id, event.target.checked)} />
             {eventDefinition.label}
           </label>
         ))}

@@ -212,11 +212,18 @@ export const saveGoogleSheetSessions = async ({
   state: GoogleSheetStructuredState;
   sessions: PAPSSession[];
 }): Promise<PAPSSession[]> => {
-  const nextSessionIds = new Set(nextSessions.map((session) => session.id));
-  const sessions = [
-    ...state.sessions.filter((entry) => !nextSessionIds.has(entry.id)),
-    ...nextSessions
-  ];
+  return replaceGoogleSheetSessions({ client, spreadsheetId, state, sessions: nextSessions, deleteSessionIds: [] });
+};
+
+export const replaceGoogleSheetSessions = async ({ client, spreadsheetId, state, sessions: nextSessions, deleteSessionIds }: {
+  client: Pick<GoogleSheetsClient, "updateRange">;
+  spreadsheetId: string;
+  state: GoogleSheetStructuredState;
+  sessions: PAPSSession[];
+  deleteSessionIds: string[];
+}): Promise<PAPSSession[]> => {
+  const replacedIds = new Set([...nextSessions.map((session) => session.id), ...deleteSessionIds]);
+  const sessions = [...state.sessions.filter((entry) => !replacedIds.has(entry.id)), ...nextSessions];
 
   await writeGoogleSheetSettingsSourceTab({
     client,
@@ -244,6 +251,21 @@ export const deleteGoogleSheetSession = async ({
   state: GoogleSheetStructuredState;
   sessionId: string;
 }): Promise<void> => {
+  await deleteGoogleSheetSessions({ client, spreadsheetId, state, sessionIds: [sessionId] });
+};
+
+export const deleteGoogleSheetSessions = async ({
+  client,
+  spreadsheetId,
+  state,
+  sessionIds
+}: {
+  client: Pick<GoogleSheetsClient, "updateRange">;
+  spreadsheetId: string;
+  state: GoogleSheetStructuredState;
+  sessionIds: string[];
+}): Promise<void> => {
+  const ids = new Set(sessionIds);
   await writeGoogleSheetSettingsSourceTab({
     client,
     spreadsheetId,
@@ -251,7 +273,7 @@ export const deleteGoogleSheetSession = async ({
       school: state.school,
       classes: state.classes,
       teachers: state.teachers,
-      sessions: state.sessions.filter((entry) => entry.id !== sessionId),
+      sessions: state.sessions.filter((entry) => !ids.has(entry.id)),
       assessmentRounds: state.assessmentRounds
     }
   });

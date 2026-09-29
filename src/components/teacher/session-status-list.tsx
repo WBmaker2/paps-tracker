@@ -12,6 +12,7 @@ import {
 
 export interface SessionStatusListProps {
   sessions: PAPSSession[];
+  archivedSessions?: PAPSSession[];
   studentSessionUrls?: Record<string, string>;
   onUpdated?: (session: PAPSSession) => void;
   onEdit?: (sessions: PAPSSession[]) => void;
@@ -20,8 +21,11 @@ export interface SessionStatusListProps {
   description?: string;
 }
 
+const EMPTY_SESSIONS: PAPSSession[] = [];
+
 export function SessionStatusList({
   sessions,
+  archivedSessions = EMPTY_SESSIONS,
   studentSessionUrls,
   onUpdated,
   onEdit,
@@ -30,12 +34,46 @@ export function SessionStatusList({
   description = "최근 생성 순으로 확인하고 열기와 닫기를 바로 전환할 수 있습니다."
 }: SessionStatusListProps) {
   const [items, setItems] = useState(sessions);
+  const [archivedItems, setArchivedItems] = useState(archivedSessions);
   const [message, setMessage] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
   useEffect(() => {
     setItems(sessions);
   }, [sessions]);
+
+  useEffect(() => setArchivedItems(archivedSessions), [archivedSessions]);
+
+  const removeSessions = (target: PAPSSession[]) => {
+    const label = target[0]?.sessionGroupName ?? target[0]?.name ?? "세션";
+    if (!window.confirm(`'${label}' 세션을 목록에서 제거하시겠습니까? 기록이 있는 세션은 보관되어 복원할 수 있습니다.`)) return;
+    startTransition(async () => {
+      try {
+        const response = await fetch(`/api/sessions/${target[0]!.id}`, { method: "DELETE", headers: buildTeacherMutationHeaders() });
+        const payload = (await response.json()) as { error?: string; action?: string; affectedSessionIds?: string[] };
+        if (!response.ok) throw new Error(payload.error ?? "세션을 제거하지 못했습니다.");
+        const ids = new Set(payload.affectedSessionIds ?? target.map((entry) => entry.id));
+        const changed = items.filter((entry) => ids.has(entry.id));
+        setItems((current) => current.filter((entry) => !ids.has(entry.id)));
+        if (payload.action === "archived") setArchivedItems((current) => [...current, ...changed.map((entry) => ({ ...entry, isOpenBeforeArchive: entry.isOpen !== false, isOpen: false, archivedAt: new Date().toISOString() }))]);
+        setMessage(payload.action === "archived" ? "기록을 보존해 세션을 보관했습니다. 아래 보관 목록에서 복원할 수 있습니다." : "세션을 삭제했습니다.");
+        notifyTeacherDataRefresh({ refresh: true, nextVersion: null });
+      } catch (error) { setMessage(error instanceof Error ? error.message : "세션을 제거하지 못했습니다."); }
+    });
+  };
+
+  const restoreSession = (session: PAPSSession) => startTransition(async () => {
+    try {
+      const response = await fetch(`/api/sessions/${session.id}`, { method: "PATCH", headers: buildTeacherMutationHeaders({ "content-type": "application/json" }), body: JSON.stringify({ restore: true }) });
+      const payload = (await response.json()) as { error?: string; sessions?: PAPSSession[] };
+      if (!response.ok || !payload.sessions) throw new Error(payload.error ?? "복원하지 못했습니다.");
+      const ids = new Set(payload.sessions.map((entry) => entry.id));
+      setArchivedItems((current) => current.filter((entry) => !ids.has(entry.id)));
+      setItems((current) => [...current.filter((entry) => !ids.has(entry.id)), ...payload.sessions!]);
+      setMessage("세션을 복원했습니다.");
+      notifyTeacherDataRefresh({ refresh: true, nextVersion: null });
+    } catch (error) { setMessage(error instanceof Error ? error.message : "복원하지 못했습니다."); }
+  });
 
   const toggleOpen = (session: PAPSSession) => {
     setMessage(null);
@@ -190,6 +228,7 @@ export function SessionStatusList({
                     >
                       {item.sessions.some((session) => session.isOpen !== false) ? "닫기" : "열기"}
                     </button>
+                    <button type="button" className="min-h-12 rounded-full border border-red-200 px-5 py-3 text-sm font-semibold text-red-700" onClick={() => removeSessions(item.sessions)}>삭제</button>
                   </div>
                 </>
               ) : (
@@ -231,6 +270,7 @@ export function SessionStatusList({
                     >
                       {item.session.isOpen ? "닫기" : "열기"}
                     </button>
+                    <button type="button" className="min-h-12 rounded-full border border-red-200 px-5 py-3 text-sm font-semibold text-red-700" onClick={() => removeSessions([item.session])}>삭제</button>
                   </div>
                 </>
               )}
@@ -242,6 +282,7 @@ export function SessionStatusList({
           </div>
         )}
       </div>
+      {archivedItems.length > 0 ? <div className="mt-5 border-t border-ink/10 pt-4"><h3 className="font-semibold">보관된 세션</h3><ul className="mt-2 space-y-2">{buildSessionListItems(archivedItems).map((entry) => <li key={entry.id} className="flex items-center justify-between rounded-xl bg-canvas px-4 py-3 text-sm"><span>{entry.kind === "group" ? entry.name : entry.session.name}</span><button type="button" className="rounded-full border border-ink/15 px-4 py-2 font-semibold" onClick={() => restoreSession(entry.kind === "group" ? entry.sessions[0]! : entry.session)}>복원</button></li>)}</ul></div> : null}
     </section>
   );
 }

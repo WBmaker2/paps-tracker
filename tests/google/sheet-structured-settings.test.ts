@@ -42,7 +42,7 @@ describe("Google Sheet structured settings parser", () => {
           "5-1 Shuttle Run"
         ],
         ["__PAPS_SESSION_META", "session-1", "5", "practice", "single", "shuttle-run"],
-        ["__PAPS_SESSION_STATUS", "session-1", "Y", "2026-03-24T09:00:00.000Z", "", ""],
+        ["__PAPS_SESSION_STATUS", "session-1", "N", "2026-03-24T09:00:00.000Z", "2026-09-29T10:00:00.000Z", "Y"],
         ["__PAPS_SESSION_TARGET", "session-1", "class-5-1", "shuttle-run", "0", ""]
       ],
       spreadsheetId: "sheet-123",
@@ -71,6 +71,8 @@ describe("Google Sheet structured settings parser", () => {
       expect.objectContaining({
         id: "session-1",
         eventId: "shuttle-run",
+        archivedAt: "2026-09-29T10:00:00.000Z",
+        isOpenBeforeArchive: true,
         classTargets: [{ classId: "class-5-1", eventId: "shuttle-run" }]
       })
     ]);

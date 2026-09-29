@@ -1,3 +1,28 @@
+# 릴리스 체크리스트: v1.2.4
+
+## 로컬 릴리스 게이트 — 2026-09-29
+
+- [x] 전체 테스트 종료 원인 수정: `SessionStatusList` 기본 보관 세션 배열을 안정 상수로 지정
+- [x] Node.js 22에서 `npm run test:ci` 종료 코드 0 — 85개 파일·349개 테스트
+- [x] `npm run lint` 통과
+- [x] `npm run typecheck` 통과
+- [x] `npm run build` 통과
+- [x] `npm run audit:prod` 통과
+- [x] `git diff --check` 통과
+- [x] `package.json` 및 `package-lock.json` 버전 `1.2.4` 일치
+- [x] 기존 측정 기록 보존 경계 검토: 운영 Google Sheets 쓰기 0건, 학생 측정 기록 변경 0건
+- [x] 롤백 지점: 배포 대상 커밋 직전 Production 배포 이력
+- [ ] 지정 파일만 커밋 및 현재 브랜치 푸시
+- [ ] Vercel Production 배포 및 배포 주소 확인
+
+## 배포 후 확인
+
+- 배포 주소: 배포 완료 후 기록
+- 커밋 SHA: 커밋 완료 후 기록
+- 공개 경로 확인: Vercel 배포 skill 지침에 따라 URL을 제공하고 직접 fetch/curl 확인은 하지 않음
+
+---
+
 # 릴리스 체크리스트: v1.2.3
 
 ## 로컬 릴리스 게이트 — 2026-09-29

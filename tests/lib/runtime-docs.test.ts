@@ -24,7 +24,7 @@ describe("runtime docs", () => {
     expect(readme).not.toContain("MVP Limitations");
   });
 
-  it("documents the public update history from MVP to v1.2.3", () => {
+  it("documents the public update history from MVP to v1.2.4", () => {
     const updateHistory = readFileSync(join(projectRoot, "docs", "update-history.md"), "utf8");
     const updateHistorySource = readFileSync(join(projectRoot, "src", "lib", "update-history.ts"), "utf8");
 
@@ -43,6 +43,6 @@ describe("runtime docs", () => {
     expect(updateHistory).toContain("초기 MVP");
     expect(updateHistory).toContain("v1.2.1");
     expect(updateHistory).toContain("운영 의존성 보안 패치");
-    expect(updateHistorySource).toContain('APP_VERSION = "v1.2.3"');
+    expect(updateHistorySource).toContain('APP_VERSION = "v1.2.4"');
   });
 });

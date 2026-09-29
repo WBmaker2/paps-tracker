@@ -201,6 +201,8 @@ describe("Google Sheet source tab values", () => {
           sessionGroupName: "3월",
           sessionGroupOrder: 0,
           isOpen: true,
+          archivedAt: "2026-09-29T10:00:00.000Z",
+          isOpenBeforeArchive: true,
           createdAt: "2026-03-23T09:10:00.000Z"
         },
         {
@@ -234,6 +236,9 @@ describe("Google Sheet source tab values", () => {
     expect(values.filter((row) => row[0] === "__PAPS_SESSION_GROUP_ITEM")).toEqual([
       ["__PAPS_SESSION_GROUP_ITEM", "group-1", "session-grip", "0", "grip-strength", ""],
       ["__PAPS_SESSION_GROUP_ITEM", "group-1", "session-jump", "1", "standing-long-jump", ""]
+    ]);
+    expect(values.find((row) => row[0] === "__PAPS_SESSION_STATUS" && row[1] === "session-grip")).toEqual([
+      "__PAPS_SESSION_STATUS", "session-grip", "Y", "2026-03-23T09:10:00.000Z", "2026-09-29T10:00:00.000Z", "Y"
     ]);
     expect(
       values.findIndex((row) => row[0] === "__PAPS_SESSION_GROUP")

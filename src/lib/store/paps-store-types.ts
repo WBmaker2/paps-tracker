@@ -113,6 +113,8 @@ export interface PapsStore {
   saveSession(session: PAPSSession): PAPSSession;
   saveSessions(sessions: PAPSSession[]): PAPSSession[];
   deleteSession(sessionId: string): void;
+  deleteSessions(sessionIds: string[]): void;
+  replaceSessions(sessions: PAPSSession[], deleteSessionIds: string[]): PAPSSession[];
   appendAttempt(input: AppendAttemptInput): PAPSAttemptRecord;
   updateAttempt(input: UpdateAttemptInput): PAPSAttemptRecord;
   listSessionRecords(sessionId: string): PAPSAttemptRecord[];

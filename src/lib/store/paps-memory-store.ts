@@ -1,5 +1,4 @@
 import { getEventDefinition } from "../paps/catalog";
-
 import { assertAttemptInputAllowed, validateSession } from "../paps/validation";
 import type {
   PAPSAttemptRecord,
@@ -20,9 +19,7 @@ import { createRecordReadOperations } from "./paps-memory-record-read";
 import type { AppendAttemptInput, RecordSelector, SelectRepresentativeAttemptInput, SetSyncStatusInput, UpdateAttemptInput } from "./paps-memory-store-types";
 export type { AppendAttemptInput, RecordSelector, SelectRepresentativeAttemptInput, SetSyncStatusInput, UpdateAttemptInput } from "./paps-memory-store-types";
 import { createDefaultPapsStoreSeed, createEmptyPapsStoreData, validatePapsStoreData } from "./paps-memory-store-seed";
-
 export { createDefaultPapsStoreSeed, createEmptyPapsStoreData, validatePapsStoreData } from "./paps-memory-store-seed";
-
 const getRecordId = ({ sessionId, studentId }: RecordSelector): string => `${sessionId}:${studentId}`;
 
 const cloneValue = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
@@ -206,19 +203,28 @@ export const createPapsMemoryStore = (seedData: PAPSDemoStoreData = createDefaul
     return cloneValue(normalizedSessions);
   };
 
-  const deleteSession = (sessionId: string): void => {
+  const replaceSessions = (sessions: PAPSSession[], deleteSessionIds: string[]): PAPSSession[] => {
+    const normalized = sessions.map(normalizeSession);
+    const replacedIds = new Set([...normalized.map((session) => session.id), ...deleteSessionIds]);
+    const current = ensureState();
+    writeState({ ...current, sessions: [...current.sessions.filter((entry) => !replacedIds.has(entry.id)), ...normalized] }); return cloneValue(normalized);
+  };
+
+  const deleteSessions = (sessionIds: string[]): void => {
+    const ids = new Set(sessionIds);
     const currentState = ensureState();
     writeState({
       ...currentState,
-      sessions: currentState.sessions.filter((entry) => entry.id !== sessionId),
-      attempts: currentState.attempts.filter((entry) => entry.sessionId !== sessionId),
-      syncStatuses: currentState.syncStatuses.filter((entry) => entry.sessionId !== sessionId),
-      syncErrorLogs: currentState.syncErrorLogs.filter((entry) => entry.sessionId !== sessionId),
+      sessions: currentState.sessions.filter((entry) => !ids.has(entry.id)),
+      attempts: currentState.attempts.filter((entry) => !ids.has(entry.sessionId)),
+      syncStatuses: currentState.syncStatuses.filter((entry) => !ids.has(entry.sessionId)),
+      syncErrorLogs: currentState.syncErrorLogs.filter((entry) => !ids.has(entry.sessionId)),
       representativeSelectionAuditLogs: currentState.representativeSelectionAuditLogs.filter(
-        (entry) => entry.sessionId !== sessionId
+        (entry) => !ids.has(entry.sessionId)
       )
     });
   };
+  const deleteSession = (sessionId: string): void => deleteSessions([sessionId]);
 
   const appendAttempt = (input: AppendAttemptInput): PAPSAttemptRecord => {
     const session = getSession(input.sessionId);
@@ -444,7 +450,9 @@ export const createPapsMemoryStore = (seedData: PAPSDemoStoreData = createDefaul
     listSessions: (): PAPSSession[] => cloneValue(ensureState().sessions),
     saveSession,
     saveSessions,
+    replaceSessions,
     deleteSession,
+    deleteSessions,
     getSession,
     getSchool,
     getClass,

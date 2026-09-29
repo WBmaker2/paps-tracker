@@ -23,6 +23,8 @@ export interface SessionFormProps {
   sheetStatus?: TeacherSheetStatus;
   editingSession?: SessionFormDraft | null;
   hasSubmittedRecords?: boolean;
+  protectedEventIds?: EventId[];
+  hasDuplicateEvents?: boolean;
   onCancelEdit?: () => void;
 }
 
@@ -35,6 +37,8 @@ export function SessionForm({
   sheetStatus,
   editingSession = null,
   hasSubmittedRecords = false,
+  protectedEventIds = [],
+  hasDuplicateEvents = false,
   onCancelEdit
 }: SessionFormProps) {
   const [isPending, startTransition] = useTransition();
@@ -374,10 +378,10 @@ export function SessionForm({
       ) : null}
       {isStructureLocked ? (
         <div className="mb-4 rounded-2xl border border-amber-300/70 bg-amber-50 px-4 py-3 text-sm text-ink/80">
-          이미 학생 기록이 있는 세션이라서 이름만 수정할 수 있습니다. 종목, 운영 방식, 반 구성은
-          바꿀 수 없습니다.
+          기록이 있는 종목은 삭제하거나 유형·반 구성을 바꿀 수 없습니다. 기록이 없는 종목은 제거하고 새 종목을 추가할 수 있습니다.
         </div>
       ) : null}
+      {isEditing && hasDuplicateEvents ? <div className="mb-4 rounded-2xl border border-sky-300/70 bg-sky-50 px-4 py-3 text-sm text-ink/80">기존 세션에 같은 측정 종목이 여러 개 연결되어 있습니다. 체크 항목은 종목 종류별로 한 번 표시되며, 저장해도 기존 중복 세션은 보존됩니다.</div> : null}
       <div className="grid gap-4 md:grid-cols-2">
         <label className="flex flex-col gap-2 text-sm">
           세션 이름
@@ -460,7 +464,7 @@ export function SessionForm({
             </select>
           </label>
         ) : null}
-        {creationMode === "four-factor" ? null : <EventSessionFields events={eligibleEvents} selectedEventIds={selectedEventIds} disabled={isStructureLocked} onToggle={(eventId, checked) => setSelectedEventIds((current) => checked ? [...current, eventId].filter((value, index, values) => values.indexOf(value) === index) : current.filter((entry) => entry !== eventId))} />}
+        {creationMode === "four-factor" ? null : <EventSessionFields events={eligibleEvents} selectedEventIds={selectedEventIds} lockedEventIds={protectedEventIds} onToggle={(eventId, checked) => setSelectedEventIds((current) => checked ? [...current, eventId].filter((value, index, values) => values.indexOf(value) === index) : current.filter((entry) => entry !== eventId))} />}
       </div>
       {classScope === "split" ? (
         <p className="mt-3 text-sm text-ink/65">

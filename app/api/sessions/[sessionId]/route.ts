@@ -186,6 +186,22 @@ export async function PATCH(request: NextRequest, context: SessionRouteContext) 
     );
     const bodyRecord = (body ?? {}) as Record<string, unknown>;
 
+    if (bodyRecord.restore === true) {
+      const groupSessions = session.sessionGroupId
+        ? bootstrap.sessions.filter((entry) => entry.sessionGroupId === session.sessionGroupId)
+        : [session];
+      const affected = groupSessions.filter((entry) => Boolean(entry.archivedAt));
+      if (affected.length === 0) throw new Error("SESSION_NOT_ARCHIVED");
+      const restored = affected.map((entry) => ({ ...entry, archivedAt: undefined, isOpen: entry.isOpenBeforeArchive ?? false, isOpenBeforeArchive: undefined }));
+      await store.saveSessions(restored);
+      const teacherStateVersion = buildTeacherStateVersion({
+        ...bootstrap,
+        sessions: [...bootstrap.sessions.filter((entry) => !affected.some((item) => item.id === entry.id)), ...restored]
+      });
+      publishTeacherLiveUpdate({ teacherEmail: teacherSession.session.email, source: "session", originClientId: request.headers.get(TEACHER_LIVE_UPDATE_CLIENT_HEADER) });
+      return NextResponse.json({ sessions: restored, teacherStateVersion });
+    }
+
     if (
       typeof bodyRecord.primaryClassId === "string" &&
       (await store.getClass(bodyRecord.primaryClassId)).schoolId !== teacher.schoolId
@@ -236,7 +252,7 @@ export async function PATCH(request: NextRequest, context: SessionRouteContext) 
         error: message
       },
       {
-        status: message.includes("was not found") ? 404 : message === "ROUND_SESSION_STRUCTURE_LOCKED" ? 409 : 400
+        status: message.includes("was not found") ? 404 : message === "ROUND_SESSION_STRUCTURE_LOCKED" || message === "SESSION_NOT_ARCHIVED" ? 409 : 400
       }
     );
   }
@@ -261,11 +277,34 @@ export async function DELETE(request: NextRequest, context: SessionRouteContext)
     if (session.assessmentRoundId) {
       throw new Error("ROUND_SESSION_STRUCTURE_LOCKED");
     }
-
-    await store.deleteSession(session.id);
+    const affectedSessions = session.sessionGroupId
+      ? bootstrap.sessions.filter((entry) => entry.sessionGroupId === session.sessionGroupId)
+      : [session];
+    if (affectedSessions.some((entry) => entry.assessmentRoundId)) throw new Error("ROUND_SESSION_STRUCTURE_LOCKED");
+    if (affectedSessions.some((entry) => entry.archivedAt)) throw new Error("SESSION_ALREADY_ARCHIVED");
+    const affectedIds = new Set(affectedSessions.map((entry) => entry.id));
+    const recordsBySession = await Promise.all(affectedSessions.map((entry) => store.listSessionRecords(entry.id)));
+    const hasHistory = affectedSessions.some((entry, index) =>
+      recordsBySession[index]?.some((record) => record.attempts.length > 0) ||
+      bootstrap.attempts.some((attempt) => attempt.sessionId === entry.id) ||
+      bootstrap.syncStatuses.some((status) => status.sessionId === entry.id) ||
+      bootstrap.syncErrorLogs.some((log) => log.sessionId === entry.id) ||
+      bootstrap.representativeSelectionAuditLogs.some((log) => log.sessionId === entry.id)
+    );
+    const nextSessions = hasHistory
+      ? affectedSessions.map((entry) => ({ ...entry, isOpenBeforeArchive: entry.isOpen !== false, isOpen: false, archivedAt: new Date().toISOString() }))
+      : [];
+    if (hasHistory) {
+      await store.saveSessions(nextSessions);
+    } else {
+      await store.deleteSessions([...affectedIds]);
+    }
     const teacherStateVersion = buildTeacherStateVersion({
       ...bootstrap,
-      sessions: bootstrap.sessions.filter((entry) => entry.id !== session.id)
+      sessions: [
+        ...bootstrap.sessions.filter((entry) => !affectedIds.has(entry.id)),
+        ...nextSessions
+      ]
     });
 
     publishTeacherLiveUpdate({
@@ -274,7 +313,12 @@ export async function DELETE(request: NextRequest, context: SessionRouteContext)
       originClientId: request.headers.get(TEACHER_LIVE_UPDATE_CLIENT_HEADER)
     });
 
-    return NextResponse.json({ ok: true, teacherStateVersion });
+    return NextResponse.json({
+      ok: true,
+      action: hasHistory ? "archived" : "deleted",
+      affectedSessionIds: [...affectedIds],
+      teacherStateVersion
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not delete the session.";
 
@@ -287,7 +331,7 @@ export async function DELETE(request: NextRequest, context: SessionRouteContext)
       {
         status: message.includes("was not found")
           ? 404
-          : message === "ROUND_SESSION_STRUCTURE_LOCKED"
+          : message === "ROUND_SESSION_STRUCTURE_LOCKED" || message === "SESSION_ALREADY_ARCHIVED"
             ? 409
             : 400
       }

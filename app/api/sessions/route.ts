@@ -125,23 +125,14 @@ const hasStructuralSessionChanges = (
   );
 };
 
-const sessionHasRecordedAttempts = async (
-  store: TeacherCrudStore,
-  sessionId: string
-): Promise<boolean> => {
-  const records = await store.listSessionRecords(sessionId);
-
-  return records.some((record) => record.attempts.length > 0);
-};
-
 const assertEditableSessionStructure = async ({
-  store,
   existingSessions,
-  nextSessions
+  nextSessions,
+  sessionIdsWithHistory
 }: {
-  store: TeacherCrudStore;
   existingSessions: PAPSSession[];
   nextSessions: PAPSSession[];
+  sessionIdsWithHistory: Set<string>;
 }): Promise<void> => {
   if (
     existingSessions.length === 0 ||
@@ -154,12 +145,14 @@ const assertEditableSessionStructure = async ({
     throw new Error("ROUND_SESSION_STRUCTURE_LOCKED");
   }
 
-  const hasRecordedAttempts = await Promise.all(
-    existingSessions.map((session) => sessionHasRecordedAttempts(store, session.id))
-  );
-
-  if (hasRecordedAttempts.some(Boolean)) {
-    throw new Error("이미 학생 기록이 있는 세션은 이름만 수정할 수 있습니다.");
+  const nextById = new Map(nextSessions.map((session) => [session.id, session]));
+  for (const existing of existingSessions) {
+    if (!sessionIdsWithHistory.has(existing.id)) continue;
+    const next = nextById.get(existing.id);
+    const sameTargets = next && existing.classTargets.length === next.classTargets.length && existing.classTargets.every((target, targetIndex) => target.classId === next.classTargets[targetIndex]?.classId && target.eventId === next.classTargets[targetIndex]?.eventId);
+    if (!next || existing.eventId !== next.eventId || existing.sessionType !== next.sessionType || existing.classScope !== next.classScope || !sameTargets) {
+      throw new Error("학생 기록이 있는 종목은 삭제하거나 학급·측정 종목·유형을 바꿀 수 없습니다. 새 종목은 추가할 수 있습니다.");
+    }
   }
 };
 
@@ -186,7 +179,14 @@ const toSessionSavePlan = async (
   }
 
   const primaryEventId = parseEventId(body.primaryEventId ?? body.eventId, "Primary event");
-  const eventIds = parseEventIds(body.eventIds, primaryEventId);
+  const requestedEventIds = parseEventIds(body.eventIds, primaryEventId);
+  const existingEventCounts = new Map<EventId, number>();
+  for (const session of existingSessions) {
+    existingEventCounts.set(session.eventId, (existingEventCounts.get(session.eventId) ?? 0) + 1);
+  }
+  const eventIds = requestedEventIds.flatMap((eventId) =>
+    Array.from({ length: Math.max(1, existingEventCounts.get(eventId) ?? 0) }, () => eventId)
+  );
 
   if (eventIds.length === 0) {
     throw new Error("At least one event is required.");
@@ -302,10 +302,18 @@ const toSessionSavePlan = async (
     })
   );
 
+  const attemptsBySession = await Promise.all(existingSessions.map((session) => store.listSessionRecords(session.id)));
+  const sessionIdsWithHistory = new Set(existingSessions.filter((session, index) =>
+    attemptsBySession[index]?.some((record) => record.attempts.length > 0) ||
+    context.bootstrap.attempts.some((entry) => entry.sessionId === session.id) ||
+    context.bootstrap.syncStatuses.some((entry) => entry.sessionId === session.id) ||
+    context.bootstrap.syncErrorLogs.some((entry) => entry.sessionId === session.id) ||
+    context.bootstrap.representativeSelectionAuditLogs.some((entry) => entry.sessionId === session.id)
+  ).map((session) => session.id));
   await assertEditableSessionStructure({
-    store,
     existingSessions,
-    nextSessions
+    nextSessions,
+    sessionIdsWithHistory
   });
 
   return {
@@ -372,14 +380,7 @@ export async function POST(request: NextRequest) {
     });
     const { store } = context;
     const savePlan = await toSessionSavePlan((body ?? {}) as Record<string, unknown>, context);
-    const savedSessions =
-      savePlan.sessions.length > 1
-        ? await store.saveSessions(savePlan.sessions)
-        : [await store.saveSession(savePlan.sessions[0]!)];
-
-    for (const deletedSessionId of savePlan.deletedSessionIds) {
-      await store.deleteSession(deletedSessionId);
-    }
+    const savedSessions = await store.replaceSessions(savePlan.sessions, savePlan.deletedSessionIds);
 
     const session = savedSessions[0]!;
     const sessionGroupId = session.sessionGroupId ?? null;

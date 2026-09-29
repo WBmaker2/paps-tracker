@@ -80,7 +80,8 @@ export default async function TeacherDashboardPage() {
       </section> : null}
       <TeacherSessionWorkspace
         classes={bootstrap.classes}
-        sessions={bootstrap.sessions}
+        sessions={bootstrap.sessions.filter((session) => !session.archivedAt)}
+        archivedSessions={bootstrap.sessions.filter((session) => Boolean(session.archivedAt))}
         studentSessionUrls={studentSessionUrls}
         defaultTeacherId={bootstrap.teacher?.id}
         defaultSchoolId={bootstrap.teacher?.schoolId}

@@ -28,6 +28,7 @@ import {
   deleteGoogleSheetClass,
   deleteGoogleSheetStudent,
   deleteGoogleSheetSession,
+  replaceGoogleSheetSessions,
   saveGoogleSheetSchool,
   saveGoogleSheetSession,
   saveGoogleSheetStudent
@@ -263,5 +264,13 @@ describe("Google Sheet entity persistence helpers", () => {
     });
 
     expect(writeGoogleSheetSettingsSourceTab).toHaveBeenCalledTimes(2);
+  });
+
+  it("replaces session edits and deletions in one settings write", async () => {
+    const state = createState();
+    const updated = { ...state.sessions[0]!, name: "수정된 세션" };
+    await replaceGoogleSheetSessions({ client: {} as never, spreadsheetId: "sheet-123", state, sessions: [updated], deleteSessionIds: ["session-2"] });
+    expect(writeGoogleSheetSettingsSourceTab).toHaveBeenCalledTimes(1);
+    expect(writeGoogleSheetSettingsSourceTab.mock.calls[0]?.[0].state.sessions).toEqual([updated]);
   });
 });
