@@ -12,7 +12,10 @@
 - `npm run build`: 통과. 위 clean install 이후 Node 22에서 빌드했으며 Browserslist 데이터가 오래됐다는 안내가 있었습니다.
 - `git diff --check`: 통과.
 - 독립 QA Google Sheets 실연동: 검증 불가. 로컬 민감 키의 인증 오류 및 Drive 메타데이터 403으로 사전 읽기 단계가 막혀 시트 접근·쓰기 시험은 실행하지 않았습니다. 쓰기 0건이며 운영 측정 데이터는 변경하지 않았습니다.
-- 커밋·푸시·배포: 아직 수행하지 않았습니다. 로컬 릴리스 게이트를 통과했고 변경 검토를 기다리고 있습니다.
+- 커밋·푸시·배포: 앱 커밋 `54da59b1eedc45bb081619f31d618db75f94494c`을 추적 브랜치에 푸시했습니다. GitHub Actions run `36519492546`에서 Node 22의 설치·감사·테스트·린트·타입 검사·빌드가 모두 통과했습니다. Vercel Production deployment `dpl_9YUpLzAvroN6RPXv4GYgQpifHjsQ`는 `READY`이고 기본 주소에 alias가 연결됐습니다.
+- Production 읽기 전용 확인: `https://paps-tracker.vercel.app/` HTTP 200과 `v1.2.3`·업데이트 내역, `/api/health` HTTP 200·`ready: true`, 비로그인 `/teacher`와 `/teacher/results`의 `/auth/signin` 307 이동, `/icon.svg` HTTP 200·`image/svg+xml`을 확인했습니다.
+- Ego Browser에서 사용자 계정으로 로그인된 `/teacher`, `/teacher/settings`, `/teacher/students`, `/teacher/results`를 읽기 전용으로 열었습니다. 업데이트 내역 대화상자에 `v1.2.3`이 표시됐고, 네 경로 모두 320·375·768·1280px에서 문서 가로 넘침이 없었습니다. 설정에 빈 PAPS 시트 다운로드 경로와 연결 안내가 표시됩니다.
+- 이 계정의 현재 학교 시트 연결 상태는 `구글 시트가 아직 연결되지 않았습니다`입니다. 따라서 실제 기록 표·그래프·Google Sheets 동시 작업은 인증된 브라우저에서도 검증할 수 없었습니다. Production Google Sheets 쓰기와 측정 기록 변경은 수행하지 않았습니다.
 
 이하의 v1.2.1 배포·실시 기록은 과거 릴리스의 참고 자료이며 v1.2.3 검증 증거가 아닙니다.
 

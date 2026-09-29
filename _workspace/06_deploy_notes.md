@@ -1,4 +1,16 @@
-# 배포 메모: v1.2.1
+# 배포 메모: v1.2.3
+
+## v1.2.3 Production 배포 — 2026-09-29
+
+- 앱 커밋: `54da59b1eedc45bb081619f31d618db75f94494c` (`codex/student-growth-ui-improvements`)
+- GitHub Actions: [run 36519492546](https://github.com/WBmaker2/paps-tracker/actions/runs/36519492546) 성공. Node 22에서 `npm ci`, 운영 감사 0건, 85개 파일·345개 테스트, 린트, 타입 검사, 빌드 통과.
+- Vercel deployment: `dpl_9YUpLzAvroN6RPXv4GYgQpifHjsQ`, Production `READY`, alias `https://paps-tracker.vercel.app`.
+- 공개 URL의 HTTP 200·`v1.2.3`·업데이트 내역, `/api/health`의 HTTP 200·`ready: true`, 비로그인 교사 홈·결과 경로의 로그인 이동, `/icon.svg`의 HTTP 200을 확인했습니다.
+- Ego Browser에서 인증된 교사 홈·설정·학생 명단·결과 화면을 열고, 업데이트 내역 `v1.2.3` 및 320·375·768·1280px 문서 가로 넘침 없음을 확인했습니다. 현재 계정은 학교 시트 미연결 상태이므로 기존 측정 기록 표와 실제 Sheets 동시 작업은 확인하지 못했습니다.
+- 기존 운영 Google Sheets 및 측정 기록에는 쓰기·삭제 요청을 보내지 않았습니다.
+- 이전 Production 배포 `dpl_G387R4VUYXkTiUTcEfn7GDUrgBvs`가 롤백 지점입니다. 데이터 롤백은 수행하지 않습니다.
+
+이하 v1.2.1 내용은 이전 릴리스의 기록입니다.
 
 ## 배포 대상
 

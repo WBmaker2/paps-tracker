@@ -12,17 +12,19 @@
 - [x] 프로덕션 빌드 통과 — `npm run build`
 - [x] 공백·충돌 표식 검사 통과 — `git diff --check`
 - [x] Node `v22.23.3`, npm `10.9.9`에서 clean install·감사·전체 테스트·린트·타입 검사·빌드 재확인
-- [ ] 변경 검토 및 커밋
-- [ ] 추적 브랜치 푸시
-- [ ] GitHub Actions / Production 배포 결과 확인
-- [ ] 배포 URL, 버전, `/api/health`, 비로그인 접근 경계, 모바일 화면 검증
+- [x] 변경 검토 및 앱 커밋 `54da59b1eedc45bb081619f31d618db75f94494c`
+- [x] 추적 브랜치 푸시
+- [x] GitHub Actions run `36519492546` 성공 및 Production 배포 `dpl_9YUpLzAvroN6RPXv4GYgQpifHjsQ` `READY`
+- [x] `https://paps-tracker.vercel.app` HTTP 200, `v1.2.3`, `/api/health` `ready: true`, 비로그인 교사 경로의 로그인 이동 확인
+- [x] Ego Browser의 로그인된 교사 홈·설정·학생 명단·결과 화면 확인; 320·375·768·1280px에서 문서 가로 넘침 없음, 업데이트 내역 `v1.2.3`
+- [ ] 연결된 학교 시트의 실제 기록·그래프·동시 작업 확인 — 현재 로그인 계정에 시트 연결이 없음
 
 ## 데이터·연동 상태
 
 - 기존 운영 측정 데이터와 Google Sheets를 수정·삭제하지 않았습니다.
 - 로컬 민감 키 인증 오류와 Drive 메타데이터 403으로 독립 QA 시트의 실연동 사전 읽기가 불가능했습니다. 쓰기 0건입니다.
-- Google Sheets 연동, 인증된 교사 화면, 배포 후 동작은 이번 로컬 게이트에서 검증하지 않았습니다.
-- 보안 및 로컬 품질 게이트는 통과했습니다. 변경 검토 후 커밋·푸시·배포를 진행할 수 있습니다.
+- 공개 HTTP 경로와 비로그인 접근 경계, 로그인된 교사 화면의 미연결 상태를 배포 후 확인했습니다. Production Google Sheets 동시 작업은 현재 시트 연결이 없어 검증하지 않았습니다.
+- 보안·로컬·GitHub CI 게이트는 통과했고 Production 배포는 완료됐습니다.
 
 ## 런타임 메모
 
