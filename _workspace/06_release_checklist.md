@@ -12,13 +12,18 @@
 - [x] `package.json` 및 `package-lock.json` 버전 `1.2.4` 일치
 - [x] 기존 측정 기록 보존 경계 검토: 운영 Google Sheets 쓰기 0건, 학생 측정 기록 변경 0건
 - [x] 롤백 지점: 배포 대상 커밋 직전 Production 배포 이력
-- [ ] 지정 파일만 커밋 및 현재 브랜치 푸시
-- [ ] Vercel Production 배포 및 배포 주소 확인
+- [x] 지정 파일 커밋 및 현재 브랜치 푸시 — 앱 SHA `2452faddd3c46193a756d55c8145d4bc30d3d665`
+- [x] Vercel Production 배포 완료 — `dpl_E8gEKFD6WUADsVWXxfj69JuzNyeA`, `READY`
+- [x] Production alias 확인 — [https://paps-tracker.vercel.app](https://paps-tracker.vercel.app)
+- [x] 로그인된 교사 화면을 읽기 전용 확인 — 업데이트 내역 v1.2.4, 삭제 버튼 8개, 중복 종목 수정 안내 확인; 저장·삭제 실행 안 함
+- [x] 실제 데이터 보호 — Google Sheets 쓰기 0건, 학생 측정 데이터 변경 0건
 
 ## 배포 후 확인
 
-- 배포 주소: 배포 완료 후 기록
-- 커밋 SHA: 커밋 완료 후 기록
+- 배포 주소: [https://paps-tracker.vercel.app](https://paps-tracker.vercel.app)
+- Vercel deployment: `dpl_E8gEKFD6WUADsVWXxfj69JuzNyeA` (`READY`)
+- 배포 앱 커밋 SHA: `2452faddd3c46193a756d55c8145d4bc30d3d665`
+- 후속 문서 커밋은 QA 보고서·체크리스트만 변경합니다. 문서 커밋은 배포된 앱 커밋과 별도이며 앱 재배포는 하지 않습니다.
 - 공개 경로 확인: Vercel 배포 skill 지침에 따라 URL을 제공하고 직접 fetch/curl 확인은 하지 않음
 
 ---
